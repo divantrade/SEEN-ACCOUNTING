@@ -284,15 +284,9 @@ function onOpen() {
  * يعرض نافذة لاختيار نوع الحركة والتاريخ
  */
 function addTransactionWithDate() {
-  var ui, ss, sheet;
-
-  try {
-    ui = SpreadsheetApp.getUi();
-    ss = SpreadsheetApp.getActiveSpreadsheet();
-    sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  } catch (e) {
-    return; // خروج صامت إذا فشل التهيئة
-  }
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
 
   if (!sheet) {
     ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
@@ -307,9 +301,7 @@ function addTransactionWithDate() {
   menuText += '\nأدخل رقم الخيار (1-' + CONFIG.NATURE_TYPES.length + '):';
 
   var natureResponse = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
-  if (natureResponse.getSelectedButton() !== ui.Button.OK) {
-    return;
-  }
+  if (natureResponse.getSelectedButton() !== ui.Button.OK) return;
 
   var natureChoice = parseInt(natureResponse.getResponseText().trim(), 10);
   if (isNaN(natureChoice) || natureChoice < 1 || natureChoice > CONFIG.NATURE_TYPES.length) {
@@ -324,9 +316,7 @@ function addTransactionWithDate() {
     'نعم = تاريخ اليوم\nلا = إدخال تاريخ مختلف',
     ui.ButtonSet.YES_NO_CANCEL
   );
-  if (dateChoice === ui.Button.CANCEL) {
-    return;
-  }
+  if (dateChoice === ui.Button.CANCEL) return;
 
   var formattedDate;
   if (dateChoice === ui.Button.YES) {
@@ -337,9 +327,7 @@ function addTransactionWithDate() {
       'أدخل التاريخ بصيغة: يوم.شهر.سنة\nمثال: 24.12.2025',
       ui.ButtonSet.OK_CANCEL
     );
-    if (dateResponse.getSelectedButton() !== ui.Button.OK) {
-      return;
-    }
+    if (dateResponse.getSelectedButton() !== ui.Button.OK) return;
 
     var dateInput = dateResponse.getResponseText().trim();
     if (!dateInput) {
@@ -355,19 +343,36 @@ function addTransactionWithDate() {
     formattedDate = parseResult.date;
   }
 
-  // الخطوة 3: إدراج البيانات - استخدام getLastRow مباشرة (أسرع)
-  try {
-    var targetRow = Math.max(2, sheet.getLastRow() + 1);
+  // الخطوة 3: تحديد آخر صف فيه تاريخ في العمود B
+  var targetRow = findLastDataRowInColumn_(sheet, 2) + 1;
+  if (targetRow < 2) targetRow = 2;
 
-    // استخدام setValues دفعة واحدة بدلاً من setValue مرتين
-    sheet.getRange(targetRow, 2, 1, 2).setValues([[formattedDate, natureType]]);
-    SpreadsheetApp.flush();
+  // الخطوة 4: إدراج البيانات
+  // A = معادلة رقم الحركة، B = التاريخ، C = طبيعة الحركة
+  var transactionFormula = '=IF(B' + targetRow + '="","",ROW()-1)';
 
-    sheet.getRange(targetRow, 4).activate();
-    ss.toast('✅ تم: ' + natureType + ' | صف ' + targetRow, 'نجاح', 2);
-  } catch (e) {
-    ui.alert('❌ خطأ', 'فشل في حفظ البيانات: ' + e.message, ui.ButtonSet.OK);
+  sheet.getRange(targetRow, 1).setFormula(transactionFormula);
+  sheet.getRange(targetRow, 2).setValue(formattedDate);
+  sheet.getRange(targetRow, 3).setValue(natureType);
+  sheet.getRange(targetRow, 4).activate();
+
+  ss.toast('✅ صف ' + targetRow + ': ' + natureType, 'تم', 3);
+}
+
+/**
+ * البحث عن آخر صف فيه بيانات في عمود معين
+ */
+function findLastDataRowInColumn_(sheet, colNum) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 1;
+
+  var data = sheet.getRange(2, colNum, lastRow - 1, 1).getValues();
+  for (var i = data.length - 1; i >= 0; i--) {
+    if (data[i][0] !== '' && data[i][0] !== null) {
+      return i + 2; // +2 لأن البيانات تبدأ من الصف 2
+    }
   }
+  return 1;
 }
 
 /**
