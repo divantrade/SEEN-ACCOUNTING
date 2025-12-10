@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+  <base target="_top">
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 450px;
+      margin: 0 auto;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #eee;
+    }
+
+    .header h2 {
+      margin: 0;
+      color: #333;
+      font-size: 22px;
+    }
+
+    .header .icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #444;
+      font-size: 14px;
+    }
+
+    .form-group label .icon {
+      margin-left: 6px;
+    }
+
+    select, input[type="date"], input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 15px;
+      transition: all 0.3s ease;
+      background: #fafafa;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: left 14px center;
+      padding-left: 36px;
+    }
+
+    .date-section {
+      background: #f8f9ff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      border: 1px solid #e8ebff;
+    }
+
+    .date-toggle {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .date-toggle button {
+      flex: 1;
+      padding: 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .date-toggle button.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+
+    .date-toggle button:hover:not(.active) {
+      border-color: #667eea;
+      background: #f0f3ff;
+    }
+
+    .custom-date {
+      display: none;
+    }
+
+    .custom-date.show {
+      display: block;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #666;
+    }
+
+    .btn-secondary:hover {
+      background: #eee;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .success {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .success .icon {
+      font-size: 60px;
+      margin-bottom: 16px;
+    }
+
+    .success h3 {
+      color: #4caf50;
+      margin: 0 0 8px;
+    }
+
+    .error {
+      background: #ffebee;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loadingState" class="loading">
+      <div class="spinner"></div>
+      <p>جاري تحميل البيانات...</p>
+    </div>
+
+    <div id="formState" style="display: none;">
+      <div class="header">
+        <div class="icon">➕</div>
+        <h2>إضافة حركة جديدة</h2>
+      </div>
+
+      <div id="errorMsg" class="error"></div>
+
+      <form id="transactionForm">
+        <!-- التاريخ -->
+        <div class="date-section">
+          <label><span class="icon">📅</span> التاريخ</label>
+          <div class="date-toggle">
+            <button type="button" id="btnToday" class="active" onclick="setDateMode('today')">تاريخ اليوم</button>
+            <button type="button" id="btnCustom" onclick="setDateMode('custom')">تاريخ آخر</button>
+          </div>
+          <div id="customDateInput" class="custom-date">
+            <input type="date" id="dateInput" />
+          </div>
+          <input type="hidden" id="selectedDate" />
+        </div>
+
+        <!-- طبيعة الحركة -->
+        <div class="form-group">
+          <label><span class="icon">📋</span> طبيعة الحركة</label>
+          <select id="natureType" required>
+            <option value="">-- اختر طبيعة الحركة --</option>
+          </select>
+        </div>
+
+        <!-- تصنيف الحركة -->
+        <div class="form-group">
+          <label><span class="icon">🏷️</span> تصنيف الحركة</label>
+          <select id="classification" required>
+            <option value="">-- اختر تصنيف الحركة --</option>
+          </select>
+        </div>
+
+        <!-- البند -->
+        <div class="form-group">
+          <label><span class="icon">📄</span> البند</label>
+          <select id="item" required>
+            <option value="">-- اختر البند --</option>
+          </select>
+        </div>
+
+        <!-- نوع الحركة -->
+        <div class="form-group">
+          <label><span class="icon">💰</span> نوع الحركة</label>
+          <select id="movementType" required>
+            <option value="">-- اختر نوع الحركة --</option>
+          </select>
+        </div>
+
+        <div class="buttons">
+          <button type="submit" class="btn btn-primary">✅ إضافة</button>
+          <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">❌ إلغاء</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="successState" class="success" style="display: none;">
+      <div class="icon">✅</div>
+      <h3>تمت الإضافة بنجاح!</h3>
+      <p id="successMsg"></p>
+      <div class="buttons" style="margin-top: 20px;">
+        <button class="btn btn-primary" onclick="resetForm()">➕ إضافة حركة أخرى</button>
+        <button class="btn btn-secondary" onclick="google.script.host.close()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let dropdownData = {};
+    let todayDate = '';
+
+    // تحميل البيانات عند فتح النافذة
+    document.addEventListener('DOMContentLoaded', function() {
+      google.script.run
+        .withSuccessHandler(onDataLoaded)
+        .withFailureHandler(onError)
+        .getSmartFormData();
+    });
+
+    function onDataLoaded(data) {
+      dropdownData = data;
+      todayDate = data.today;
+
+      // تعبئة القوائم المنسدلة
+      populateSelect('natureType', data.natureTypes);
+      populateSelect('classification', data.classifications);
+      populateSelect('item', data.items);
+      populateSelect('movementType', data.movementTypes);
+
+      // تعيين تاريخ اليوم
+      document.getElementById('selectedDate').value = todayDate;
+      document.getElementById('dateInput').value = formatDateForInput(todayDate);
+
+      // إظهار النموذج
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('formState').style.display = 'block';
+    }
+
+    function populateSelect(selectId, options) {
+      const select = document.getElementById(selectId);
+      options.forEach(function(opt) {
+        const option = document.createElement('option');
+        option.value = opt;
+        option.textContent = opt;
+        select.appendChild(option);
+      });
+    }
+
+    function setDateMode(mode) {
+      const btnToday = document.getElementById('btnToday');
+      const btnCustom = document.getElementById('btnCustom');
+      const customInput = document.getElementById('customDateInput');
+      const selectedDate = document.getElementById('selectedDate');
+
+      if (mode === 'today') {
+        btnToday.classList.add('active');
+        btnCustom.classList.remove('active');
+        customInput.classList.remove('show');
+        selectedDate.value = todayDate;
+      } else {
+        btnCustom.classList.add('active');
+        btnToday.classList.remove('active');
+        customInput.classList.add('show');
+        // تحديث التاريخ المحدد من الحقل
+        updateSelectedDate();
+      }
+    }
+
+    function updateSelectedDate() {
+      const dateInput = document.getElementById('dateInput');
+      const selectedDate = document.getElementById('selectedDate');
+      if (dateInput.value) {
+        // تحويل من yyyy-MM-dd إلى dd/MM/yyyy
+        const parts = dateInput.value.split('-');
+        selectedDate.value = parts[2] + '/' + parts[1] + '/' + parts[0];
+      }
+    }
+
+    function formatDateForInput(dateStr) {
+      // تحويل من dd/MM/yyyy إلى yyyy-MM-dd
+      const parts = dateStr.split('/');
+      return parts[2] + '-' + parts[1] + '-' + parts[0];
+    }
+
+    document.getElementById('dateInput').addEventListener('change', updateSelectedDate);
+
+    // إرسال النموذج
+    document.getElementById('transactionForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const formData = {
+        date: document.getElementById('selectedDate').value,
+        natureType: document.getElementById('natureType').value,
+        classification: document.getElementById('classification').value,
+        item: document.getElementById('item').value,
+        movementType: document.getElementById('movementType').value
+      };
+
+      // التحقق من الحقول المطلوبة
+      if (!formData.date || !formData.natureType || !formData.classification ||
+          !formData.item || !formData.movementType) {
+        showError('يرجى ملء جميع الحقول المطلوبة');
+        return;
+      }
+
+      // إظهار حالة التحميل
+      document.getElementById('formState').style.display = 'none';
+      document.getElementById('loadingState').style.display = 'block';
+      document.querySelector('#loadingState p').textContent = 'جاري إضافة الحركة...';
+
+      google.script.run
+        .withSuccessHandler(onSubmitSuccess)
+        .withFailureHandler(onError)
+        .submitSmartFormTransaction(formData);
+    });
+
+    function onSubmitSuccess(result) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('successState').style.display = 'block';
+      document.getElementById('successMsg').textContent =
+        'تم إضافة الحركة في الصف ' + result.row + '\n' + result.summary;
+    }
+
+    function showError(msg) {
+      const errorDiv = document.getElementById('errorMsg');
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+      setTimeout(function() {
+        errorDiv.style.display = 'none';
+      }, 5000);
+    }
+
+    function onError(error) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('formState').style.display = 'block';
+      showError('حدث خطأ: ' + error.message);
+    }
+
+    function resetForm() {
+      document.getElementById('successState').style.display = 'none';
+      document.getElementById('formState').style.display = 'block';
+      document.getElementById('transactionForm').reset();
+      setDateMode('today');
+    }
+  </script>
+</body>
+</html>
