@@ -194,6 +194,78 @@ const CONFIG = {
 };
 
 
+// ==================== دوال مساعدة (Utility Functions) ====================
+/**
+ * ⚡ تحسينات الأولوية المتوسطة:
+ * - توحيد الأنماط المتكررة في دوال مساعدة
+ * - تقليل تكرار الكود وتحسين الصيانة
+ */
+
+/**
+ * تعيين عرض الأعمدة دفعة واحدة
+ * @param {Sheet} sheet - الشيت المستهدف
+ * @param {number[]} widths - مصفوفة عروض الأعمدة
+ */
+function setColumnWidths_(sheet, widths) {
+  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
+}
+
+/**
+ * إعداد هيدر الشيت مع التنسيق
+ * @param {Sheet} sheet - الشيت المستهدف
+ * @param {string[]} headers - مصفوفة عناوين الأعمدة
+ * @param {string} bgColor - لون الخلفية
+ * @param {Object} options - خيارات إضافية (fontSize, textColor)
+ */
+function setupSheetHeader_(sheet, headers, bgColor, options = {}) {
+  const textColor = options.textColor || CONFIG.COLORS.TEXT.WHITE;
+  const fontSize = options.fontSize || CONFIG.FONT.NORMAL;
+
+  sheet.getRange(1, 1, 1, headers.length)
+    .setValues([headers])
+    .setBackground(bgColor)
+    .setFontColor(textColor)
+    .setFontWeight('bold')
+    .setFontSize(fontSize);
+}
+
+/**
+ * الحصول على شيت أو إنشاؤه مع مسح المحتوى
+ * @param {Spreadsheet} ss - ملف الجدول
+ * @param {string} sheetName - اسم الشيت
+ * @param {boolean} deleteExisting - حذف الشيت الموجود (default: false)
+ * @returns {Sheet} الشيت
+ */
+function getOrCreateSheet_(ss, sheetName, deleteExisting = false) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (sheet && deleteExisting) {
+    ss.deleteSheet(sheet);
+    sheet = null;
+  }
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  } else {
+    sheet.clear();
+  }
+  return sheet;
+}
+
+/**
+ * إعداد شيت كامل (هيدر + عرض أعمدة + تجميد)
+ * @param {Sheet} sheet - الشيت المستهدف
+ * @param {string[]} headers - مصفوفة عناوين الأعمدة
+ * @param {number[]} widths - مصفوفة عروض الأعمدة
+ * @param {string} bgColor - لون خلفية الهيدر
+ * @param {Object} options - خيارات إضافية
+ */
+function setupSheet_(sheet, headers, widths, bgColor, options = {}) {
+  setupSheetHeader_(sheet, headers, bgColor, options);
+  setColumnWidths_(sheet, widths);
+  sheet.setFrozenRows(options.frozenRows || 1);
+  if (options.frozenCols) sheet.setFrozenColumns(options.frozenCols);
+}
+
+
 // ==================== القائمة الرئيسية ====================
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -921,11 +993,8 @@ function createProjectsSheet(ss) {
 
 // ==================== 3. قاعدة بيانات الأطراف (مورد / عميل / ممول) ====================
 function createPartiesSheet(ss) {
-  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
-  if (oldSheet) ss.deleteSheet(oldSheet);
-  
-  let sheet = ss.insertSheet(CONFIG.SHEETS.PARTIES);
-  
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.PARTIES, true);
+
   const headers = [
     'اسم الطرف',      // A
     'نوع الطرف',      // B (مورد / عميل / ممول)
@@ -937,32 +1006,23 @@ function createPartiesSheet(ss) {
     'بيانات الحساب البنكي / شروط خاصة', // H
     'ملاحظات'         // I
   ];
-  
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setBackground(CONFIG.COLORS.HEADER.PARTIES)
-    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
-    .setFontWeight('bold')
-    .setFontSize(11);
-  
   const widths = [200, 140, 160, 140, 220, 160, 170, 260, 260];
-  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.PARTIES);
+
   // نوع الطرف
   sheet.getRange(2, 2, 500, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireValueInList(['مورد', 'عميل', 'ممول'], true)
       .build()
   );
-  
+
   // طريقة الدفع المفضلة
   sheet.getRange(2, 7, 500, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireValueInList(['نقدي', 'تحويل بنكي', 'شيك', 'بطاقة', 'أخرى'], true)
       .build()
   );
-  
-  sheet.setFrozenRows(1);
   
   sheet.getRange('A1').setNote(
     'قاعدة موحدة لكل الأطراف (موردين / عملاء / ممولين)\n' +
@@ -973,33 +1033,17 @@ function createPartiesSheet(ss) {
 
 // ==================== 4. قاعدة بيانات البنود (مدمجة) ====================
 function createItemsSheet(ss) {
-  // حذف الشيت القديم إن وجد
-  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
-  if (oldSheet) ss.deleteSheet(oldSheet);
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.ITEMS, true);
 
-  let sheet = ss.insertSheet(CONFIG.SHEETS.ITEMS);
-
-  // 4 أعمدة
   const headers = [
     'البند',           // A
     'طبيعة الحركة',    // B
     'تصنيف الحركة',    // C
     'ملاحظات'          // D
   ];
-
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setBackground(CONFIG.COLORS.HEADER.ITEMS)
-    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
-    .setFontWeight('bold')
-    .setFontSize(11);
-
-  // عرض الأعمدة
   const widths = [200, 180, 180, 250];
-  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
 
-  // تجميد الصف الأول
-  sheet.setFrozenRows(1);
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.ITEMS);
 
   // البيانات التجريبية
   const sampleData = [
@@ -3435,52 +3479,30 @@ function rebuildAllSummaryReports() {
 // ==================== إنشاء شيتات التقارير (بدون تغيير كبير) ====================
 
 function createProjectReportSheet(ss) {
-  let sheet = ss.getSheetByName(CONFIG.SHEETS.PROJECT_REPORT);
-  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.PROJECT_REPORT);
-  sheet.clear();
-  
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.PROJECT_REPORT);
+
   const headers = [
     'كود المشروع', 'اسم المشروع', 'البند', 'المورد',
     'إجمالي المستحق', 'المدفوع', 'المتبقي', 'عدد الدفعات', 'حالة السداد (يدوي)'
   ];
-  
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setBackground(CONFIG.COLORS.HEADER.REPORTS)
-    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
-    .setFontWeight('bold')
-    .setFontSize(11);
-  
   const widths = [120, 180, 150, 150, 130, 130, 130, 100, 130];
-  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
-  sheet.setFrozenRows(1);
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.REPORTS);
   sheet.getRange('A1').setNote(
     'هذا تقرير تفصيلي يمكن ملؤه عبر Pivot Table أو عبر نسخ بيانات من دفتر الحركات.'
   );
 }
 
 function createVendorReportSheet(ss) {
-  let sheet = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
-  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.VENDORS_REPORT);
-  sheet.clear();
-  
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.VENDORS_REPORT);
+
   const headers = [
     'اسم المورد', 'التخصص', 'عدد المشاريع', 'إجمالي المستحقات',
     'إجمالي المدفوع', 'الرصيد الحالي', 'عدد الدفعات', 'آخر تعامل', 'الحالة (يدوي)'
   ];
-  
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setBackground(CONFIG.COLORS.HEADER.VENDORS)
-    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
-    .setFontWeight('bold')
-    .setFontSize(11);
-  
   const widths = [180, 120, 100, 140, 140, 130, 100, 120, 120];
-  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
-  sheet.setFrozenRows(1);
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.VENDORS);
   sheet.getRange('A1').setNote(
     'يمكنك إنشاء Pivot Table من "دفتر الحركات المالية" لتعبئة هذا التقرير تلقائياً.'
   );
@@ -3582,26 +3604,15 @@ function createExpenseReportSheet(ss) {
 // ========= تقرير الإيرادات (قالب) =========
 
 function createRevenueReportSheet(ss) {
-  let sheet = ss.getSheetByName(CONFIG.SHEETS.REVENUE_REPORT);
-  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.REVENUE_REPORT);
-  sheet.clear();
-  
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.REVENUE_REPORT);
+
   const headers = [
     'المشروع', 'القناة/الجهة', 'نوع الإيراد', 'المبلغ المستحق',
     'المستلم فعلياً', 'المتبقي', 'تاريخ الاستلام', 'الحالة (يدوي)'
   ];
-  
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setBackground(CONFIG.COLORS.HEADER.REVENUE)
-    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
-    .setFontWeight('bold')
-    .setFontSize(11);
-  
   const widths = [180, 150, 130, 140, 140, 130, 130, 120];
-  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
-  sheet.setFrozenRows(1);
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.REVENUE);
   sheet.getRange('A1').setNote(
     'يمكنك عمل Pivot Table من دفتر الحركات (طبيعة الحركة = 📈 استحقاق إيراد / ✅ تحصيل إيراد) لملء هذا التقرير.'
   );
@@ -3614,9 +3625,7 @@ function createRevenueReportSheet(ss) {
  * - نطاقات محددة بدل أعمدة كاملة (T2:T1000 بدل T:T)
  */
 function createCashFlowSheet(ss) {
-  let sheet = ss.getSheetByName(CONFIG.SHEETS.CASHFLOW);
-  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.CASHFLOW);
-  sheet.clear();
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.CASHFLOW);
 
   const headers = [
     'الشهر (YYYY-MM)',                // A
@@ -3626,18 +3635,9 @@ function createCashFlowSheet(ss) {
     'صافي التدفق النقدي',            // E
     'التدفق التراكمي'                 // F
   ];
-
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setBackground(CONFIG.COLORS.HEADER.CASHFLOW)
-    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
-    .setFontWeight('bold')
-    .setFontSize(11);
-
   const widths = [130, 160, 180, 170, 170, 170];
-  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
 
-  sheet.setFrozenRows(1);
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.CASHFLOW);
 
   // 🔹 قائمة الشهور من عمود "الشهر" الجديد = W (العمود 23)
   sheet.getRange('A2').setFormula(
