@@ -280,9 +280,10 @@ function onOpen() {
 }
 
 
-// ==================== إضافة حركة بتاريخ (Dialog) ====================
+// ==================== إضافة حركة بتاريخ ====================
 /**
  * يعرض نافذة لإدخال التاريخ مع خيار "تاريخ اليوم" أو إدخال يدوي
+ * يستخدم ui.alert و ui.prompt بدلاً من HTML Dialog لتجنب مشاكل الصلاحيات
  */
 function addTransactionWithDate() {
   const ui = SpreadsheetApp.getUi();
@@ -294,181 +295,143 @@ function addTransactionWithDate() {
     return;
   }
 
-  // إنشاء محتوى HTML
-  const htmlContent = getDateInputHtml_();
-  const htmlOutput = HtmlService.createHtmlOutput(htmlContent)
-    .setWidth(420)
-    .setHeight(400);
+  // عرض خيارات التاريخ
+  const choice = ui.alert(
+    '📅 إضافة حركة جديدة',
+    'اختر طريقة إدخال التاريخ:\n\n' +
+    '• نعم = تاريخ اليوم\n' +
+    '• لا = إدخال تاريخ مختلف\n' +
+    '• إلغاء = خروج',
+    ui.ButtonSet.YES_NO_CANCEL
+  );
 
-  ui.showModalDialog(htmlOutput, '📅 إضافة حركة جديدة');
+  if (choice === ui.Button.CANCEL) {
+    return;
+  }
+
+  let formattedDate;
+
+  if (choice === ui.Button.YES) {
+    // استخدام تاريخ اليوم
+    const today = new Date();
+    formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  } else {
+    // إدخال تاريخ مختلف
+    formattedDate = promptForDate_(ui);
+    if (!formattedDate) return;
+  }
+
+  // إدراج التاريخ في الشيت
+  insertDateInSheet_(sheet, formattedDate);
 }
 
 /**
- * إرجاع محتوى HTML لنافذة إدخال التاريخ
+ * يطلب من المستخدم إدخال تاريخ مخصص مع 3 محاولات
  */
-function getDateInputHtml_() {
-  return '<!DOCTYPE html>' +
-    '<html dir="rtl">' +
-    '<head>' +
-    '<base target="_top">' +
-    '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 15px; background: #f5f5f5; margin: 0; }' +
-    '.container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }' +
-    'h3 { color: #1a237e; margin: 0 0 15px 0; border-bottom: 2px solid #1a237e; padding-bottom: 10px; font-size: 18px; }' +
-    '.btn { padding: 12px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }' +
-    '.btn-success { background: #2e7d32; color: white; width: 100%; }' +
-    '.btn-success:hover { background: #388e3c; }' +
-    '.btn-primary { background: #1a237e; color: white; }' +
-    '.btn-primary:hover { background: #303f9f; }' +
-    '.btn-secondary { background: #757575; color: white; }' +
-    '.btn-secondary:hover { background: #616161; }' +
-    '.input-group { margin: 15px 0; }' +
-    '.input-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }' +
-    '.input-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 16px; text-align: center; direction: ltr; box-sizing: border-box; }' +
-    '.input-group input:focus { border-color: #1a237e; outline: none; }' +
-    '.hint { color: #666; font-size: 12px; margin-top: 5px; }' +
-    '.divider { text-align: center; margin: 15px 0; color: #999; font-size: 13px; }' +
-    '.error { color: #c62828; background: #ffebee; padding: 10px; border-radius: 5px; margin-top: 10px; display: none; font-size: 13px; }' +
-    '.buttons { margin-top: 15px; text-align: center; }' +
-    '</style>' +
-    '</head>' +
-    '<body>' +
-    '<div class="container">' +
-    '<h3>📅 إضافة حركة جديدة</h3>' +
-    '<button class="btn btn-success" onclick="useToday()">📆 استخدام تاريخ اليوم</button>' +
-    '<div class="divider">─── أو أدخل تاريخ محدد ───</div>' +
-    '<div class="input-group">' +
-    '<label>التاريخ:</label>' +
-    '<input type="text" id="dateInput" placeholder="مثال: 24.12.2025" maxlength="10">' +
-    '<p class="hint">الصيغة: يوم.شهر.سنة (مثل 24.12.2025)</p>' +
-    '</div>' +
-    '<div id="errorMsg" class="error"></div>' +
-    '<div class="buttons">' +
-    '<button class="btn btn-primary" onclick="submitDate()">✓ تأكيد</button>' +
-    '<button class="btn btn-secondary" onclick="google.script.host.close()">✕ إلغاء</button>' +
-    '</div>' +
-    '</div>' +
-    '<script>' +
-    'function useToday() {' +
-    '  document.getElementById("errorMsg").style.display = "none";' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function() { google.script.host.close(); })' +
-    '    .withFailureHandler(function(e) { showError(e.message); })' +
-    '    .insertTransactionDate(null);' +
-    '}' +
-    'function submitDate() {' +
-    '  var dateStr = document.getElementById("dateInput").value.trim();' +
-    '  if (!dateStr) { showError("الرجاء إدخال التاريخ أو استخدام تاريخ اليوم"); return; }' +
-    '  document.getElementById("errorMsg").style.display = "none";' +
-    '  google.script.run' +
-    '    .withSuccessHandler(function() { google.script.host.close(); })' +
-    '    .withFailureHandler(function(e) { showError(e.message); })' +
-    '    .insertTransactionDate(dateStr);' +
-    '}' +
-    'function showError(msg) {' +
-    '  var el = document.getElementById("errorMsg");' +
-    '  el.innerHTML = "❌ " + msg;' +
-    '  el.style.display = "block";' +
-    '}' +
-    'document.addEventListener("DOMContentLoaded", function() {' +
-    '  document.getElementById("dateInput").focus();' +
-    '  document.getElementById("dateInput").addEventListener("keypress", function(e) {' +
-    '    if (e.key === "Enter") submitDate();' +
-    '  });' +
-    '});' +
-    '</script>' +
-    '</body>' +
-    '</html>';
+function promptForDate_(ui) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const msg = (attempt > 1 ? '⚠️ المحاولة ' + attempt + '/3\n\n' : '') +
+      'أدخل التاريخ بصيغة: يوم.شهر.سنة\n' +
+      'مثال: 24.12.2025';
+
+    const response = ui.prompt('📅 إدخال التاريخ', msg, ui.ButtonSet.OK_CANCEL);
+
+    if (response.getSelectedButton() !== ui.Button.OK) {
+      return null;
+    }
+
+    const input = response.getResponseText().trim();
+
+    if (!input) {
+      ui.alert('❌ خطأ', 'لم تدخل أي تاريخ!', ui.ButtonSet.OK);
+      continue;
+    }
+
+    // محاولة تحويل التاريخ
+    const result = parseDateInput_(input);
+    if (result.success) {
+      return result.date;
+    } else {
+      ui.alert('❌ خطأ في التاريخ', result.error, ui.ButtonSet.OK);
+    }
+  }
+
+  ui.alert('❌ فشل', 'تم تجاوز عدد المحاولات (3)!', ui.ButtonSet.OK);
+  return null;
 }
 
 /**
  * تحويل صيغة التاريخ من dd.MM.yyyy إلى yyyy-MM-dd
- * @param {string} dateStr - التاريخ بصيغة dd.MM.yyyy
- * @returns {string} التاريخ بصيغة yyyy-MM-dd
+ * @returns {{success: boolean, date?: string, error?: string}}
  */
-function parseDateFormat_(dateStr) {
+function parseDateInput_(dateStr) {
   // التحقق من الصيغة: dd.MM.yyyy
   const regex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
   const match = dateStr.match(regex);
 
   if (!match) {
-    throw new Error('صيغة التاريخ غير صحيحة!\nالصيغة المطلوبة: يوم.شهر.سنة\nمثال: 24.12.2025');
+    return {
+      success: false,
+      error: 'صيغة التاريخ غير صحيحة!\n\nالصيغة المطلوبة: يوم.شهر.سنة\nمثال: 24.12.2025'
+    };
   }
 
   const day = parseInt(match[1], 10);
   const month = parseInt(match[2], 10);
   const year = parseInt(match[3], 10);
 
-  // التحقق من صحة القيم
   if (month < 1 || month > 12) {
-    throw new Error('الشهر يجب أن يكون بين 1 و 12');
+    return { success: false, error: 'الشهر يجب أن يكون بين 1 و 12' };
   }
 
   if (day < 1 || day > 31) {
-    throw new Error('اليوم يجب أن يكون بين 1 و 31');
+    return { success: false, error: 'اليوم يجب أن يكون بين 1 و 31' };
   }
 
-  // التحقق من صحة التاريخ
+  // التحقق من صحة التاريخ الفعلي
   const dateObj = new Date(year, month - 1, day);
-  if (dateObj.getDate() !== day || dateObj.getMonth() !== month - 1 || dateObj.getFullYear() !== year) {
-    throw new Error('التاريخ غير صحيح! تأكد من صحة اليوم والشهر');
+  if (dateObj.getDate() !== day || dateObj.getMonth() !== month - 1) {
+    return { success: false, error: 'التاريخ غير موجود!\nمثال: 31.02 غير صحيح' };
   }
 
-  // تحويل إلى صيغة yyyy-MM-dd
-  const formattedDate = year + '-' +
+  // تحويل إلى yyyy-MM-dd
+  const formatted = year + '-' +
     String(month).padStart(2, '0') + '-' +
     String(day).padStart(2, '0');
 
-  return formattedDate;
+  return { success: true, date: formatted };
 }
 
 /**
- * إدراج تاريخ في صف جديد بدفتر الحركات
- * @param {string|null} dateStr - التاريخ بصيغة dd.MM.yyyy أو null لتاريخ اليوم
+ * إدراج التاريخ في أول صف فارغ بالشيت
  */
-function insertTransactionDate(dateStr) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-
-  if (!sheet) {
-    throw new Error('شيت دفتر الحركات المالية غير موجود!');
-  }
-
-  let formattedDate;
-
-  if (dateStr === null) {
-    // استخدام تاريخ اليوم
-    const today = new Date();
-    formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  } else {
-    // تحويل التاريخ المدخل
-    formattedDate = parseDateFormat_(dateStr);
-  }
-
-  // البحث عن أول صف فارغ (من العمود B - التاريخ)
+function insertDateInSheet_(sheet, formattedDate) {
   const lastRow = sheet.getLastRow();
-  let targetRow = 2; // نبدأ من الصف 2 (بعد الهيدر)
+  let targetRow = 2;
 
   // البحث عن أول صف فارغ في عمود B
-  const dateColumn = sheet.getRange(2, 2, lastRow > 1 ? lastRow - 1 : 1, 1).getValues();
-  for (let i = 0; i < dateColumn.length; i++) {
-    if (dateColumn[i][0] === '' || dateColumn[i][0] === null) {
-      targetRow = i + 2;
-      break;
+  if (lastRow > 1) {
+    const dateColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+    let foundEmpty = false;
+    for (let i = 0; i < dateColumn.length; i++) {
+      if (!dateColumn[i][0]) {
+        targetRow = i + 2;
+        foundEmpty = true;
+        break;
+      }
     }
-    targetRow = i + 3; // الصف التالي بعد آخر صف مملوء
+    if (!foundEmpty) {
+      targetRow = lastRow + 1;
+    }
   }
 
-  // إدراج التاريخ في العمود B
+  // إدراج التاريخ
   sheet.getRange(targetRow, 2).setValue(formattedDate);
-
-  // الانتقال للصف الجديد وتحديد الخلية C (وصف الحركة)
   sheet.setActiveRange(sheet.getRange(targetRow, 3));
 
-  // رسالة تأكيد
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    'تم إضافة التاريخ: ' + formattedDate + ' في الصف ' + targetRow,
-    '✅ تم بنجاح',
+    'تم إضافة: ' + formattedDate + ' في الصف ' + targetRow,
+    '✅ تم',
     3
   );
 }
