@@ -420,14 +420,50 @@ function addTransactionWithDate() {
   if (targetRow < 2) targetRow = 2;
 
   // الخطوة 4: إدراج البيانات
-  // A = معادلة رقم الحركة، B = التاريخ، C = طبيعة الحركة
+  // A = معادلة رقم الحركة، B = التاريخ، C = طبيعة الحركة، N = نوع الحركة
   var transactionFormula = '=IF(B' + targetRow + '="","",ROW()-1)';
 
   sheet.getRange(targetRow, 1).setFormula(transactionFormula);
   sheet.getRange(targetRow, 2).setValue(formattedDate);
   sheet.getRange(targetRow, 3).setValue(natureType);
 
+  // 🆕 تعيين نوع الحركة (N) تلقائياً بناءً على طبيعة الحركة
+  var movementType = getMovementTypeFromNature_(natureType);
+  if (movementType) {
+    sheet.getRange(targetRow, 14).setValue(movementType); // N
+  }
+
   ss.toast('✅ صف ' + targetRow + ': ' + natureType, 'تم', 3);
+}
+
+/**
+ * تحديد نوع الحركة (مدين/دائن) بناءً على طبيعة الحركة
+ * @param {string} natureType - طبيعة الحركة مثل '💰 استحقاق مصروف'
+ * @returns {string} نوع الحركة 'مدين استحقاق' أو 'دائن دفعة'
+ */
+function getMovementTypeFromNature_(natureType) {
+  // الأنواع التي تُعتبر مدين استحقاق (فاتورة/استحقاق)
+  const debitTypes = [
+    '💰 استحقاق مصروف',
+    '📈 استحقاق إيراد',
+    '💳 سداد تمويل',
+    '🟡 تأمين مدفوع للقناة'
+  ];
+
+  // الأنواع التي تُعتبر دائن دفعة (دفعة/تحصيل)
+  const creditTypes = [
+    '💸 دفعة مصروف',
+    '✅ تحصيل إيراد',
+    '🏦 تمويل',
+    '🟢 استرداد تأمين من القناة'
+  ];
+
+  if (debitTypes.includes(natureType)) {
+    return CONFIG.MOVEMENT.DEBIT; // 'مدين استحقاق'
+  } else if (creditTypes.includes(natureType)) {
+    return CONFIG.MOVEMENT.CREDIT; // 'دائن دفعة'
+  }
+  return null;
 }
 
 /**
