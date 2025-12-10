@@ -294,175 +294,91 @@ function addTransactionWithDate() {
     return;
   }
 
-  // عرض نافذة اختيار التاريخ
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html dir="rtl">
-    <head>
-      <base target="_top">
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 20px;
-          background: #f5f5f5;
-        }
-        .container {
-          background: white;
-          padding: 25px;
-          border-radius: 10px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h3 {
-          color: #1a237e;
-          margin-bottom: 20px;
-          border-bottom: 2px solid #1a237e;
-          padding-bottom: 10px;
-        }
-        .btn {
-          padding: 12px 25px;
-          margin: 5px;
-          border: none;
-          border-radius: 5px;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: bold;
-        }
-        .btn-primary {
-          background: #1a237e;
-          color: white;
-        }
-        .btn-primary:hover {
-          background: #303f9f;
-        }
-        .btn-success {
-          background: #2e7d32;
-          color: white;
-        }
-        .btn-success:hover {
-          background: #388e3c;
-        }
-        .btn-secondary {
-          background: #757575;
-          color: white;
-        }
-        .input-group {
-          margin: 20px 0;
-        }
-        .input-group label {
-          display: block;
-          margin-bottom: 8px;
-          font-weight: bold;
-          color: #333;
-        }
-        .input-group input {
-          width: 100%;
-          padding: 12px;
-          border: 2px solid #ddd;
-          border-radius: 5px;
-          font-size: 16px;
-          text-align: center;
-          direction: ltr;
-        }
-        .input-group input:focus {
-          border-color: #1a237e;
-          outline: none;
-        }
-        .hint {
-          color: #666;
-          font-size: 12px;
-          margin-top: 5px;
-        }
-        .divider {
-          text-align: center;
-          margin: 20px 0;
-          color: #999;
-        }
-        .error {
-          color: #c62828;
-          background: #ffebee;
-          padding: 10px;
-          border-radius: 5px;
-          margin-top: 10px;
-          display: none;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h3>📅 إضافة حركة جديدة</h3>
-
-        <button class="btn btn-success" onclick="useToday()" style="width: 100%;">
-          📆 استخدام تاريخ اليوم
-        </button>
-
-        <div class="divider">─── أو أدخل تاريخ محدد ───</div>
-
-        <div class="input-group">
-          <label>التاريخ:</label>
-          <input type="text" id="dateInput" placeholder="مثال: 24.12.2025" maxlength="10">
-          <p class="hint">الصيغة: يوم.شهر.سنة (مثل 24.12.2025)</p>
-        </div>
-
-        <div id="errorMsg" class="error"></div>
-
-        <div style="margin-top: 20px;">
-          <button class="btn btn-primary" onclick="submitDate()">✓ تأكيد</button>
-          <button class="btn btn-secondary" onclick="google.script.host.close()">✕ إلغاء</button>
-        </div>
-      </div>
-
-      <script>
-        function useToday() {
-          google.script.run
-            .withSuccessHandler(function() {
-              google.script.host.close();
-            })
-            .withFailureHandler(function(error) {
-              showError(error.message);
-            })
-            .insertTransactionDate(null); // null = today
-        }
-
-        function submitDate() {
-          var dateStr = document.getElementById('dateInput').value.trim();
-          if (!dateStr) {
-            showError('الرجاء إدخال التاريخ أو استخدام تاريخ اليوم');
-            return;
-          }
-
-          google.script.run
-            .withSuccessHandler(function() {
-              google.script.host.close();
-            })
-            .withFailureHandler(function(error) {
-              showError(error.message);
-            })
-            .insertTransactionDate(dateStr);
-        }
-
-        function showError(msg) {
-          var errorDiv = document.getElementById('errorMsg');
-          errorDiv.textContent = '❌ ' + msg;
-          errorDiv.style.display = 'block';
-        }
-
-        // التركيز على حقل الإدخال عند الفتح
-        document.getElementById('dateInput').focus();
-
-        // السماح بالضغط على Enter للتأكيد
-        document.getElementById('dateInput').addEventListener('keypress', function(e) {
-          if (e.key === 'Enter') submitDate();
-        });
-      </script>
-    </body>
-    </html>
-  `;
-
+  // إنشاء محتوى HTML
+  const htmlContent = getDateInputHtml_();
   const htmlOutput = HtmlService.createHtmlOutput(htmlContent)
-    .setWidth(400)
-    .setHeight(380);
+    .setWidth(420)
+    .setHeight(400);
 
   ui.showModalDialog(htmlOutput, '📅 إضافة حركة جديدة');
+}
+
+/**
+ * إرجاع محتوى HTML لنافذة إدخال التاريخ
+ */
+function getDateInputHtml_() {
+  return '<!DOCTYPE html>' +
+    '<html dir="rtl">' +
+    '<head>' +
+    '<base target="_top">' +
+    '<style>' +
+    'body { font-family: Arial, sans-serif; padding: 15px; background: #f5f5f5; margin: 0; }' +
+    '.container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }' +
+    'h3 { color: #1a237e; margin: 0 0 15px 0; border-bottom: 2px solid #1a237e; padding-bottom: 10px; font-size: 18px; }' +
+    '.btn { padding: 12px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }' +
+    '.btn-success { background: #2e7d32; color: white; width: 100%; }' +
+    '.btn-success:hover { background: #388e3c; }' +
+    '.btn-primary { background: #1a237e; color: white; }' +
+    '.btn-primary:hover { background: #303f9f; }' +
+    '.btn-secondary { background: #757575; color: white; }' +
+    '.btn-secondary:hover { background: #616161; }' +
+    '.input-group { margin: 15px 0; }' +
+    '.input-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }' +
+    '.input-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 16px; text-align: center; direction: ltr; box-sizing: border-box; }' +
+    '.input-group input:focus { border-color: #1a237e; outline: none; }' +
+    '.hint { color: #666; font-size: 12px; margin-top: 5px; }' +
+    '.divider { text-align: center; margin: 15px 0; color: #999; font-size: 13px; }' +
+    '.error { color: #c62828; background: #ffebee; padding: 10px; border-radius: 5px; margin-top: 10px; display: none; font-size: 13px; }' +
+    '.buttons { margin-top: 15px; text-align: center; }' +
+    '</style>' +
+    '</head>' +
+    '<body>' +
+    '<div class="container">' +
+    '<h3>📅 إضافة حركة جديدة</h3>' +
+    '<button class="btn btn-success" onclick="useToday()">📆 استخدام تاريخ اليوم</button>' +
+    '<div class="divider">─── أو أدخل تاريخ محدد ───</div>' +
+    '<div class="input-group">' +
+    '<label>التاريخ:</label>' +
+    '<input type="text" id="dateInput" placeholder="مثال: 24.12.2025" maxlength="10">' +
+    '<p class="hint">الصيغة: يوم.شهر.سنة (مثل 24.12.2025)</p>' +
+    '</div>' +
+    '<div id="errorMsg" class="error"></div>' +
+    '<div class="buttons">' +
+    '<button class="btn btn-primary" onclick="submitDate()">✓ تأكيد</button>' +
+    '<button class="btn btn-secondary" onclick="google.script.host.close()">✕ إلغاء</button>' +
+    '</div>' +
+    '</div>' +
+    '<script>' +
+    'function useToday() {' +
+    '  document.getElementById("errorMsg").style.display = "none";' +
+    '  google.script.run' +
+    '    .withSuccessHandler(function() { google.script.host.close(); })' +
+    '    .withFailureHandler(function(e) { showError(e.message); })' +
+    '    .insertTransactionDate(null);' +
+    '}' +
+    'function submitDate() {' +
+    '  var dateStr = document.getElementById("dateInput").value.trim();' +
+    '  if (!dateStr) { showError("الرجاء إدخال التاريخ أو استخدام تاريخ اليوم"); return; }' +
+    '  document.getElementById("errorMsg").style.display = "none";' +
+    '  google.script.run' +
+    '    .withSuccessHandler(function() { google.script.host.close(); })' +
+    '    .withFailureHandler(function(e) { showError(e.message); })' +
+    '    .insertTransactionDate(dateStr);' +
+    '}' +
+    'function showError(msg) {' +
+    '  var el = document.getElementById("errorMsg");' +
+    '  el.innerHTML = "❌ " + msg;' +
+    '  el.style.display = "block";' +
+    '}' +
+    'document.addEventListener("DOMContentLoaded", function() {' +
+    '  document.getElementById("dateInput").focus();' +
+    '  document.getElementById("dateInput").addEventListener("keypress", function(e) {' +
+    '    if (e.key === "Enter") submitDate();' +
+    '  });' +
+    '});' +
+    '</script>' +
+    '</body>' +
+    '</html>';
 }
 
 /**
