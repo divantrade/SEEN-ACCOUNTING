@@ -700,6 +700,16 @@ function createTransactionsSheet(ss) {
       .build();
     sheet.getRange(2, 5, lastRow, 1)
       .setDataValidation(projectValidation);
+
+    // 🆕 اسم المشروع (F) - dropdown مرتبط بأسماء المشاريع
+    const projectNameRange = projectsSheet.getRange('B2:B200');
+    const projectNameValidation = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(projectNameRange, true)
+      .setAllowInvalid(true)
+      .setHelpText('اختر اسم المشروع - سيتم ملء كود المشروع تلقائياً')
+      .build();
+    sheet.getRange(2, 6, lastRow, 1) // F
+      .setDataValidation(projectNameValidation);
   }
   
   // اسم المورد/الجهة (I) من قاعدة بيانات الأطراف
@@ -763,11 +773,11 @@ function createTransactionsSheet(ss) {
     .setDataValidation(termValidation);
   
   // المعادلات لكل صف - باستخدام Batch Operations للأداء الأمثل
-  // بدلاً من 4000 طلب API (8 معادلات × 500 صف) = 8 طلبات فقط
+  // بدلاً من 4000 طلب API (7 معادلات × 500 صف) = 7 طلبات فقط
+  // ملاحظة: عمود F (اسم المشروع) يُملأ عبر onEdit للمزامنة الثنائية مع E
   const numRows = lastRow - 1;
 
   const formulasA = [];  // رقم الحركة (A)
-  const formulasF = [];  // اسم المشروع (F)
   const formulasM = [];  // القيمة بالدولار (M)
   const formulasO = [];  // الرصيد (O)
   const formulasP = [];  // رقم مرجعي (P)
@@ -778,9 +788,6 @@ function createTransactionsSheet(ss) {
   for (let row = 2; row <= lastRow; row++) {
     // رقم الحركة (A)
     formulasA.push([`=IF(B${row}="","",ROW()-1)`]);
-
-    // اسم المشروع من كود المشروع (F)
-    formulasF.push([`=IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:B200,2,FALSE),"")`]);
 
     // القيمة بالدولار (M) = المبلغ الأصلي × سعر الصرف (لو موجود)
     formulasM.push([`=IF(J${row}="","",IF(L${row}="",J${row},J${row}*L${row}))`]);
@@ -818,9 +825,8 @@ function createTransactionsSheet(ss) {
     formulasW.push([`=IF(B${row}="","",TEXT(B${row},"YYYY-MM"))`]);
   }
 
-  // تطبيق كل المعادلات دفعة واحدة (8 طلبات بدلاً من 4000)
+  // تطبيق كل المعادلات دفعة واحدة (7 طلبات بدلاً من 3500)
   sheet.getRange(2, 1, numRows, 1).setFormulas(formulasA);   // A: رقم الحركة
-  sheet.getRange(2, 6, numRows, 1).setFormulas(formulasF);   // F: اسم المشروع
   sheet.getRange(2, 13, numRows, 1).setFormulas(formulasM);  // M: القيمة بالدولار
   sheet.getRange(2, 15, numRows, 1).setFormulas(formulasO);  // O: الرصيد
   sheet.getRange(2, 16, numRows, 1).setFormulas(formulasP);  // P: رقم مرجعي
@@ -3859,6 +3865,56 @@ function createDashboardSheet(ss) {
   
   sheet.setFrozenRows(2);
 }
+
+/**
+ * onEdit - المزامنة الثنائية بين كود المشروع (E) واسم المشروع (F)
+ *
+ * عند اختيار كود المشروع → يُملأ اسم المشروع تلقائياً
+ * عند اختيار اسم المشروع → يُملأ كود المشروع تلقائياً
+ */
+function onEdit(e) {
+  if (!e || !e.range || !e.source) return;
+
+  const sheet = e.source.getActiveSheet();
+  if (sheet.getName() !== CONFIG.SHEETS.TRANSACTIONS) return;
+
+  const row = e.range.getRow();
+  const col = e.range.getColumn();
+
+  // تجاهل الهيدر
+  if (row <= 1) return;
+
+  // فقط أعمدة E (5) و F (6)
+  if (col !== 5 && col !== 6) return;
+
+  const ss = e.source;
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  if (!projectsSheet) return;
+
+  const projectData = projectsSheet.getRange('A2:B200').getValues();
+  const value = e.value || e.range.getValue();
+
+  if (!value) return;
+
+  if (col === 5) {
+    // تم اختيار كود المشروع (E) → ابحث عن الاسم (F)
+    for (let i = 0; i < projectData.length; i++) {
+      if (projectData[i][0] === value) {
+        sheet.getRange(row, 6).setValue(projectData[i][1]);
+        break;
+      }
+    }
+  } else if (col === 6) {
+    // تم اختيار اسم المشروع (F) → ابحث عن الكود (E)
+    for (let i = 0; i < projectData.length; i++) {
+      if (projectData[i][1] === value) {
+        sheet.getRange(row, 5).setValue(projectData[i][0]);
+        break;
+      }
+    }
+  }
+}
+
 
 /**
  * onSelectionChange - تظليل الصف المحدد في دفتر الحركات
