@@ -331,62 +331,71 @@ function createTransactionsSheet(ss) {
   sheet.getRange(2, 18, lastRow, 1) // R
     .setDataValidation(termValidation);
   
-  // المعادلات لكل صف
+  // المعادلات لكل صف - باستخدام Batch Operations للأداء الأمثل
+  // بدلاً من 4000 طلب API (8 معادلات × 500 صف) = 8 طلبات فقط
+  const numRows = lastRow - 1;
+
+  const formulasA = [];  // رقم الحركة (A)
+  const formulasF = [];  // اسم المشروع (F)
+  const formulasM = [];  // القيمة بالدولار (M)
+  const formulasO = [];  // الرصيد (O)
+  const formulasP = [];  // رقم مرجعي (P)
+  const formulasU = [];  // تاريخ الاستحقاق (U)
+  const formulasV = [];  // حالة السداد (V)
+  const formulasW = [];  // الشهر (W)
+
   for (let row = 2; row <= lastRow; row++) {
     // رقم الحركة (A)
-    sheet.getRange(row, 1).setFormula(`=IF(B${row}="","",ROW()-1)`);
-    
+    formulasA.push([`=IF(B${row}="","",ROW()-1)`]);
+
     // اسم المشروع من كود المشروع (F)
-    sheet.getRange(row, 6).setFormula(
-      `=IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A:B,2,FALSE),"")`
-    );
-    
-    // 🆕 القيمة بالدولار (M) = المبلغ الأصلي × سعر الصرف (لو موجود)
-    sheet.getRange(row, 13).setFormula(
-      `=IF(J${row}="","",IF(L${row}="",J${row},J${row}*L${row}))`
-    );
-    
-    // 🆕 الرصيد O = مجموع (مدين استحقاق - دائن دفعة) لنفس الطرف حتى هذا الصف
-    sheet.getRange(row, 15).setFormula(
+    formulasF.push([`=IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A:B,2,FALSE),"")`]);
+
+    // القيمة بالدولار (M) = المبلغ الأصلي × سعر الصرف (لو موجود)
+    formulasM.push([`=IF(J${row}="","",IF(L${row}="",J${row},J${row}*L${row}))`]);
+
+    // الرصيد O = مجموع (مدين استحقاق - دائن دفعة) لنفس الطرف حتى هذا الصف
+    formulasO.push([
       `=IF(I${row}="","",` +
-        `SUMIFS($M$2:M${row},$I$2:I${row},I${row},$N$2:N${row},"مدين استحقاق")-` +
-        `SUMIFS($M$2:M${row},$I$2:I${row},I${row},$N$2:N${row},"دائن دفعة")` +
-      `)`
-    );
-    
+      `SUMIFS($M$2:M${row},$I$2:I${row},I${row},$N$2:N${row},"مدين استحقاق")-` +
+      `SUMIFS($M$2:M${row},$I$2:I${row},I${row},$N$2:N${row},"دائن دفعة"))`
+    ]);
+
     // رقم مرجعي P (16) للحركات المدينة
-    sheet.getRange(row, 16).setFormula(
+    formulasP.push([
       `=IF(AND(N${row}="مدين استحقاق",B${row}<>""),` +
-        `"REF-"&TEXT(B${row},"YYYYMMDD")&"-"&ROW(),` +
-      `""` +
-      `)`
-    );
-    
+      `"REF-"&TEXT(B${row},"YYYYMMDD")&"-"&ROW(),"")`
+    ]);
+
     // تاريخ الاستحقاق U (21)
-    sheet.getRange(row, 21).setFormula(
+    formulasU.push([
       `=IF(N${row}<>"مدين استحقاق","",` +
-        `IF(R${row}="فوري",B${row},` +
-          `IF(R${row}="بعد التسليم",` +
-            `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A:K,11,FALSE),"")+S${row}*7,` +
-            `IF(R${row}="تاريخ مخصص",T${row},"")` +
-          `)` +
-        `)` +
-      `)`
-    );
-    
+      `IF(R${row}="فوري",B${row},` +
+      `IF(R${row}="بعد التسليم",` +
+      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A:K,11,FALSE),"")+S${row}*7,` +
+      `IF(R${row}="تاريخ مخصص",T${row},""))))`
+    ]);
+
     // حالة السداد V (22)
-    sheet.getRange(row, 22).setFormula(
+    formulasV.push([
       `=IF(N${row}="مدين استحقاق",` +
-        `IF(O${row}<=0,"مدفوع بالكامل","معلق"),` +
-        `IF(N${row}="دائن دفعة","عملية دفع/تحصيل","")` +
-      `)`
-    );
-    
+      `IF(O${row}<=0,"مدفوع بالكامل","معلق"),` +
+      `IF(N${row}="دائن دفعة","عملية دفع/تحصيل",""))`
+    ]);
+
     // الشهر W (23)
-    sheet.getRange(row, 23).setFormula(
-      `=IF(B${row}="","",TEXT(B${row},"YYYY-MM"))`
-    );
+    formulasW.push([`=IF(B${row}="","",TEXT(B${row},"YYYY-MM"))`]);
   }
+
+  // تطبيق كل المعادلات دفعة واحدة (8 طلبات بدلاً من 4000)
+  sheet.getRange(2, 1, numRows, 1).setFormulas(formulasA);   // A: رقم الحركة
+  sheet.getRange(2, 6, numRows, 1).setFormulas(formulasF);   // F: اسم المشروع
+  sheet.getRange(2, 13, numRows, 1).setFormulas(formulasM);  // M: القيمة بالدولار
+  sheet.getRange(2, 15, numRows, 1).setFormulas(formulasO);  // O: الرصيد
+  sheet.getRange(2, 16, numRows, 1).setFormulas(formulasP);  // P: رقم مرجعي
+  sheet.getRange(2, 21, numRows, 1).setFormulas(formulasU);  // U: تاريخ الاستحقاق
+  sheet.getRange(2, 22, numRows, 1).setFormulas(formulasV);  // V: حالة السداد
+  sheet.getRange(2, 23, numRows, 1).setFormulas(formulasW);  // W: الشهر
   
   // تنسيقات الأرقام والتواريخ
   sheet.getRange(2, 10, lastRow, 1).setNumberFormat('#,##0.00');   // J
