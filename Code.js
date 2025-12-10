@@ -6,6 +6,192 @@
 // ✅ الميزانيات تعتمد على القيمة بالدولار للحركات المدينة (استحقاق)
 
 
+// ==================== CONFIGURATION OBJECT ====================
+/**
+ * كائن الإعدادات المركزي لنظام SEEN المحاسبي
+ * جميع الثوابت والإعدادات في مكان واحد لسهولة الصيانة والتعديل
+ */
+const CONFIG = {
+
+  // ==================== أسماء الشيتات ====================
+  SHEETS: {
+    TRANSACTIONS: 'دفتر الحركات المالية',
+    PROJECTS: 'قاعدة بيانات المشاريع',
+    PARTIES: 'قاعدة بيانات الأطراف',
+    ITEMS: 'قاعدة بيانات البنود',
+    BUDGETS: 'الميزانيات المخططة',
+    ALERTS: 'التنبيهات والاستحقاقات',
+    INVOICE: 'فاتورة قناة / جهة',
+
+    // كشوف الحسابات
+    VENDOR_STATEMENT: 'كشف حساب مورد - شيت',
+    CLIENT_STATEMENT: 'كشف حساب عميل',
+    FUNDER_STATEMENT: 'كشف حساب ممول',
+
+    // التقارير
+    PROJECT_REPORT: 'تقرير المشروع التفصيلي',
+    VENDORS_REPORT: 'تقرير الموردين',
+    EXPENSES_REPORT: 'تقرير المصروفات',
+    REVENUE_REPORT: 'تقرير الإيرادات',
+    CASHFLOW: 'التدفقات النقدية',
+    DASHBOARD: 'لوحة التحكم',
+
+    // حسابات البنك والخزنة
+    BANK_USD: 'حساب البنك - دولار',
+    BANK_TRY: 'حساب البنك - ليرة',
+    CASH_USD: 'خزنة العهدة - دولار',
+    CASH_TRY: 'خزنة العهدة - ليرة',
+    CARD_TRY: 'حساب البطاقة - ليرة',
+
+    // أسماء قديمة (للتوافقية)
+    LEGACY_VENDORS: 'قاعدة بيانات الموردين',
+    LEGACY_CLIENTS: 'قاعدة بيانات العملاء',
+    LEGACY_FUNDERS: 'قاعدة بيانات الممولين'
+  },
+
+  // ==================== الألوان ====================
+  COLORS: {
+    // ألوان الهيدر الرئيسية
+    HEADER: {
+      TRANSACTIONS: '#1a237e',
+      PROJECTS: '#004d40',
+      PARTIES: '#33691e',
+      ITEMS: '#6a1b9a',
+      BUDGETS: '#4a148c',
+      ALERTS: '#b71c1c',
+      REPORTS: '#0277bd',
+      DASHBOARD: '#1565c0',
+      CASHFLOW: '#d84315',
+      REVENUE: '#2e7d32',
+      FUNDER: '#0d47a1',
+      VENDORS: '#00695c',
+      SUMMARY: '#1e88e5',
+      TOTALS: '#1b5e20',
+      DETAILS: '#01579b'
+    },
+
+    // ألوان الخلفية
+    BG: {
+      WHITE: '#ffffff',
+      LIGHT_BLUE: '#e3f2fd',
+      LIGHT_ORANGE: '#fff3e0',
+      LIGHT_GREEN: '#e0f2f1',
+      LIGHT_GREEN_2: '#f1f8e9',
+      LIGHT_GREEN_3: '#c8e6c9',
+      LIGHT_YELLOW: '#fff9c4',
+      ZEBRA_ODD: '#f5f5f5',
+      GRAY: '#eeeeee',
+      DARK_GRAY: '#555555'
+    },
+
+    // ألوان النص
+    TEXT: {
+      WHITE: '#ffffff',
+      DARK: '#444444',
+      SUCCESS: '#2e7d32',
+      SUCCESS_DARK: '#1b5e20',
+      DANGER: '#c62828',
+      DANGER_DARK: '#b71c1c',
+      WARNING: '#ff9800',
+      PRIMARY: '#1565c0',
+      TEAL: '#004d40'
+    },
+
+    // ألوان الحدود
+    BORDER: {
+      LIGHT: '#bdbdbd',
+      WHITE: '#ffffff',
+      PRIMARY: '#1976d2'
+    },
+
+    // ألوان التبويب
+    TAB: {
+      TRANSACTIONS: '#2e7d32',
+      VENDOR_STATEMENT: '#00897b'
+    },
+
+    // ألوان الحالة
+    STATUS: {
+      POSITIVE: '#ffeb3b',
+      NEGATIVE: '#ff5252'
+    }
+  },
+
+  // ==================== العملات ====================
+  CURRENCIES: {
+    LIST: ['USD', 'TRY', 'EGP', 'دولار', 'ليرة', 'جنيه مصري'],
+    DEFAULT: 'USD',
+    SYMBOLS: { USD: '$', TRY: '₺', EGP: 'ج.م' }
+  },
+
+  // ==================== أنواع الحركات ====================
+  MOVEMENT: {
+    DEBIT: 'مدين استحقاق',
+    CREDIT: 'دائن دفعة',
+    TYPES: ['مدين استحقاق', 'دائن دفعة']
+  },
+
+  // ==================== شروط الدفع ====================
+  PAYMENT_TERMS: {
+    IMMEDIATE: 'فوري',
+    AFTER_DELIVERY: 'بعد التسليم',
+    CUSTOM: 'تاريخ مخصص',
+    LIST: ['فوري', 'بعد التسليم', 'تاريخ مخصص']
+  },
+
+  // ==================== حالة السداد ====================
+  PAYMENT_STATUS: {
+    PAID: 'مدفوع بالكامل',
+    PENDING: 'معلق',
+    OPERATION: 'عملية دفع/تحصيل'
+  },
+
+  // ==================== أحجام الخط ====================
+  FONT: {
+    SMALL: 10,
+    NORMAL: 11,
+    MEDIUM: 12,
+    LARGE: 13,
+    XLARGE: 15,
+    TITLE: 16,
+    HEADER: 18
+  },
+
+  // ==================== إعدادات الشيتات ====================
+  SHEET: {
+    DEFAULT_ROWS: 500,
+    FROZEN_ROWS: 1,
+    FROZEN_COLS: 0
+  },
+
+  // ==================== تنسيقات الأرقام ====================
+  FORMATS: {
+    CURRENCY: '#,##0.00',
+    RATE: '#,##0.0000',
+    DATE: 'yyyy-mm-dd',
+    MONTH: 'YYYY-MM'
+  },
+
+  // ==================== أنواع الأطراف ====================
+  PARTY_TYPES: {
+    VENDOR: 'مورد',
+    CLIENT: 'عميل',
+    FUNDER: 'ممول',
+    LIST: ['مورد', 'عميل', 'ممول']
+  },
+
+  // ==================== طبيعة الحركة ====================
+  NATURE_TYPES: [
+    '💰 استحقاق مصروف',
+    '💸 دفعة مصروف',
+    '📈 استحقاق إيراد',
+    '✅ تحصيل إيراد',
+    '🏦 تمويل',
+    '💳 سداد تمويل'
+  ]
+};
+
+
 // ==================== القائمة الرئيسية ====================
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -154,11 +340,11 @@ function setupPart1() {
 
 // ==================== 1. دفتر الحركات المالية (مع العملات + نوع الحركة) ====================
 function createTransactionsSheet(ss) {
-  let oldSheet = ss.getSheetByName('دفتر الحركات المالية');
+  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (oldSheet) ss.deleteSheet(oldSheet);
   
-  let sheet = ss.insertSheet('دفتر الحركات المالية');
-  sheet.setTabColor('#2e7d32');   // أخضر لدفتر الحركات المالية
+  let sheet = ss.insertSheet(CONFIG.SHEETS.TRANSACTIONS);
+  sheet.setTabColor(CONFIG.COLORS.TAB.TRANSACTIONS);   // أخضر لدفتر الحركات المالية
   
   const headers = [
     'رقم الحركة',          // 1 - A
@@ -192,8 +378,8 @@ function createTransactionsSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#1a237e')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.TRANSACTIONS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11)
     .setHorizontalAlignment('center')
@@ -229,9 +415,9 @@ function createTransactionsSheet(ss) {
   
   const lastRow = 500;
   
-  const projectsSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
-  const partiesSheet  = ss.getSheetByName('قاعدة بيانات الأطراف');
-  const itemsSheet    = ss.getSheetByName('قاعدة بيانات البنود');
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const partiesSheet  = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
   
   // ✅ طبيعة الحركة من "قاعدة بيانات البنود" عمود B
   if (itemsSheet) {
@@ -297,7 +483,7 @@ function createTransactionsSheet(ss) {
   
   // 🆕 دروب داون "نوع الحركة" (N)
   const movementTypeValidation = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['مدين استحقاق', 'دائن دفعة'], true)
+    .requireValueInList(CONFIG.MOVEMENT.TYPES, true)
     .setAllowInvalid(true)
     .setHelpText('اختر نوع الحركة: مدين استحقاق أو دائن دفعة')
     .build();
@@ -307,7 +493,7 @@ function createTransactionsSheet(ss) {
   
   // 🆕 دروب داون العملة (K)
   const currencyValidation = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['USD', 'TRY', 'EGP', 'دولار', 'ليرة', 'جنيه مصري'], true)
+    .requireValueInList(CONFIG.CURRENCIES.LIST, true)
     .setAllowInvalid(true)
     .setHelpText('اختر العملة (USD / TRY / EGP)')
     .build();
@@ -324,7 +510,7 @@ function createTransactionsSheet(ss) {
   
   // نوع شرط الدفع (R = 18)
   const termValidation = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['فوري', 'بعد التسليم', 'تاريخ مخصص'])
+    .requireValueInList(CONFIG.PAYMENT_TERMS.LIST)
     .setAllowInvalid(true)
     .setHelpText('اختر شرط الدفع')
     .build();
@@ -429,7 +615,7 @@ function applyConditionalFormatting(sheet, lastRow) {
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=$N2="مدين استحقاق"')
-      .setBackground('#fff3e0') // برتقالي فاتح
+      .setBackground(CONFIG.COLORS.BG.LIGHT_ORANGE) // برتقالي فاتح
       .setRanges([dataRange])
       .build()
   );
@@ -438,7 +624,7 @@ function applyConditionalFormatting(sheet, lastRow) {
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=$N2="دائن دفعة"')
-      .setBackground('#e3f2fd') // أزرق فاتح
+      .setBackground(CONFIG.COLORS.BG.LIGHT_BLUE) // أزرق فاتح
       .setRanges([dataRange])
       .build()
   );
@@ -449,10 +635,10 @@ function applyConditionalFormatting(sheet, lastRow) {
 
 // ==================== 2. قاعدة بيانات المشاريع ====================
 function createProjectsSheet(ss) {
-  let oldSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
+  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
   if (oldSheet) ss.deleteSheet(oldSheet);
   
-  let sheet = ss.insertSheet('قاعدة بيانات المشاريع');
+  let sheet = ss.insertSheet(CONFIG.SHEETS.PROJECTS);
   
   const headers = [
     'كود المشروع', 'اسم المشروع', 'نوع المشروع', 'القناة/الجهة',
@@ -464,8 +650,8 @@ function createProjectsSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#004d40')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.PROJECTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11)
     .setHorizontalAlignment('center');
@@ -524,14 +710,14 @@ function createProjectsSheet(ss) {
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenTextEqualTo('مكتمل')
-      .setBackground('#c8e6c9')
+      .setBackground(CONFIG.COLORS.BG.LIGHT_GREEN_3)
       .setRanges([sheet.getRange(2, 15, 200, 1)])
       .build()
   );
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenTextEqualTo('جاري التنفيذ')
-      .setBackground('#fff9c4')
+      .setBackground(CONFIG.COLORS.BG.LIGHT_YELLOW)
       .setRanges([sheet.getRange(2, 15, 200, 1)])
       .build()
   );
@@ -549,10 +735,10 @@ function createProjectsSheet(ss) {
 
 // ==================== 3. قاعدة بيانات الأطراف (مورد / عميل / ممول) ====================
 function createPartiesSheet(ss) {
-  let oldSheet = ss.getSheetByName('قاعدة بيانات الأطراف');
+  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
   if (oldSheet) ss.deleteSheet(oldSheet);
   
-  let sheet = ss.insertSheet('قاعدة بيانات الأطراف');
+  let sheet = ss.insertSheet(CONFIG.SHEETS.PARTIES);
   
   const headers = [
     'اسم الطرف',      // A
@@ -568,8 +754,8 @@ function createPartiesSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#33691e')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.PARTIES)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -602,10 +788,10 @@ function createPartiesSheet(ss) {
 // ==================== 4. قاعدة بيانات البنود (مدمجة) ====================
 function createItemsSheet(ss) {
   // حذف الشيت القديم إن وجد
-  let oldSheet = ss.getSheetByName('قاعدة بيانات البنود');
+  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
   if (oldSheet) ss.deleteSheet(oldSheet);
 
-  let sheet = ss.insertSheet('قاعدة بيانات البنود');
+  let sheet = ss.insertSheet(CONFIG.SHEETS.ITEMS);
 
   // 4 أعمدة
   const headers = [
@@ -617,8 +803,8 @@ function createItemsSheet(ss) {
 
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#6a1b9a')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.ITEMS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
 
@@ -660,10 +846,10 @@ function createItemsSheet(ss) {
 
 // ==================== 5. شيت الميزانيات ====================
 function createBudgetsSheet(ss) {
-  let oldSheet = ss.getSheetByName('الميزانيات المخططة');
+  let oldSheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   if (oldSheet) ss.deleteSheet(oldSheet);
   
-  let sheet = ss.insertSheet('الميزانيات المخططة');
+  let sheet = ss.insertSheet(CONFIG.SHEETS.BUDGETS);
   
   const headers = [
     'كود المشروع', 'اسم المشروع', 'البند', 'المبلغ المخطط',
@@ -672,16 +858,16 @@ function createBudgetsSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#4a148c')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.BUDGETS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
   const widths = [120, 180, 150, 120, 120, 120, 130, 250];
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
   
-  const projectsSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
-  const itemsSheet    = ss.getSheetByName('قاعدة بيانات البنود');
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
 
   // كود المشروع
   if (projectsSheet) {
@@ -737,9 +923,9 @@ function createBudgetsSheet(ss) {
 
 // ==================== 6. التنبيهات ====================
 function createAlertsSheet(ss) {
-  let sheet = ss.getSheetByName('التنبيهات والاستحقاقات');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.ALERTS);
   if (!sheet) {
-    sheet = ss.insertSheet('التنبيهات والاستحقاقات');
+    sheet = ss.insertSheet(CONFIG.SHEETS.ALERTS);
   }
   sheet.clear();
   
@@ -750,8 +936,8 @@ function createAlertsSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#b71c1c')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.ALERTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -768,7 +954,7 @@ function createAlertsSheet(ss) {
 function addNewExpense() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('دفتر الحركات المالية');
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   
   if (!sheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -803,7 +989,7 @@ function addNewExpense() {
 function addPayment() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('دفتر الحركات المالية');
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   
   if (!sheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -918,7 +1104,7 @@ function addPayment() {
 function addRevenue() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('دفتر الحركات المالية');
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   
   if (!sheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -949,7 +1135,7 @@ function addRevenue() {
 function addBudgetForm() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('الميزانيات المخططة');
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   
   if (!sheet) {
     ui.alert('⚠️ شيت "الميزانيات المخططة" غير موجود!');
@@ -991,7 +1177,7 @@ function compareBudget() {
     return;
   }
   
-  const budgetSheet = ss.getSheetByName('الميزانيات المخططة');
+  const budgetSheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   if (!budgetSheet) {
     ui.alert('⚠️ شيت الميزانيات غير موجود!');
     return;
@@ -1041,8 +1227,8 @@ function compareBudget() {
 // ==================== التنبيهات والاستحقاقات (محدث مع نوع الحركة + العملات) ====================
 function updateAlerts() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet = ss.getSheetByName('دفتر الحركات المالية');
-  const alertSheet = ss.getSheetByName('التنبيهات والاستحقاقات');
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const alertSheet = ss.getSheetByName(CONFIG.SHEETS.ALERTS);
   
   if (!transSheet || !alertSheet) {
     SpreadsheetApp.getUi().alert('⚠️ شيت الحركات أو التنبيهات غير موجود!');
@@ -1058,8 +1244,8 @@ function updateAlerts() {
   
   alertSheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#b71c1c')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.ALERTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
   
   const data = transSheet.getDataRange().getValues();
@@ -1074,7 +1260,7 @@ function updateAlerts() {
     const dueDate      = data[i][20]; // U: تاريخ الاستحقاق
     const status       = data[i][21]; // V: حالة السداد
     
-    if (movementKind === 'مدين استحقاق' && amountUsd > 0 && dueDate && status !== 'مدفوع بالكامل') {
+    if (movementKind === CONFIG.MOVEMENT.DEBIT && amountUsd > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
       const dueDateObj = new Date(dueDate);
       const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
       
@@ -1125,7 +1311,7 @@ function updateAlerts() {
 // ==================== نافذة الاستحقاقات القادمة (30 يوم) ====================
 function showUpcomingPayments() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet = ss.getSheetByName('دفتر الحركات المالية');
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   
   if (!transSheet) {
     SpreadsheetApp.getUi().alert('⚠️ شيت دفتر الحركات غير موجود!');
@@ -1146,7 +1332,7 @@ function showUpcomingPayments() {
     const party        = transData[i][8];   // I: الطرف
     const project      = transData[i][5];   // F: اسم المشروع
     
-    if (movementKind === 'مدين استحقاق' && balance > 0 && dueDate && status !== 'مدفوع بالكامل') {
+    if (movementKind === CONFIG.MOVEMENT.DEBIT && balance > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
       const dueDateObj = new Date(dueDate);
       if (dueDateObj <= next30Days) {
         const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
@@ -1206,7 +1392,7 @@ function generateVendorDetailedReport() {
     return;
   }
   
-  const transSheet = ss.getSheetByName('دفتر الحركات المالية');
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!transSheet) {
     ui.alert('⚠️ شيت الحركات غير موجود!');
     return;
@@ -1249,9 +1435,9 @@ function generateVendorDetailedReport() {
   let paymentCount = 0;
   
   rows.forEach(row => {
-    if (row.movementKind === 'مدين استحقاق') {
+    if (row.movementKind === CONFIG.MOVEMENT.DEBIT) {
       totalDebitUsd += row.amountUsd;
-    } else if (row.movementKind === 'دائن دفعة') {
+    } else if (row.movementKind === CONFIG.MOVEMENT.CREDIT) {
       totalCreditUsd += row.amountUsd;
       if (row.amountUsd > 0) paymentCount++;
     }
@@ -1297,9 +1483,9 @@ function generateVendorDetailedReport() {
       amountText = originalPart;
     }
     
-    if (row.movementKind === 'مدين استحقاق') {
+    if (row.movementKind === CONFIG.MOVEMENT.DEBIT) {
       report += `   مدين (استحقاق): ${amountText}\n`;
-    } else if (row.movementKind === 'دائن دفعة') {
+    } else if (row.movementKind === CONFIG.MOVEMENT.CREDIT) {
       report += `   دائن (دفعة/تحصيل): ${amountText}\n`;
     }
     
@@ -1339,7 +1525,7 @@ function showVendorStatement() {
     return;
   }
   
-  const transSheet = ss.getSheetByName('دفتر الحركات المالية');
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!transSheet) {
     ui.alert('⚠️ شيت الحركات غير موجود!');
     return;
@@ -1379,9 +1565,9 @@ function showVendorStatement() {
     
     statement += `${dateStr} | ${row.movementType}\n`;
     
-    if (row.movementKind === 'مدين استحقاق') {
+    if (row.movementKind === CONFIG.MOVEMENT.DEBIT) {
       statement += `         مدين (استحقاق): $${row.amountUsd.toLocaleString()}\n`;
-    } else if (row.movementKind === 'دائن دفعة') {
+    } else if (row.movementKind === CONFIG.MOVEMENT.CREDIT) {
       statement += `         دائن (دفعة/تحصيل): $${row.amountUsd.toLocaleString()}\n`;
     }
     
@@ -1415,8 +1601,8 @@ function showProjectProfitability() {
     return;
   }
   
-  const projectsSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
-  const transSheet    = ss.getSheetByName('دفتر الحركات المالية');
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const transSheet    = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   
   if (!projectsSheet || !transSheet) {
     ui.alert('⚠️ الشيتات المطلوبة غير موجودة!');
@@ -1458,15 +1644,15 @@ function showProjectProfitability() {
       const amountUsd      = Number(transData[i][12]) || 0; // M: القيمة بالدولار
       
       // مصروفات مباشرة/عمومية (استحقاق فقط)
-      if (movementKind === 'مدين استحقاق' && classification === 'مصروفات مباشرة') {
+      if (movementKind === CONFIG.MOVEMENT.DEBIT && classification === 'مصروفات مباشرة') {
         directExpenses += amountUsd;
       }
-      if (movementKind === 'مدين استحقاق' && classification === 'مصروفات عمومية') {
+      if (movementKind === CONFIG.MOVEMENT.DEBIT && classification === 'مصروفات عمومية') {
         overheadExpenses += amountUsd;
       }
       
       // إيرادات محصّلة (نقدية) = تحصيل إيراد + نوع الحركة دائن دفعة
-      if (movementType === '✅ تحصيل إيراد' && movementKind === 'دائن دفعة') {
+      if (movementType === '✅ تحصيل إيراد' && movementKind === CONFIG.MOVEMENT.CREDIT) {
         revenues += amountUsd;
       }
     }
@@ -1557,11 +1743,11 @@ function refreshDropdowns() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
   
-  const transSheet    = ss.getSheetByName('دفتر الحركات المالية');
-  const projectsSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
-  const partiesSheet  = ss.getSheetByName('قاعدة بيانات الأطراف');
-  const itemsSheet    = ss.getSheetByName('قاعدة بيانات البنود');
-  const budgetSheet   = ss.getSheetByName('الميزانيات المخططة');
+  const transSheet    = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const partiesSheet  = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+  const budgetSheet   = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -1658,7 +1844,7 @@ function refreshDropdowns() {
 // ==================== تصحيح عنوان عمود الملاحظات (مواكب للهيكل الجديد) ====================
 function patchRenameNotesColumn() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('دفتر الحركات المالية');
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!sheet) return;
   // العمود 24 هو عمود الملاحظات (X) في الهيكل الجديد
   sheet.getRange(1, 24).setValue('ملاحظات');
@@ -1695,9 +1881,9 @@ function setupPart2() {
 // ==================== نموذج الفاتورة الإنجليزي ====================
 function createInvoiceTemplateSheet(ss) {
   // نشتغل على نفس التاب اللي عندك في الصورة
-  let sheet = ss.getSheetByName('فاتورة قناة / جهة') || ss.getSheetByName('Invoice');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.INVOICE) || ss.getSheetByName('Invoice');
   if (!sheet) {
-    sheet = ss.insertSheet('فاتورة قناة / جهة');
+    sheet = ss.insertSheet(CONFIG.SHEETS.INVOICE);
   }
 
   // نفرّغ ونبني من جديد
@@ -1730,7 +1916,7 @@ function createInvoiceTemplateSheet(ss) {
     .setValue('INVOICE')
     .setFontSize(18)
     .setFontWeight('bold')
-    .setFontColor('#ff9800')
+    .setFontColor(CONFIG.COLORS.TEXT.WARNING)
     .setHorizontalAlignment('center');
 
   // ===== Invoice basic info =====
@@ -1754,7 +1940,7 @@ function createInvoiceTemplateSheet(ss) {
   // ===== Items table =====
   sheet.getRange('A15:D15')
     .setValues([['Description', 'Qty', 'Unit Price (USD)', 'Total (USD)']])
-    .setBackground('#eeeeee')
+    .setBackground(CONFIG.COLORS.BG.GRAY)
     .setFontWeight('bold')
     .setHorizontalAlignment('center');
 
@@ -1786,8 +1972,8 @@ function createInvoiceTemplateSheet(ss) {
   // ===== Bank details =====
   sheet.getRange('A27:D27').merge()
     .setValue('BANK ACCOUNT DETAILS')
-    .setBackground('#555555')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.BG.DARK_GRAY)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('left');
 
@@ -1821,7 +2007,7 @@ function generateChannelInvoice() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  const projectsSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
   if (!projectsSheet) {
     ui.alert('⚠️ شيت "قاعدة بيانات المشاريع" غير موجود.');
     return;
@@ -1932,8 +2118,8 @@ function generateVendorStatementSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  const transSheet   = ss.getSheetByName('دفتر الحركات المالية');
-  const vendorsSheet = ss.getSheetByName('قاعدة بيانات الموردين');
+  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const vendorsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_VENDORS);
 
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -1955,9 +2141,9 @@ function generateVendorStatementSheet() {
   }
 
   // تجهيز الشيت
-  let sheet = ss.getSheetByName('كشف حساب مورد - شيت');
-  if (!sheet) sheet = ss.insertSheet('كشف حساب مورد - شيت');
-  sheet.setTabColor('#00897b');    // لون مختلف لكشف حساب المورد
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.VENDOR_STATEMENT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.VENDOR_STATEMENT);
+  sheet.setTabColor(CONFIG.COLORS.TAB.VENDOR_STATEMENT);    // لون مختلف لكشف حساب المورد
   sheet.clear();
   sheet.setRightToLeft(true);
 
@@ -1991,8 +2177,8 @@ function generateVendorStatementSheet() {
   sheet.getRange('A1:H1').merge();
   sheet.getRange('A1')
     .setValue('📊 كشف حساب مورد')
-    .setBackground('#1565c0')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.DASHBOARD)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(15)
     .setHorizontalAlignment('center')
@@ -2001,12 +2187,12 @@ function generateVendorStatementSheet() {
   // ===== كارت بيانات المورد =====
   sheet.getRange('A3:H3').merge()
     .setValue('بيانات المورد')
-    .setBackground('#1e88e5')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.SUMMARY)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('center');
 
-  sheet.getRange('A4:H7').setBackground('#e3f2fd');
+  sheet.getRange('A4:H7').setBackground(CONFIG.COLORS.BG.LIGHT_BLUE);
 
   sheet.getRange('A4').setValue('اسم المورد:').setFontWeight('bold');
   sheet.getRange('B4:D4').merge().setValue(vendorName);
@@ -2055,11 +2241,11 @@ function generateVendorStatementSheet() {
 
     let accrual = 0, payment = 0;
 
-    if (movementKind === 'مدين استحقاق') {
+    if (movementKind === CONFIG.MOVEMENT.DEBIT) {
       accrual = amountUsd;
       balance += accrual;
       totalAccrual += accrual;
-    } else if (movementKind === 'دائن دفعة') {
+    } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
       payment = amountUsd;
       balance -= payment;
       totalPaid += payment;
@@ -2083,12 +2269,12 @@ function generateVendorStatementSheet() {
   // ===== ملخص أعلى الصفحة =====
   sheet.getRange('A9:H9').merge()
     .setValue('الملخص المالي')
-    .setBackground('#1e88e5')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.SUMMARY)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('center');
 
-  sheet.getRange('A10:H11').setBackground('#e3f2fd');
+  sheet.getRange('A10:H11').setBackground(CONFIG.COLORS.BG.LIGHT_BLUE);
 
   sheet.getRange('A10').setValue('إجمالي الاستحقاق:').setFontWeight('bold');
   sheet.getRange('B10:C10').merge()
@@ -2125,8 +2311,8 @@ function generateVendorStatementSheet() {
 
   sheet.getRange(13, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#1565c0')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.DASHBOARD)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('center');
 
@@ -2157,7 +2343,7 @@ function generateVendorStatementSheet() {
 
   // خط فاصل أعلى التذييل
   sheet.getRange(footerStart, 1, 1, 8).merge()
-    .setBackground('#1565c0');
+    .setBackground(CONFIG.COLORS.HEADER.DASHBOARD);
 
   // بيانات الشركة
   sheet.getRange(footerStart + 1, 1, 4, 8).merge()
@@ -2170,7 +2356,7 @@ function generateVendorStatementSheet() {
     .setHorizontalAlignment("center")
     .setVerticalAlignment("middle")
     .setFontSize(10)
-    .setFontColor("#444444");
+    .setFontColor(CONFIG.COLORS.TEXT.DARK);
 
   ui.alert(
     '✅ تم إنشاء كشف الحساب المحدث للمورد بنجاح!\n' +
@@ -2187,8 +2373,8 @@ function generateClientStatementSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  const transSheet   = ss.getSheetByName('دفتر الحركات المالية');
-  const clientsSheet = ss.getSheetByName('قاعدة بيانات العملاء');
+  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const clientsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_CLIENTS);
 
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -2209,8 +2395,8 @@ function generateClientStatementSheet() {
   }
 
   // إنشاء أو تفريغ الشيت
-  let sheet = ss.getSheetByName('كشف حساب عميل');
-  if (!sheet) sheet = ss.insertSheet('كشف حساب عميل');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.CLIENT_STATEMENT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.CLIENT_STATEMENT);
   sheet.clear();
   sheet.setRightToLeft(true);
 
@@ -2237,29 +2423,29 @@ function generateClientStatementSheet() {
   // ========== رأس الصفحة ==========
   sheet.getRange('A1:I2').merge()
     .setValue('📊 كشف حساب عميل\n' + clientName)
-    .setBackground('#004d40')      // أخضر داكن
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.PROJECTS)      // أخضر داكن
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontSize(16)
     .setFontWeight('bold')
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
 
   // ========== بيانات العميل الأساسية ==========
-  sheet.getRange('A4:I8').setBackground('#e0f2f1');  // أخضر فاتح
+  sheet.getRange('A4:I8').setBackground(CONFIG.COLORS.BG.LIGHT_GREEN);  // أخضر فاتح
 
-  sheet.getRange('A4').setValue('👤 اسم العميل').setFontWeight('bold').setFontColor('#004d40');
+  sheet.getRange('A4').setValue('👤 اسم العميل').setFontWeight('bold').setFontColor(CONFIG.COLORS.TEXT.TEAL);
   sheet.getRange('B4:D4').merge().setValue(clientName);
 
-  sheet.getRange('F4').setValue('📱 الهاتف').setFontWeight('bold').setFontColor('#004d40');
+  sheet.getRange('F4').setValue('📱 الهاتف').setFontWeight('bold').setFontColor(CONFIG.COLORS.TEXT.TEAL);
   sheet.getRange('G4:I4').merge().setValue(phone);
 
-  sheet.getRange('A5').setValue('📧 البريد الإلكتروني').setFontWeight('bold').setFontColor('#004d40');
+  sheet.getRange('A5').setValue('📧 البريد الإلكتروني').setFontWeight('bold').setFontColor(CONFIG.COLORS.TEXT.TEAL);
   sheet.getRange('B5:D5').merge().setValue(email);
 
-  sheet.getRange('F5').setValue('📍 العنوان').setFontWeight('bold').setFontColor('#004d40');
+  sheet.getRange('F5').setValue('📍 العنوان').setFontWeight('bold').setFontColor(CONFIG.COLORS.TEXT.TEAL);
   sheet.getRange('G5:I5').merge().setValue(address);
 
-  sheet.getRange('A6').setValue('📝 ملاحظات').setFontWeight('bold').setFontColor('#004d40');
+  sheet.getRange('A6').setValue('📝 ملاحظات').setFontWeight('bold').setFontColor(CONFIG.COLORS.TEXT.TEAL);
   sheet.getRange('B6:I6').merge().setValue(notes).setWrap(true);
 
   sheet.getRange('A4:I6').setBorder(true, true, true, true, true, true, '#004d40', SpreadsheetApp.BorderStyle.SOLID);
@@ -2291,11 +2477,11 @@ function generateClientStatementSheet() {
     let debit  = 0;
     let credit = 0;
 
-    if (movementKind === 'مدين استحقاق') {
+    if (movementKind === CONFIG.MOVEMENT.DEBIT) {
       debit = amountUsd;
       totalDebt += debit;
       balance += debit;
-    } else if (movementKind === 'دائن دفعة') {
+    } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
       credit = amountUsd;
       totalPaid += credit;
       balance -= credit;
@@ -2315,7 +2501,7 @@ function generateClientStatementSheet() {
   }
 
   // ========== ملخص مالي ==========
-  sheet.getRange('A10:I11').setBackground('#1b5e20').setFontColor('#ffffff');
+  sheet.getRange('A10:I11').setBackground(CONFIG.COLORS.HEADER.TOTALS).setFontColor(CONFIG.COLORS.TEXT.WHITE);
 
   sheet.getRange('A10:I10').merge()
     .setValue('💵 الملخص المالي (USD)')
@@ -2341,8 +2527,8 @@ function generateClientStatementSheet() {
 
   sheet.getRange(13,1,1,headers.length)
     .setValues([headers])
-    .setBackground('#004d40')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.PROJECTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('center');
 
@@ -2371,8 +2557,8 @@ function generateFunderStatementSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  const transSheet   = ss.getSheetByName('دفتر الحركات المالية');
-  const fundersSheet = ss.getSheetByName('قاعدة بيانات الممولين');
+  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const fundersSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_FUNDERS);
   if (!transSheet) { 
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود.'); 
     return; 
@@ -2391,8 +2577,8 @@ function generateFunderStatementSheet() {
     return; 
   }
 
-  let sheet = ss.getSheetByName('كشف حساب ممول');
-  if (!sheet) sheet = ss.insertSheet('كشف حساب ممول');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.FUNDER_STATEMENT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.FUNDER_STATEMENT);
   sheet.clear();
   sheet.setRightToLeft(true); // عرض من اليمين لليسار
 
@@ -2428,8 +2614,8 @@ function generateFunderStatementSheet() {
   sheet.getRange('A1:H2').merge();
   sheet.getRange('A1')
     .setValue('📊 كشف حساب الممول\n' + funderName)
-    .setBackground('#0d47a1')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.FUNDER)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(16)
     .setHorizontalAlignment('center')
@@ -2437,27 +2623,27 @@ function generateFunderStatementSheet() {
     .setBorder(true, true, true, true, false, false, '#ffffff', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
 
   // ===== قسم البيانات الأساسية =====
-  sheet.getRange('A4:H8').setBackground('#e3f2fd');
+  sheet.getRange('A4:H8').setBackground(CONFIG.COLORS.BG.LIGHT_BLUE);
   
-  sheet.getRange('A4').setValue('👤 اسم الممول').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('A4').setValue('👤 اسم الممول').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('B4:C4').merge().setValue(funderName).setFontWeight('bold').setFontSize(11);
   
-  sheet.getRange('E4').setValue('🏢 نوع الممول').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('E4').setValue('🏢 نوع الممول').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('F4:H4').merge().setValue(type).setFontWeight('bold').setFontSize(11);
 
-  sheet.getRange('A5').setValue('📱 الهاتف').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('A5').setValue('📱 الهاتف').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('B5:C5').merge().setValue(phone);
   
-  sheet.getRange('E5').setValue('📧 البريد الإلكتروني').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('E5').setValue('📧 البريد الإلكتروني').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('F5:H5').merge().setValue(email);
 
-  sheet.getRange('A6').setValue('💰 نسبة الأرباح').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('A6').setValue('💰 نسبة الأرباح').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('B6:C6').merge().setValue(percent);
   
-  sheet.getRange('E6').setValue('📅 مدة السداد').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('E6').setValue('📅 مدة السداد').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('F6:H6').merge().setValue(duration ? duration + ' شهور' : '');
 
-  sheet.getRange('A7').setValue('📝 شروط وملاحظات').setFontWeight('bold').setFontColor('#0d47a1');
+  sheet.getRange('A7').setValue('📝 شروط وملاحظات').setFontWeight('bold').setFontColor(CONFIG.COLORS.HEADER.FUNDER);
   sheet.getRange('B7:H7').merge().setValue(conditions || notes).setWrap(true);
 
   sheet.getRange('A4:H7').setBorder(true, true, true, true, true, true, '#1976d2', SpreadsheetApp.BorderStyle.SOLID);
@@ -2520,25 +2706,25 @@ function generateFunderStatementSheet() {
   rows.sort((a,b) => new Date(a[0]) - new Date(b[0]));
 
   // ===== قسم الملخص المالي =====
-  sheet.getRange('A10:H11').setBackground('#1b5e20');
+  sheet.getRange('A10:H11').setBackground(CONFIG.COLORS.HEADER.TOTALS);
   
   sheet.getRange('A10:H10').merge()
     .setValue('💎 الملخص المالي (USD)')
-    .setFontColor('#ffffff')
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(12)
     .setHorizontalAlignment('center');
 
-  sheet.getRange('A11').setValue('📥 إجمالي التمويل').setFontColor('#ffffff').setFontWeight('bold');
+  sheet.getRange('A11').setValue('📥 إجمالي التمويل').setFontColor(CONFIG.COLORS.TEXT.WHITE).setFontWeight('bold');
   sheet.getRange('B11:C11').merge().setValue(totalFund).setNumberFormat('$#,##0.00')
-    .setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE).setFontWeight('bold').setHorizontalAlignment('center');
 
-  sheet.getRange('D11').setValue('📤 إجمالي السداد').setFontColor('#ffffff').setFontWeight('bold');
+  sheet.getRange('D11').setValue('📤 إجمالي السداد').setFontColor(CONFIG.COLORS.TEXT.WHITE).setFontWeight('bold');
   sheet.getRange('E11').merge().setValue(totalRepay).setNumberFormat('$#,##0.00')
-    .setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE).setFontWeight('bold').setHorizontalAlignment('center');
 
   const balColor = balance >= 0 ? '#ffeb3b' : '#ff5252';
-  sheet.getRange('F11').setValue('💵 الرصيد الحالي').setFontColor('#ffffff').setFontWeight('bold');
+  sheet.getRange('F11').setValue('💵 الرصيد الحالي').setFontColor(CONFIG.COLORS.TEXT.WHITE).setFontWeight('bold');
   sheet.getRange('G11:H11').merge().setValue(balance).setNumberFormat('$#,##0.00')
     .setFontColor(balColor).setFontWeight('bold').setFontSize(12).setHorizontalAlignment('center');
 
@@ -2552,8 +2738,8 @@ function generateFunderStatementSheet() {
   
   sheet.getRange(13,1,1,headersF.length)
     .setValues([headersF])
-    .setBackground('#01579b')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.DETAILS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle')
@@ -2570,10 +2756,10 @@ function generateFunderStatementSheet() {
     sheet.getRange(rowNum, 1, 1, headersF.length).setBackground(bgColor);
     
     if (rows[i][4] > 0) {
-      sheet.getRange(rowNum, 5).setFontColor('#2e7d32').setFontWeight('bold');
+      sheet.getRange(rowNum, 5).setFontColor(CONFIG.COLORS.TEXT.SUCCESS).setFontWeight('bold');
     }
     if (rows[i][5] > 0) {
-      sheet.getRange(rowNum, 6).setFontColor('#c62828').setFontWeight('bold');
+      sheet.getRange(rowNum, 6).setFontColor(CONFIG.COLORS.TEXT.DANGER).setFontWeight('bold');
     }
     
     const balVal = rows[i][6];
@@ -2595,8 +2781,8 @@ function generateFunderStatementSheet() {
 
 function rebuildProjectDetailReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet  = ss.getSheetByName('دفتر الحركات المالية');
-  const reportSheet = ss.getSheetByName('تقرير المشروع التفصيلي');
+  const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECT_REPORT);
   
   if (!transSheet || !reportSheet) return;
   
@@ -2690,9 +2876,9 @@ function rebuildProjectDetailReport() {
 
 function rebuildVendorSummaryReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet   = ss.getSheetByName('دفتر الحركات المالية');
-  const reportSheet  = ss.getSheetByName('تقرير الموردين');
-  const vendorsSheet = ss.getSheetByName('قاعدة بيانات الموردين');
+  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
+  const vendorsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_VENDORS);
   
   if (!transSheet || !reportSheet) {
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الموردين".');
@@ -2795,8 +2981,8 @@ function rebuildVendorSummaryReport() {
 
 function rebuildExpenseSummaryReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet  = ss.getSheetByName('دفتر الحركات المالية');
-  const reportSheet = ss.getSheetByName('تقرير المصروفات');
+  const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.EXPENSES_REPORT);
   if (!transSheet || !reportSheet) {
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير المصروفات".');
     return;
@@ -2873,9 +3059,9 @@ function rebuildExpenseSummaryReport() {
 
 function rebuildRevenueSummaryReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet   = ss.getSheetByName('دفتر الحركات المالية');
-  const reportSheet  = ss.getSheetByName('تقرير الإيرادات');
-  const projectsSheet = ss.getSheetByName('قاعدة بيانات المشاريع');
+  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.REVENUE_REPORT);
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
   
   if (!transSheet || !reportSheet) {
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الإيرادات".');
@@ -2975,8 +3161,8 @@ function rebuildRevenueSummaryReport() {
 
 function rebuildCashFlowReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet  = ss.getSheetByName('دفتر الحركات المالية');
-  const reportSheet = ss.getSheetByName('التدفقات النقدية');
+  const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.CASHFLOW);
   if (!transSheet || !reportSheet) {
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "التدفقات النقدية".');
     return;
@@ -3051,8 +3237,8 @@ function rebuildAllSummaryReports() {
 // ==================== إنشاء شيتات التقارير (بدون تغيير كبير) ====================
 
 function createProjectReportSheet(ss) {
-  let sheet = ss.getSheetByName('تقرير المشروع التفصيلي');
-  if (!sheet) sheet = ss.insertSheet('تقرير المشروع التفصيلي');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.PROJECT_REPORT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.PROJECT_REPORT);
   sheet.clear();
   
   const headers = [
@@ -3062,8 +3248,8 @@ function createProjectReportSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#0277bd')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.REPORTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -3077,8 +3263,8 @@ function createProjectReportSheet(ss) {
 }
 
 function createVendorReportSheet(ss) {
-  let sheet = ss.getSheetByName('تقرير الموردين');
-  if (!sheet) sheet = ss.insertSheet('تقرير الموردين');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.VENDORS_REPORT);
   sheet.clear();
   
   const headers = [
@@ -3088,8 +3274,8 @@ function createVendorReportSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#00695c')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.VENDORS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -3105,8 +3291,8 @@ function createVendorReportSheet(ss) {
 // ========= تقرير المصروفات (يتغذى مباشرة من دفتر الحركات) =========
 
 function createExpenseReportSheet(ss) {
-  let sheet = ss.getSheetByName('تقرير المصروفات');
-  if (!sheet) sheet = ss.insertSheet('تقرير المصروفات');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.EXPENSES_REPORT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.EXPENSES_REPORT);
   sheet.clear();
   
   const headers = [
@@ -3116,8 +3302,8 @@ function createExpenseReportSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#6a1b9a')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.ITEMS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -3170,8 +3356,8 @@ function createExpenseReportSheet(ss) {
 // ========= تقرير الإيرادات (قالب) =========
 
 function createRevenueReportSheet(ss) {
-  let sheet = ss.getSheetByName('تقرير الإيرادات');
-  if (!sheet) sheet = ss.insertSheet('تقرير الإيرادات');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.REVENUE_REPORT);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.REVENUE_REPORT);
   sheet.clear();
   
   const headers = [
@@ -3181,8 +3367,8 @@ function createRevenueReportSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#2e7d32')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.REVENUE)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -3197,8 +3383,8 @@ function createRevenueReportSheet(ss) {
 
 // ========= التدفقات النقدية (تلقائي مع ترتيب الأعمدة الجديد) =========
 function createCashFlowSheet(ss) {
-  let sheet = ss.getSheetByName('التدفقات النقدية');
-  if (!sheet) sheet = ss.insertSheet('التدفقات النقدية');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.CASHFLOW);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.CASHFLOW);
   sheet.clear();
   
   const headers = [
@@ -3212,8 +3398,8 @@ function createCashFlowSheet(ss) {
   
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
-    .setBackground('#d84315')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.CASHFLOW)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
   
@@ -3260,8 +3446,8 @@ function createCashFlowSheet(ss) {
 // ========= لوحة التحكم =========
 
 function createDashboardSheet(ss) {
-  let sheet = ss.getSheetByName('لوحة التحكم');
-  if (!sheet) sheet = ss.insertSheet('لوحة التحكم');
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.DASHBOARD);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.DASHBOARD);
   sheet.clear();
   
   // إعداد الأعمدة
@@ -3273,8 +3459,8 @@ function createDashboardSheet(ss) {
   sheet.getRange('A1:C1').merge();
   sheet.getRange('A1')
     .setValue('📊 لوحة التحكم')
-    .setBackground('#1565c0')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.DASHBOARD)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(16)
     .setHorizontalAlignment('center');
@@ -3390,23 +3576,23 @@ function createDashboardSheet(ss) {
   
   // تلوين عناوين الأقسام
   sheet.getRange('A4:C4')   // المؤشرات المالية
-    .setBackground('#0277bd')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.REPORTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
   
   sheet.getRange('A12:C12') // إحصائيات
-    .setBackground('#0277bd')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.REPORTS)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
   
   sheet.getRange('A18:C18') // السيولة
-    .setBackground('#2e7d32')
-    .setFontColor('#ffffff')
+    .setBackground(CONFIG.COLORS.HEADER.REVENUE)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
   
   sheet.getRange('A28:C28') // الديون
     .setBackground('#6d4c41')
-    .setFontColor('#ffffff')
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
   
   // تنسيقات الأرقام
@@ -3465,7 +3651,7 @@ function onSelectionChange(e) {
 }
 function applyTransactionsDropdowns() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('دفتر الحركات المالية');
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!sheet) return;
 
   const lastRow = sheet.getMaxRows();
@@ -3513,7 +3699,7 @@ function applyTransactionsDropdowns() {
   }
 
   // 🔹 3) قائمة البنود من "قاعدة بيانات البنود"
-  const itemsSheet = ss.getSheetByName('قاعدة بيانات البنود');
+  const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
   if (itemsSheet && colItem > 0) {
     const lastItemRow = itemsSheet.getLastRow();
     if (lastItemRow > 1) {
@@ -3566,7 +3752,7 @@ function createSingleAccountSheet(ss, sheetName, currency) {
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
     .setBackground('#37474f')
-    .setFontColor('#ffffff')
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setHorizontalAlignment('center');
 
@@ -3598,7 +3784,7 @@ function rebuildBankAndCashFromTransactions() {
   const ss  = SpreadsheetApp.getActiveSpreadsheet();
   const ui  = SpreadsheetApp.getUi();
 
-  const transSheet = ss.getSheetByName('دفتر الحركات المالية');
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود.');
     return;
@@ -3607,11 +3793,11 @@ function rebuildBankAndCashFromTransactions() {
   // نتأكد من وجود شيتات البنك والعهدة والبطاقة
   createBankAndCashSheets(ss);
 
-  const bankUsdSheet = ss.getSheetByName('حساب البنك - دولار');
-  const bankTrySheet = ss.getSheetByName('حساب البنك - ليرة');
-  const cashUsdSheet = ss.getSheetByName('خزنة العهدة - دولار');
-  const cashTrySheet = ss.getSheetByName('خزنة العهدة - ليرة');
-  const cardTrySheet = ss.getSheetByName('حساب البطاقة - ليرة');
+  const bankUsdSheet = ss.getSheetByName(CONFIG.SHEETS.BANK_USD);
+  const bankTrySheet = ss.getSheetByName(CONFIG.SHEETS.BANK_TRY);
+  const cashUsdSheet = ss.getSheetByName(CONFIG.SHEETS.CASH_USD);
+  const cashTrySheet = ss.getSheetByName(CONFIG.SHEETS.CASH_TRY);
+  const cardTrySheet = ss.getSheetByName(CONFIG.SHEETS.CARD_TRY);
 
   const data = transSheet.getDataRange().getValues();
   if (data.length < 2) {
@@ -3738,7 +3924,7 @@ function rebuildBankAndCashFromTransactions() {
     // 4) تحديد هل هي حركة مدفوعة فعليًا؟
     const isPaidMovement =
       statusVal === 'عملية دفع/تحصيل' ||
-      statusVal === 'مدفوع بالكامل'   ||
+      statusVal === CONFIG.PAYMENT_STATUS.PAID   ||
       statusVal === 'مدفوع جزئياً';
 
     // 🔴 استبعاد كل الاستحقاقات غير الممولة
