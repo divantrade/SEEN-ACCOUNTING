@@ -354,7 +354,7 @@ function onOpen() {
 
 // ==================== إضافة حركة جديدة ====================
 /**
- * يعرض نافذة لاختيار نوع الحركة والتاريخ
+ * يعرض نافذة لاختيار طبيعة الحركة والتاريخ ونوع الحركة
  * أنواع الحركة تُقرأ ديناميكياً من قاعدة بيانات البنود (عمود B)
  */
 function addTransactionWithDate() {
@@ -374,8 +374,10 @@ function addTransactionWithDate() {
     natureTypes = CONFIG.NATURE_TYPES;
   }
 
-  // الخطوة 1: اختيار نوع الحركة
-  var menuText = '➕ اختر نوع الحركة:\n\n';
+  // ═══════════════════════════════════════════════════════════
+  // الخطوة 1: اختيار طبيعة الحركة
+  // ═══════════════════════════════════════════════════════════
+  var menuText = '📋 الخطوة 1 من 3: اختر طبيعة الحركة\n\n';
   for (var i = 0; i < natureTypes.length; i++) {
     menuText += (i + 1) + '. ' + natureTypes[i] + '\n';
   }
@@ -391,9 +393,12 @@ function addTransactionWithDate() {
   }
   var natureType = natureTypes[natureChoice - 1];
 
+  // ═══════════════════════════════════════════════════════════
   // الخطوة 2: اختيار التاريخ
+  // ═══════════════════════════════════════════════════════════
   var dateChoice = ui.alert(
-    '📅 اختيار التاريخ',
+    '📅 الخطوة 2 من 3: اختيار التاريخ',
+    'طبيعة الحركة: ' + natureType + '\n\n' +
     'نعم = تاريخ اليوم\nلا = إدخال تاريخ مختلف',
     ui.ButtonSet.YES_NO_CANCEL
   );
@@ -424,25 +429,41 @@ function addTransactionWithDate() {
     formattedDate = parseResult.date;
   }
 
-  // الخطوة 3: تحديد آخر صف فيه تاريخ في العمود B
+  // ═══════════════════════════════════════════════════════════
+  // الخطوة 3: اختيار نوع الحركة (مدين/دائن)
+  // ═══════════════════════════════════════════════════════════
+  var movementTypeText = '💰 الخطوة 3 من 3: اختر نوع الحركة\n\n' +
+    'طبيعة الحركة: ' + natureType + '\n' +
+    'التاريخ: ' + formattedDate + '\n\n' +
+    '1. ' + CONFIG.MOVEMENT.DEBIT + '\n' +
+    '2. ' + CONFIG.MOVEMENT.CREDIT + '\n\n' +
+    'أدخل رقم الخيار (1 أو 2):';
+
+  var movementResponse = ui.prompt('➕ إضافة حركة جديدة', movementTypeText, ui.ButtonSet.OK_CANCEL);
+  if (movementResponse.getSelectedButton() !== ui.Button.OK) return;
+
+  var movementChoice = parseInt(movementResponse.getResponseText().trim(), 10);
+  if (movementChoice !== 1 && movementChoice !== 2) {
+    ui.alert('❌ خطأ', 'اختر 1 أو 2 فقط!', ui.ButtonSet.OK);
+    return;
+  }
+  var movementType = (movementChoice === 1) ? CONFIG.MOVEMENT.DEBIT : CONFIG.MOVEMENT.CREDIT;
+
+  // ═══════════════════════════════════════════════════════════
+  // إدراج البيانات
+  // ═══════════════════════════════════════════════════════════
   var targetRow = findLastDataRowInColumn_(sheet, 2) + 1;
   if (targetRow < 2) targetRow = 2;
 
-  // الخطوة 4: إدراج البيانات
   // A = معادلة رقم الحركة، B = التاريخ، C = طبيعة الحركة، N = نوع الحركة
   var transactionFormula = '=IF(B' + targetRow + '="","",ROW()-1)';
 
-  sheet.getRange(targetRow, 1).setFormula(transactionFormula);
-  sheet.getRange(targetRow, 2).setValue(formattedDate);
-  sheet.getRange(targetRow, 3).setValue(natureType);
+  sheet.getRange(targetRow, 1).setFormula(transactionFormula);  // A: رقم الحركة
+  sheet.getRange(targetRow, 2).setValue(formattedDate);          // B: التاريخ
+  sheet.getRange(targetRow, 3).setValue(natureType);             // C: طبيعة الحركة
+  sheet.getRange(targetRow, 14).setValue(movementType);          // N: نوع الحركة
 
-  // 🆕 تعيين نوع الحركة (N) تلقائياً بناءً على طبيعة الحركة
-  var movementType = getMovementTypeFromNature_(natureType);
-  if (movementType) {
-    sheet.getRange(targetRow, 14).setValue(movementType); // N
-  }
-
-  ss.toast('✅ صف ' + targetRow + ': ' + natureType, 'تم', 3);
+  ss.toast('✅ صف ' + targetRow + ': ' + natureType + ' | ' + movementType, 'تم', 3);
 }
 
 /**
