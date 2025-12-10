@@ -187,7 +187,9 @@ const CONFIG = {
     '📈 استحقاق إيراد',
     '✅ تحصيل إيراد',
     '🏦 تمويل',
-    '💳 سداد تمويل'
+    '💳 سداد تمويل',
+    '🟡 تأمين مدفوع للقناة',
+    '🟢 استرداد تأمين من القناة'
   ]
 };
 
@@ -204,16 +206,13 @@ function onOpen() {
     .addSeparator()
 
     // 👇 الاستخدام اليومي العادي
-    .addItem('➕ تسجيل استحقاق جديد', 'addNewExpense')
-    .addItem('💵 تسجيل دفعة', 'addPayment')
-    .addItem('💰 تسجيل إيراد', 'addRevenue')
+    .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
+    .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addSeparator()
     .addItem('📊 إضافة ميزانية', 'addBudgetForm')
     .addItem('📈 مقارنة الميزانية', 'compareBudget')
     .addSeparator()
     .addItem('🔄 تحديث القوائم المنسدلة', 'refreshDropdowns')
-    .addItem('📅 إضافة حركة بتاريخ', 'addTransactionWithDate')
-    .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addItem('🔔 عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
     .addItem('⚠️ تحديث التنبيهات', 'updateAlerts')
     .addSeparator()
@@ -280,10 +279,10 @@ function onOpen() {
 }
 
 
-// ==================== إضافة حركة بتاريخ ====================
+// ==================== إضافة حركة جديدة ====================
 /**
- * يعرض نافذة لإدخال التاريخ مع خيار "تاريخ اليوم" أو إدخال يدوي
- * يستخدم ui.alert و ui.prompt بدلاً من HTML Dialog لتجنب مشاكل الصلاحيات
+ * يعرض نافذة لاختيار نوع الحركة والتاريخ
+ * يستخدم ui.prompt بدلاً من HTML Dialog لتجنب مشاكل الصلاحيات
  */
 function addTransactionWithDate() {
   const ui = SpreadsheetApp.getUi();
@@ -295,9 +294,52 @@ function addTransactionWithDate() {
     return;
   }
 
-  // عرض خيارات التاريخ
+  // الخطوة 1: اختيار نوع الحركة
+  const natureType = selectNatureType_(ui);
+  if (!natureType) return;
+
+  // الخطوة 2: اختيار التاريخ
+  const formattedDate = selectDate_(ui);
+  if (!formattedDate) return;
+
+  // الخطوة 3: إدراج البيانات في الشيت
+  insertTransactionData_(sheet, formattedDate, natureType);
+}
+
+/**
+ * عرض قائمة أنواع الحركات للاختيار
+ */
+function selectNatureType_(ui) {
+  // بناء قائمة الخيارات
+  let menuText = '➕ اختر نوع الحركة:\n\n';
+  CONFIG.NATURE_TYPES.forEach((type, index) => {
+    menuText += (index + 1) + '. ' + type + '\n';
+  });
+  menuText += '\nأدخل رقم الخيار (1-' + CONFIG.NATURE_TYPES.length + '):';
+
+  const response = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
+
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return null;
+  }
+
+  const input = response.getResponseText().trim();
+  const choice = parseInt(input, 10);
+
+  if (isNaN(choice) || choice < 1 || choice > CONFIG.NATURE_TYPES.length) {
+    ui.alert('❌ خطأ', 'الرجاء إدخال رقم صحيح بين 1 و ' + CONFIG.NATURE_TYPES.length, ui.ButtonSet.OK);
+    return null;
+  }
+
+  return CONFIG.NATURE_TYPES[choice - 1];
+}
+
+/**
+ * اختيار التاريخ (اليوم أو مخصص)
+ */
+function selectDate_(ui) {
   const choice = ui.alert(
-    '📅 إضافة حركة جديدة',
+    '📅 اختيار التاريخ',
     'اختر طريقة إدخال التاريخ:\n\n' +
     '• نعم = تاريخ اليوم\n' +
     '• لا = إدخال تاريخ مختلف\n' +
@@ -306,23 +348,15 @@ function addTransactionWithDate() {
   );
 
   if (choice === ui.Button.CANCEL) {
-    return;
+    return null;
   }
-
-  let formattedDate;
 
   if (choice === ui.Button.YES) {
-    // استخدام تاريخ اليوم
     const today = new Date();
-    formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    return Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   } else {
-    // إدخال تاريخ مختلف
-    formattedDate = promptForDate_(ui);
-    if (!formattedDate) return;
+    return promptForDate_(ui);
   }
-
-  // إدراج التاريخ في الشيت
-  insertDateInSheet_(sheet, formattedDate);
 }
 
 /**
@@ -403,9 +437,12 @@ function parseDateInput_(dateStr) {
 }
 
 /**
- * إدراج التاريخ في أول صف فارغ بالشيت
+ * إدراج بيانات الحركة في أول صف فارغ بالشيت
+ * @param {Sheet} sheet - شيت الحركات
+ * @param {string} formattedDate - التاريخ بصيغة yyyy-MM-dd
+ * @param {string} natureType - طبيعة الحركة
  */
-function insertDateInSheet_(sheet, formattedDate) {
+function insertTransactionData_(sheet, formattedDate, natureType) {
   const lastRow = sheet.getLastRow();
   let targetRow = 2;
 
@@ -425,14 +462,17 @@ function insertDateInSheet_(sheet, formattedDate) {
     }
   }
 
-  // إدراج التاريخ
-  sheet.getRange(targetRow, 2).setValue(formattedDate);
-  sheet.setActiveRange(sheet.getRange(targetRow, 3));
+  // إدراج التاريخ في العمود B وطبيعة الحركة في العمود C
+  sheet.getRange(targetRow, 2).setValue(formattedDate);  // B: التاريخ
+  sheet.getRange(targetRow, 3).setValue(natureType);     // C: طبيعة الحركة
+
+  // الانتقال للعمود D (وصف الحركة)
+  sheet.setActiveRange(sheet.getRange(targetRow, 4));
 
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    'تم إضافة: ' + formattedDate + ' في الصف ' + targetRow,
-    '✅ تم',
-    3
+    'تم إضافة: ' + natureType + '\nالتاريخ: ' + formattedDate + '\nالصف: ' + targetRow,
+    '✅ تم بنجاح',
+    4
   );
 }
 
