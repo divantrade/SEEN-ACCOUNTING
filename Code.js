@@ -401,11 +401,11 @@ function addTransactionWithDate() {
 
   var formattedDate;
   if (dateChoice === ui.Button.YES) {
-    formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
   } else {
     var dateResponse = ui.prompt(
       '📅 إدخال التاريخ',
-      'أدخل التاريخ بصيغة: يوم.شهر.سنة\nمثال: 24.12.2025',
+      'أدخل التاريخ بصيغة: يوم/شهر/سنة\nمثال: 24/12/2025',
       ui.ButtonSet.OK_CANCEL
     );
     if (dateResponse.getSelectedButton() !== ui.Button.OK) return;
@@ -528,14 +528,15 @@ function findLastDataRowInColumn_(sheet, colNum) {
 }
 
 /**
- * تحويل صيغة التاريخ من dd.MM.yyyy إلى yyyy-MM-dd
+ * تحويل صيغة التاريخ من dd/MM/yyyy أو dd.MM.yyyy إلى dd/MM/yyyy
  */
 function parseDateInput_(dateStr) {
-  const regex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+  // يقبل / أو . أو - كفاصل
+  const regex = /^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})$/;
   const match = dateStr.match(regex);
 
   if (!match) {
-    return { success: false, error: 'صيغة غير صحيحة!\nالمطلوب: يوم.شهر.سنة\nمثال: 24.12.2025' };
+    return { success: false, error: 'صيغة غير صحيحة!\nالمطلوب: يوم/شهر/سنة\nمثال: 24/12/2025' };
   }
 
   const day = parseInt(match[1], 10);
@@ -552,7 +553,7 @@ function parseDateInput_(dateStr) {
 
   return {
     success: true,
-    date: year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0')
+    date: String(day).padStart(2, '0') + '/' + String(month).padStart(2, '0') + '/' + year
   };
 }
 
@@ -1634,7 +1635,7 @@ function updateAlerts() {
         project,
         party,
         amountUsd,
-        Utilities.formatDate(dueDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        Utilities.formatDate(dueDateObj, Session.getScriptTimeZone(), 'dd/MM/yyyy'),
         daysLeft + ' يوم',
         status,
         action
@@ -1686,7 +1687,7 @@ function showUpcomingPayments() {
           party: party,
           project: project,
           amount: balance, // رصيد الطرف بالدولار
-          dueDate: Utilities.formatDate(dueDateObj, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+          dueDate: Utilities.formatDate(dueDateObj, Session.getScriptTimeZone(), 'dd/MM/yyyy'),
           daysLeft: daysLeft,
           status: status
         });
@@ -1806,7 +1807,7 @@ function generateVendorDetailedReport() {
   
   rows.forEach(row => {
     const dateStr = row.date
-      ? Utilities.formatDate(new Date(row.date), Session.getScriptTimeZone(), 'yyyy-MM-dd')
+      ? Utilities.formatDate(new Date(row.date), Session.getScriptTimeZone(), 'dd/MM/yyyy')
       : '';
     
     report += `\n📅 ${dateStr} | ${row.movementType} (${row.classification})\n`;
@@ -1906,7 +1907,7 @@ function showVendorStatement() {
   
   rows.forEach(row => {
     const dateStr = row.date
-      ? Utilities.formatDate(new Date(row.date), Session.getScriptTimeZone(), 'yyyy-MM-dd')
+      ? Utilities.formatDate(new Date(row.date), Session.getScriptTimeZone(), 'dd/MM/yyyy')
       : '';
     
     statement += `${dateStr} | ${row.movementType}\n`;
@@ -3370,7 +3371,7 @@ function rebuildVendorSummaryReport() {
       v.totalPaidUsd,
       currentBalance,
       v.payments,
-      v.lastDate ? Utilities.formatDate(v.lastDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') : '',
+      v.lastDate ? Utilities.formatDate(v.lastDate, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
       status
     ]);
   });
@@ -3550,7 +3551,7 @@ function rebuildRevenueSummaryReport() {
       v.expected,
       v.received,
       remaining,
-      v.lastDate ? Utilities.formatDate(v.lastDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') : '',
+      v.lastDate ? Utilities.formatDate(v.lastDate, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
       status
     ]);
   });
@@ -4516,7 +4517,7 @@ function rebuildBankAndCashFromTransactions() {
     if (!acc.rows.length) return;
 
     sheet.getRange(2, 1, acc.rows.length, 8).setValues(acc.rows);
-    sheet.getRange(2, 1, acc.rows.length, 1).setNumberFormat('yyyy-MM-dd');
+    sheet.getRange(2, 1, acc.rows.length, 1).setNumberFormat('dd/MM/yyyy');
     sheet.getRange(2, 5, acc.rows.length, 3).setNumberFormat('#,##0.00');
   });
 
