@@ -708,7 +708,7 @@ function createTransactionsSheet(ss) {
     formulasA.push([`=IF(B${row}="","",ROW()-1)`]);
 
     // اسم المشروع من كود المشروع (F)
-    formulasF.push([`=IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A:B,2,FALSE),"")`]);
+    formulasF.push([`=IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:B200,2,FALSE),"")`]);
 
     // القيمة بالدولار (M) = المبلغ الأصلي × سعر الصرف (لو موجود)
     formulasM.push([`=IF(J${row}="","",IF(L${row}="",J${row},J${row}*L${row}))`]);
@@ -731,7 +731,7 @@ function createTransactionsSheet(ss) {
       `=IF(N${row}<>"مدين استحقاق","",` +
       `IF(R${row}="فوري",B${row},` +
       `IF(R${row}="بعد التسليم",` +
-      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A:K,11,FALSE),"")+S${row}*7,` +
+      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE),"")+S${row}*7,` +
       `IF(R${row}="تاريخ مخصص",T${row},""))))`
     ]);
 
@@ -859,17 +859,30 @@ function createProjectsSheet(ss) {
       .build()
   );
   
-  // المعادلات
+  /**
+   * ⚡ تحسينات الأداء:
+   * - Batch Operations: 2 API calls بدلاً من 198 (99×2)
+   */
+  const numRows = 99;
+  const formulasA = [];  // كود المشروع
+  const formulasM = [];  // المدة (أسابيع)
+
   for (let row = 2; row <= 100; row++) {
-    sheet.getRange(row, 1).setFormula(
+    // كود المشروع (A)
+    formulasA.push([
       `=IF(OR(D${row}="",E${row}="",F${row}=""),"",` +
       `UPPER(LEFT(D${row},2))&"-"&UPPER(LEFT(E${row},2))&"-"&` +
       `RIGHT(F${row},2)&"-"&TEXT(COUNTIFS($D$2:D${row},D${row},$E$2:E${row},E${row},$F$2:F${row},F${row}),"000"))`
-    );
-    sheet.getRange(row, 13).setFormula(
+    ]);
+    // المدة بالأسابيع (M - column 13)
+    formulasM.push([
       `=IF(OR(J${row}="",K${row}=""),"",ROUND((K${row}-J${row})/7,1))`
-    );
+    ]);
   }
+
+  // Batch apply formulas
+  sheet.getRange(2, 1, numRows, 1).setFormulas(formulasA);
+  sheet.getRange(2, 13, numRows, 1).setFormulas(formulasM);
   
   // تنسيق
   sheet.getRange(2, 8, 200, 2).setNumberFormat('$#,##0.00');
@@ -1064,28 +1077,40 @@ function createBudgetsSheet(ss) {
     sheet.getRange(2, 3, 100, 1).setDataValidation(itemValidation);
   }
 
-  // المعادلات
+  /**
+   * ⚡ تحسينات الأداء:
+   * - Batch Operations: 4 API calls بدلاً من 396 (99×4)
+   * - نطاقات محددة بدل أعمدة كاملة (M2:M1000 بدل M:M)
+   */
+  const numRows = 99;
+  const formulasB = [];  // اسم المشروع
+  const formulasE = [];  // المبلغ الفعلي
+  const formulasF = [];  // الفرق
+  const formulasG = [];  // نسبة التنفيذ
+
   for (let row = 2; row <= 100; row++) {
-    // اسم المشروع من كود المشروع
-    sheet.getRange(row, 2).setFormula(
-      `=IFERROR(VLOOKUP(A${row},'قاعدة بيانات المشاريع'!A:B,2,FALSE),"")`
-    );
-    // المبلغ الفعلي = مجموع القيمة بالدولار من دفتر الحركات (مدين استحقاق فقط)
-    sheet.getRange(row, 5).setFormula(
-      `=SUMIFS('دفتر الحركات المالية'!M:M,` +
-      `'دفتر الحركات المالية'!E:E,A${row},` +
-      `'دفتر الحركات المالية'!G:G,C${row},` +
-      `'دفتر الحركات المالية'!N:N,"مدين استحقاق")`
-    );
-    // الفرق
-    sheet.getRange(row, 6).setFormula(
-      `=IF(D${row}="","",D${row}-E${row})`
-    );
-    // نسبة التنفيذ
-    sheet.getRange(row, 7).setFormula(
-      `=IF(D${row}=0,"",E${row}/D${row})`
-    );
+    // اسم المشروع من كود المشروع (B)
+    formulasB.push([
+      `=IFERROR(VLOOKUP(A${row},'قاعدة بيانات المشاريع'!A2:B200,2,FALSE),"")`
+    ]);
+    // المبلغ الفعلي = مجموع القيمة بالدولار من دفتر الحركات (مدين استحقاق فقط) (E)
+    formulasE.push([
+      `=SUMIFS('دفتر الحركات المالية'!M2:M1000,` +
+      `'دفتر الحركات المالية'!E2:E1000,A${row},` +
+      `'دفتر الحركات المالية'!G2:G1000,C${row},` +
+      `'دفتر الحركات المالية'!N2:N1000,"مدين استحقاق")`
+    ]);
+    // الفرق (F)
+    formulasF.push([`=IF(D${row}="","",D${row}-E${row})`]);
+    // نسبة التنفيذ (G)
+    formulasG.push([`=IF(D${row}=0,"",E${row}/D${row})`]);
   }
+
+  // Batch apply formulas
+  sheet.getRange(2, 2, numRows, 1).setFormulas(formulasB);
+  sheet.getRange(2, 5, numRows, 1).setFormulas(formulasE);
+  sheet.getRange(2, 6, numRows, 1).setFormulas(formulasF);
+  sheet.getRange(2, 7, numRows, 1).setFormulas(formulasG);
   
   // تنسيق الأرقام
   sheet.getRange(2, 4, 100, 2).setNumberFormat('$#,##0.00'); // المخطط + الفعلي
