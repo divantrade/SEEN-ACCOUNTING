@@ -354,7 +354,6 @@ function addTransactionWithDate() {
   sheet.getRange(targetRow, 1).setFormula(transactionFormula);
   sheet.getRange(targetRow, 2).setValue(formattedDate);
   sheet.getRange(targetRow, 3).setValue(natureType);
-  sheet.getRange(targetRow, 4).activate();
 
   ss.toast('✅ صف ' + targetRow + ': ' + natureType, 'تم', 3);
 }
