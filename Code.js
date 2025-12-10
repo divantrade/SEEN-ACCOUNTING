@@ -278,7 +278,8 @@ function onOpen() {
     .addSeparator()
 
     // الاستخدام اليومي العادي
-    .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
+    .addItem('➕ إضافة حركة جديدة (نافذة ذكية)', 'showSmartTransactionForm')
+    .addItem('➕ إضافة حركة (الطريقة القديمة)', 'addTransactionWithDate')
     .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addSeparator()
     .addItem('📝 إضافة ميزانية', 'addBudgetForm')
@@ -352,7 +353,111 @@ function onOpen() {
 }
 
 
-// ==================== إضافة حركة جديدة ====================
+// ==================== النافذة الذكية لإضافة حركة ====================
+
+/**
+ * فتح النافذة الذكية لإضافة حركة جديدة
+ */
+function showSmartTransactionForm() {
+  const html = HtmlService.createHtmlOutputFromFile('TransactionForm')
+    .setWidth(480)
+    .setHeight(620)
+    .setTitle('إضافة حركة جديدة');
+
+  SpreadsheetApp.getUi().showModalDialog(html, '➕ إضافة حركة جديدة');
+}
+
+/**
+ * الحصول على بيانات القوائم المنسدلة للنافذة الذكية
+ */
+function getSmartFormData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+
+  let natureTypes = [];
+  let classifications = [];
+  let items = [];
+
+  if (itemsSheet) {
+    const lastRow = itemsSheet.getLastRow();
+    if (lastRow > 1) {
+      const data = itemsSheet.getRange(2, 1, lastRow - 1, 3).getValues();
+
+      const seenNature = {};
+      const seenClass = {};
+      const seenItems = {};
+
+      for (let i = 0; i < data.length; i++) {
+        const itemName = data[i][0];
+        const nature = data[i][1];
+        const classification = data[i][2];
+
+        // البنود (A)
+        if (itemName && !seenItems[itemName]) {
+          seenItems[itemName] = true;
+          items.push(itemName.toString().trim());
+        }
+
+        // طبيعة الحركة (B)
+        if (nature && !seenNature[nature]) {
+          seenNature[nature] = true;
+          natureTypes.push(nature.toString().trim());
+        }
+
+        // تصنيف الحركة (C)
+        if (classification && !seenClass[classification]) {
+          seenClass[classification] = true;
+          classifications.push(classification.toString().trim());
+        }
+      }
+    }
+  }
+
+  // fallback
+  if (natureTypes.length === 0) natureTypes = CONFIG.NATURE_TYPES;
+  if (classifications.length === 0) classifications = ['مصروفات مباشرة', 'مصروفات عمومية', 'إيراد عقد', 'تمويل'];
+
+  return {
+    today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy'),
+    natureTypes: natureTypes,
+    classifications: classifications,
+    items: items,
+    movementTypes: [CONFIG.MOVEMENT.DEBIT, CONFIG.MOVEMENT.CREDIT]
+  };
+}
+
+/**
+ * إضافة حركة جديدة من النافذة الذكية
+ */
+function submitSmartFormTransaction(formData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    throw new Error('شيت دفتر الحركات المالية غير موجود!');
+  }
+
+  // تحديد آخر صف
+  const targetRow = findLastDataRowInColumn_(sheet, 2) + 1;
+
+  // إدراج البيانات
+  const transactionFormula = '=IF(B' + targetRow + '="","",ROW()-1)';
+
+  sheet.getRange(targetRow, 1).setFormula(transactionFormula);  // A: رقم الحركة
+  sheet.getRange(targetRow, 2).setValue(formData.date);          // B: التاريخ
+  sheet.getRange(targetRow, 3).setValue(formData.natureType);    // C: طبيعة الحركة
+  sheet.getRange(targetRow, 4).setValue(formData.classification);// D: تصنيف الحركة
+  sheet.getRange(targetRow, 7).setValue(formData.item);          // G: البند
+  sheet.getRange(targetRow, 14).setValue(formData.movementType); // N: نوع الحركة
+
+  return {
+    row: targetRow,
+    summary: formData.natureType + ' | ' + formData.movementType
+  };
+}
+
+
+// ==================== إضافة حركة جديدة (الطريقة القديمة) ====================
 /**
  * يعرض نافذة لاختيار طبيعة الحركة والتاريخ ونوع الحركة
  * أنواع الحركة تُقرأ ديناميكياً من قاعدة بيانات البنود (عمود B)
