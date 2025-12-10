@@ -278,8 +278,7 @@ function onOpen() {
     .addSeparator()
 
     // الاستخدام اليومي العادي
-    .addItem('➕ إضافة حركة جديدة (نافذة ذكية)', 'showSmartTransactionForm')
-    .addItem('➕ إضافة حركة (الطريقة القديمة)', 'addTransactionWithDate')
+    .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
     .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addSeparator()
     .addItem('📝 إضافة ميزانية', 'addBudgetForm')
