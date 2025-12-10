@@ -2013,6 +2013,15 @@ function refreshDropdowns() {
       .setHelpText('اختر كود المشروع من القائمة أو اكتب يدوياً')
       .build();
     transSheet.getRange(2, 5, lastRow, 1).setDataValidation(projectValidation); // E
+
+    // 🆕 اسم المشروع في دفتر الحركات (F)
+    const projectNameRange = projectsSheet.getRange('B2:B200');
+    const projectNameValidation = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(projectNameRange, true)
+      .setAllowInvalid(true)
+      .setHelpText('اختر اسم المشروع - سيتم ملء كود المشروع تلقائياً')
+      .build();
+    transSheet.getRange(2, 6, lastRow, 1).setDataValidation(projectNameValidation); // F
   }
   
   // اسم الطرف (مورد/عميل/ممول) في دفتر الحركات (I)
