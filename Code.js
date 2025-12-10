@@ -270,84 +270,84 @@ function setupSheet_(sheet, headers, widths, bgColor, options = {}) {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
 
-  ui.createMenu('نظام المحاسبة')
+  ui.createMenu('💼 نظام المحاسبة')
 
     // التقارير السريعة
-    .addItem('تحديث لوحة التحكم', 'refreshDashboard')
-    .addItem('إعادة بناء كل التقارير الملخصة', 'rebuildAllSummaryReports')
+    .addItem('📊 تحديث لوحة التحكم', 'refreshDashboard')
+    .addItem('🔄 إعادة بناء كل التقارير الملخصة', 'rebuildAllSummaryReports')
     .addSeparator()
 
     // الاستخدام اليومي العادي
-    .addItem('إضافة حركة جديدة', 'addTransactionWithDate')
-    .addItem('ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
+    .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
+    .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addSeparator()
-    .addItem('إضافة ميزانية', 'addBudgetForm')
-    .addItem('مقارنة الميزانية', 'compareBudget')
+    .addItem('📝 إضافة ميزانية', 'addBudgetForm')
+    .addItem('📊 مقارنة الميزانية', 'compareBudget')
     .addSeparator()
-    .addItem('تحديث القوائم المنسدلة', 'refreshDropdowns')
-    .addItem('تنظيف الايقونات من طبيعة الحركة', 'cleanupNatureTypeEmojis')
-    .addItem('عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
-    .addItem('تحديث التنبيهات', 'updateAlerts')
+    .addItem('🔽 تحديث القوائم المنسدلة', 'refreshDropdowns')
+    .addItem('🧹 تنظيف الايقونات من طبيعة الحركة', 'cleanupNatureTypeEmojis')
+    .addItem('⏰ عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
+    .addItem('🔔 تحديث التنبيهات', 'updateAlerts')
     .addSeparator()
 
     // الموردون / العملاء / الممولون
     .addSubMenu(
-      ui.createMenu('الموردون / العملاء / الممولون')
-        .addItem('كشف حساب مورد في شيت', 'generateVendorStatementSheet')
-        .addItem('كشف حساب عميل في شيت', 'generateClientStatementSheet')
-        .addItem('كشف حساب ممول في شيت', 'generateFunderStatementSheet')
+      ui.createMenu('👥 الموردون / العملاء / الممولون')
+        .addItem('📄 كشف حساب مورد في شيت', 'generateVendorStatementSheet')
+        .addItem('📄 كشف حساب عميل في شيت', 'generateClientStatementSheet')
+        .addItem('📄 كشف حساب ممول في شيت', 'generateFunderStatementSheet')
     )
 
     // تقارير الملخص
     .addSubMenu(
-      ui.createMenu('تقارير الملخص')
-        .addItem('تقرير المشروع التفصيلي', 'rebuildProjectDetailReport')
-        .addItem('تقرير الموردين الملخص', 'rebuildVendorSummaryReport')
-        .addItem('تقرير المصروفات الملخص', 'rebuildExpenseSummaryReport')
-        .addItem('تقرير الإيرادات الملخص', 'rebuildRevenueSummaryReport')
-        .addItem('تقرير التدفقات النقدية', 'rebuildCashFlowReport')
+      ui.createMenu('📈 تقارير الملخص')
+        .addItem('📋 تقرير المشروع التفصيلي', 'rebuildProjectDetailReport')
+        .addItem('🏢 تقرير الموردين الملخص', 'rebuildVendorSummaryReport')
+        .addItem('💸 تقرير المصروفات الملخص', 'rebuildExpenseSummaryReport')
+        .addItem('💰 تقرير الإيرادات الملخص', 'rebuildRevenueSummaryReport')
+        .addItem('💵 تقرير التدفقات النقدية', 'rebuildCashFlowReport')
         .addSeparator()
-        .addItem('تحديث كل التقارير الملخصة', 'rebuildAllSummaryReports')
+        .addItem('🔄 تحديث كل التقارير الملخصة', 'rebuildAllSummaryReports')
     )
 
     // البنك وخزنة العهدة
     .addSubMenu(
-      ui.createMenu('البنك وخزنة العهدة')
-        .addItem('تحديث شيتات البنك وخزنة العهدة والبطاقة', 'rebuildBankAndCashFromTransactions')
+      ui.createMenu('🏦 البنك وخزنة العهدة')
+        .addItem('🔄 تحديث شيتات البنك وخزنة العهدة والبطاقة', 'rebuildBankAndCashFromTransactions')
     )
 
     // شيتات مطابقة البنك والكارت
     .addSubMenu(
-      ui.createMenu('مطابقة الحساب البنكي / الكارت')
-        .addItem('إنشاء شيت مطابقة دولار', 'createBankReconciliationUsdSheet')
-        .addItem('إنشاء شيت مطابقة ليرة', 'createBankReconciliationTrySheet')
-        .addItem('إنشاء شيت مطابقة الكارت', 'createCardReconciliationSheet')
+      ui.createMenu('🔍 مطابقة الحساب البنكي / الكارت')
+        .addItem('📝 إنشاء شيت مطابقة دولار', 'createBankReconciliationUsdSheet')
+        .addItem('📝 إنشاء شيت مطابقة ليرة', 'createBankReconciliationTrySheet')
+        .addItem('📝 إنشاء شيت مطابقة الكارت', 'createCardReconciliationSheet')
         .addSeparator()
-        .addItem('مطابقة حساب البنك - دولار', 'reconcileBankUsd')
-        .addItem('مطابقة حساب البنك - ليرة', 'reconcileBankTry')
-        .addItem('مطابقة الكارت', 'reconcileCard')
+        .addItem('✅ مطابقة حساب البنك - دولار', 'reconcileBankUsd')
+        .addItem('✅ مطابقة حساب البنك - ليرة', 'reconcileBankTry')
+        .addItem('✅ مطابقة الكارت', 'reconcileCard')
     )
 
     // الربحية والفواتير
     .addSubMenu(
-      ui.createMenu('الربحية والفواتير')
-        .addItem('تقرير ربحية مشروع (نافذة)', 'showProjectProfitability')
-        .addItem('إنشاء فاتورة قناة من مشروع', 'generateChannelInvoice')
+      ui.createMenu('💹 الربحية والفواتير')
+        .addItem('📊 تقرير ربحية مشروع (نافذة)', 'showProjectProfitability')
+        .addItem('🧾 إنشاء فاتورة قناة من مشروع', 'generateChannelInvoice')
     )
 
     .addSeparator()
 
     // إعدادات متقدمة
     .addSubMenu(
-      ui.createMenu('إعدادات متقدمة')
-        .addItem('إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
-        .addItem('إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
+      ui.createMenu('⚙️ إعدادات متقدمة')
+        .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
+        .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
         .addSeparator()
-        .addItem('إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
+        .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
 
     .addSeparator()
-    .addItem('دليل الاستخدام', 'showGuide')
+    .addItem('📖 دليل الاستخدام', 'showGuide')
     .addToUi();
 }
 
