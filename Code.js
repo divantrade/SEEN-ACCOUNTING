@@ -2015,13 +2015,19 @@ function refreshDropdowns() {
     transSheet.getRange(2, 5, lastRow, 1).setDataValidation(projectValidation); // E
 
     // 🆕 اسم المشروع في دفتر الحركات (F)
+    // أولاً: تحويل المعادلات القديمة إلى قيم نصية (إزالة VLOOKUP formulas)
+    const colF = transSheet.getRange(2, 6, lastRow, 1);
+    const colFValues = colF.getValues();
+    colF.setValues(colFValues); // تحويل المعادلات إلى قيم
+
+    // ثانياً: إضافة الـ dropdown
     const projectNameRange = projectsSheet.getRange('B2:B200');
     const projectNameValidation = SpreadsheetApp.newDataValidation()
       .requireValueInRange(projectNameRange, true)
       .setAllowInvalid(true)
       .setHelpText('اختر اسم المشروع - سيتم ملء كود المشروع تلقائياً')
       .build();
-    transSheet.getRange(2, 6, lastRow, 1).setDataValidation(projectNameValidation); // F
+    colF.setDataValidation(projectNameValidation); // F
   }
   
   // اسم الطرف (مورد/عميل/ممول) في دفتر الحركات (I)
