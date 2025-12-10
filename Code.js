@@ -284,9 +284,15 @@ function onOpen() {
  * يعرض نافذة لاختيار نوع الحركة والتاريخ
  */
 function addTransactionWithDate() {
-  const ui = SpreadsheetApp.getUi();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  var ui, ss, sheet;
+
+  try {
+    ui = SpreadsheetApp.getUi();
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+    sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  } catch (e) {
+    return; // خروج صامت إذا فشل التهيئة
+  }
 
   if (!sheet) {
     ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
@@ -294,43 +300,54 @@ function addTransactionWithDate() {
   }
 
   // الخطوة 1: اختيار نوع الحركة
-  let menuText = '➕ اختر نوع الحركة:\n\n';
-  for (let i = 0; i < CONFIG.NATURE_TYPES.length; i++) {
+  var menuText = '➕ اختر نوع الحركة:\n\n';
+  for (var i = 0; i < CONFIG.NATURE_TYPES.length; i++) {
     menuText += (i + 1) + '. ' + CONFIG.NATURE_TYPES[i] + '\n';
   }
   menuText += '\nأدخل رقم الخيار (1-' + CONFIG.NATURE_TYPES.length + '):';
 
-  const natureResponse = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
-  if (natureResponse.getSelectedButton() !== ui.Button.OK) return;
+  var natureResponse = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
+  if (natureResponse.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
 
-  const natureChoice = parseInt(natureResponse.getResponseText().trim(), 10);
+  var natureChoice = parseInt(natureResponse.getResponseText().trim(), 10);
   if (isNaN(natureChoice) || natureChoice < 1 || natureChoice > CONFIG.NATURE_TYPES.length) {
     ui.alert('❌ خطأ', 'رقم غير صحيح!', ui.ButtonSet.OK);
     return;
   }
-  const natureType = CONFIG.NATURE_TYPES[natureChoice - 1];
+  var natureType = CONFIG.NATURE_TYPES[natureChoice - 1];
 
   // الخطوة 2: اختيار التاريخ
-  const dateChoice = ui.alert(
+  var dateChoice = ui.alert(
     '📅 اختيار التاريخ',
     'نعم = تاريخ اليوم\nلا = إدخال تاريخ مختلف',
     ui.ButtonSet.YES_NO_CANCEL
   );
-  if (dateChoice === ui.Button.CANCEL) return;
+  if (dateChoice === ui.Button.CANCEL) {
+    return;
+  }
 
-  let formattedDate;
+  var formattedDate;
   if (dateChoice === ui.Button.YES) {
     formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   } else {
-    const dateResponse = ui.prompt(
+    var dateResponse = ui.prompt(
       '📅 إدخال التاريخ',
       'أدخل التاريخ بصيغة: يوم.شهر.سنة\nمثال: 24.12.2025',
       ui.ButtonSet.OK_CANCEL
     );
-    if (dateResponse.getSelectedButton() !== ui.Button.OK) return;
+    if (dateResponse.getSelectedButton() !== ui.Button.OK) {
+      return;
+    }
 
-    const dateInput = dateResponse.getResponseText().trim();
-    const parseResult = parseDateInput_(dateInput);
+    var dateInput = dateResponse.getResponseText().trim();
+    if (!dateInput) {
+      ui.alert('❌ خطأ', 'لم تدخل تاريخ!', ui.ButtonSet.OK);
+      return;
+    }
+
+    var parseResult = parseDateInput_(dateInput);
     if (!parseResult.success) {
       ui.alert('❌ خطأ', parseResult.error, ui.ButtonSet.OK);
       return;
@@ -338,29 +355,19 @@ function addTransactionWithDate() {
     formattedDate = parseResult.date;
   }
 
-  // الخطوة 3: إدراج البيانات
-  const lastRow = sheet.getLastRow();
-  let targetRow = 2;
+  // الخطوة 3: إدراج البيانات - استخدام getLastRow مباشرة (أسرع)
+  try {
+    var targetRow = Math.max(2, sheet.getLastRow() + 1);
 
-  if (lastRow > 1) {
-    const dateColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
-    let foundEmpty = false;
-    for (let i = 0; i < dateColumn.length; i++) {
-      if (!dateColumn[i][0]) {
-        targetRow = i + 2;
-        foundEmpty = true;
-        break;
-      }
-    }
-    if (!foundEmpty) targetRow = lastRow + 1;
+    // استخدام setValues دفعة واحدة بدلاً من setValue مرتين
+    sheet.getRange(targetRow, 2, 1, 2).setValues([[formattedDate, natureType]]);
+    SpreadsheetApp.flush();
+
+    sheet.getRange(targetRow, 4).activate();
+    ss.toast('✅ تم: ' + natureType + ' | صف ' + targetRow, 'نجاح', 2);
+  } catch (e) {
+    ui.alert('❌ خطأ', 'فشل في حفظ البيانات: ' + e.message, ui.ButtonSet.OK);
   }
-
-  sheet.getRange(targetRow, 2).setValue(formattedDate);
-  sheet.getRange(targetRow, 3).setValue(natureType);
-  SpreadsheetApp.flush();
-
-  sheet.setActiveRange(sheet.getRange(targetRow, 4));
-  ss.toast('✅ تم إضافة: ' + natureType + ' | ' + formattedDate + ' | صف ' + targetRow, 'تم', 3);
 }
 
 /**
