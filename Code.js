@@ -212,6 +212,8 @@ function onOpen() {
     .addItem('📈 مقارنة الميزانية', 'compareBudget')
     .addSeparator()
     .addItem('🔄 تحديث القوائم المنسدلة', 'refreshDropdowns')
+    .addItem('📅 إضافة حركة بتاريخ', 'addTransactionWithDate')
+    .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addItem('🔔 عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
     .addItem('⚠️ تحديث التنبيهات', 'updateAlerts')
     .addSeparator()
@@ -276,6 +278,331 @@ function onOpen() {
     .addItem('📖 دليل الاستخدام', 'showGuide')
     .addToUi();
 }
+
+
+// ==================== إضافة حركة بتاريخ (Dialog) ====================
+/**
+ * يعرض نافذة لإدخال التاريخ مع خيار "تاريخ اليوم" أو إدخال يدوي
+ */
+function addTransactionWithDate() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // عرض نافذة اختيار التاريخ
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html dir="rtl">
+    <head>
+      <base target="_top">
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          padding: 20px;
+          background: #f5f5f5;
+        }
+        .container {
+          background: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h3 {
+          color: #1a237e;
+          margin-bottom: 20px;
+          border-bottom: 2px solid #1a237e;
+          padding-bottom: 10px;
+        }
+        .btn {
+          padding: 12px 25px;
+          margin: 5px;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: bold;
+        }
+        .btn-primary {
+          background: #1a237e;
+          color: white;
+        }
+        .btn-primary:hover {
+          background: #303f9f;
+        }
+        .btn-success {
+          background: #2e7d32;
+          color: white;
+        }
+        .btn-success:hover {
+          background: #388e3c;
+        }
+        .btn-secondary {
+          background: #757575;
+          color: white;
+        }
+        .input-group {
+          margin: 20px 0;
+        }
+        .input-group label {
+          display: block;
+          margin-bottom: 8px;
+          font-weight: bold;
+          color: #333;
+        }
+        .input-group input {
+          width: 100%;
+          padding: 12px;
+          border: 2px solid #ddd;
+          border-radius: 5px;
+          font-size: 16px;
+          text-align: center;
+          direction: ltr;
+        }
+        .input-group input:focus {
+          border-color: #1a237e;
+          outline: none;
+        }
+        .hint {
+          color: #666;
+          font-size: 12px;
+          margin-top: 5px;
+        }
+        .divider {
+          text-align: center;
+          margin: 20px 0;
+          color: #999;
+        }
+        .error {
+          color: #c62828;
+          background: #ffebee;
+          padding: 10px;
+          border-radius: 5px;
+          margin-top: 10px;
+          display: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h3>📅 إضافة حركة جديدة</h3>
+
+        <button class="btn btn-success" onclick="useToday()" style="width: 100%;">
+          📆 استخدام تاريخ اليوم
+        </button>
+
+        <div class="divider">─── أو أدخل تاريخ محدد ───</div>
+
+        <div class="input-group">
+          <label>التاريخ:</label>
+          <input type="text" id="dateInput" placeholder="مثال: 24.12.2025" maxlength="10">
+          <p class="hint">الصيغة: يوم.شهر.سنة (مثل 24.12.2025)</p>
+        </div>
+
+        <div id="errorMsg" class="error"></div>
+
+        <div style="margin-top: 20px;">
+          <button class="btn btn-primary" onclick="submitDate()">✓ تأكيد</button>
+          <button class="btn btn-secondary" onclick="google.script.host.close()">✕ إلغاء</button>
+        </div>
+      </div>
+
+      <script>
+        function useToday() {
+          google.script.run
+            .withSuccessHandler(function() {
+              google.script.host.close();
+            })
+            .withFailureHandler(function(error) {
+              showError(error.message);
+            })
+            .insertTransactionDate(null); // null = today
+        }
+
+        function submitDate() {
+          var dateStr = document.getElementById('dateInput').value.trim();
+          if (!dateStr) {
+            showError('الرجاء إدخال التاريخ أو استخدام تاريخ اليوم');
+            return;
+          }
+
+          google.script.run
+            .withSuccessHandler(function() {
+              google.script.host.close();
+            })
+            .withFailureHandler(function(error) {
+              showError(error.message);
+            })
+            .insertTransactionDate(dateStr);
+        }
+
+        function showError(msg) {
+          var errorDiv = document.getElementById('errorMsg');
+          errorDiv.textContent = '❌ ' + msg;
+          errorDiv.style.display = 'block';
+        }
+
+        // التركيز على حقل الإدخال عند الفتح
+        document.getElementById('dateInput').focus();
+
+        // السماح بالضغط على Enter للتأكيد
+        document.getElementById('dateInput').addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') submitDate();
+        });
+      </script>
+    </body>
+    </html>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(htmlContent)
+    .setWidth(400)
+    .setHeight(380);
+
+  ui.showModalDialog(htmlOutput, '📅 إضافة حركة جديدة');
+}
+
+/**
+ * تحويل صيغة التاريخ من dd.MM.yyyy إلى yyyy-MM-dd
+ * @param {string} dateStr - التاريخ بصيغة dd.MM.yyyy
+ * @returns {string} التاريخ بصيغة yyyy-MM-dd
+ */
+function parseDateFormat_(dateStr) {
+  // التحقق من الصيغة: dd.MM.yyyy
+  const regex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+  const match = dateStr.match(regex);
+
+  if (!match) {
+    throw new Error('صيغة التاريخ غير صحيحة!\nالصيغة المطلوبة: يوم.شهر.سنة\nمثال: 24.12.2025');
+  }
+
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const year = parseInt(match[3], 10);
+
+  // التحقق من صحة القيم
+  if (month < 1 || month > 12) {
+    throw new Error('الشهر يجب أن يكون بين 1 و 12');
+  }
+
+  if (day < 1 || day > 31) {
+    throw new Error('اليوم يجب أن يكون بين 1 و 31');
+  }
+
+  // التحقق من صحة التاريخ
+  const dateObj = new Date(year, month - 1, day);
+  if (dateObj.getDate() !== day || dateObj.getMonth() !== month - 1 || dateObj.getFullYear() !== year) {
+    throw new Error('التاريخ غير صحيح! تأكد من صحة اليوم والشهر');
+  }
+
+  // تحويل إلى صيغة yyyy-MM-dd
+  const formattedDate = year + '-' +
+    String(month).padStart(2, '0') + '-' +
+    String(day).padStart(2, '0');
+
+  return formattedDate;
+}
+
+/**
+ * إدراج تاريخ في صف جديد بدفتر الحركات
+ * @param {string|null} dateStr - التاريخ بصيغة dd.MM.yyyy أو null لتاريخ اليوم
+ */
+function insertTransactionDate(dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    throw new Error('شيت دفتر الحركات المالية غير موجود!');
+  }
+
+  let formattedDate;
+
+  if (dateStr === null) {
+    // استخدام تاريخ اليوم
+    const today = new Date();
+    formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  } else {
+    // تحويل التاريخ المدخل
+    formattedDate = parseDateFormat_(dateStr);
+  }
+
+  // البحث عن أول صف فارغ (من العمود B - التاريخ)
+  const lastRow = sheet.getLastRow();
+  let targetRow = 2; // نبدأ من الصف 2 (بعد الهيدر)
+
+  // البحث عن أول صف فارغ في عمود B
+  const dateColumn = sheet.getRange(2, 2, lastRow > 1 ? lastRow - 1 : 1, 1).getValues();
+  for (let i = 0; i < dateColumn.length; i++) {
+    if (dateColumn[i][0] === '' || dateColumn[i][0] === null) {
+      targetRow = i + 2;
+      break;
+    }
+    targetRow = i + 3; // الصف التالي بعد آخر صف مملوء
+  }
+
+  // إدراج التاريخ في العمود B
+  sheet.getRange(targetRow, 2).setValue(formattedDate);
+
+  // الانتقال للصف الجديد وتحديد الخلية C (وصف الحركة)
+  sheet.setActiveRange(sheet.getRange(targetRow, 3));
+
+  // رسالة تأكيد
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    'تم إضافة التاريخ: ' + formattedDate + ' في الصف ' + targetRow,
+    '✅ تم بنجاح',
+    3
+  );
+}
+
+/**
+ * ترتيب الحركات في دفتر الحركات المالية حسب التاريخ (من الأقدم للأحدث)
+ */
+function sortTransactionsByDate() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // تأكيد من المستخدم
+  const response = ui.alert(
+    '🔃 ترتيب الحركات',
+    'سيتم ترتيب جميع الحركات حسب التاريخ من الأقدم للأحدث.\n\nهل تريد المتابعة؟',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+
+  if (lastRow <= 1) {
+    ui.alert('ℹ️ تنبيه', 'لا توجد حركات للترتيب!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // ترتيب البيانات حسب العمود B (التاريخ) - من الأقدم للأحدث
+  const range = sheet.getRange(2, 1, lastRow - 1, lastCol);
+  range.sort({ column: 2, ascending: true });
+
+  // رسالة نجاح
+  ui.alert(
+    '✅ تم الترتيب',
+    'تم ترتيب ' + (lastRow - 1) + ' حركة حسب التاريخ من الأقدم للأحدث.',
+    ui.ButtonSet.OK
+  );
+
+  SpreadsheetApp.getActiveSpreadsheet().toast('تم ترتيب الحركات بنجاح!', '✅ تم', 3);
+}
+
 
 // ==================== إنشاء النظام - الجزء 1 ====================
 function confirmReset() {
