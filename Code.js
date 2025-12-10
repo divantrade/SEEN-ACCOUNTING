@@ -282,7 +282,6 @@ function onOpen() {
 // ==================== إضافة حركة جديدة ====================
 /**
  * يعرض نافذة لاختيار نوع الحركة والتاريخ
- * يستخدم ui.prompt بدلاً من HTML Dialog لتجنب مشاكل الصلاحيات
  */
 function addTransactionWithDate() {
   const ui = SpreadsheetApp.getUi();
@@ -295,158 +294,54 @@ function addTransactionWithDate() {
   }
 
   // الخطوة 1: اختيار نوع الحركة
-  const natureType = selectNatureType_(ui);
-  if (!natureType) return;
-
-  // الخطوة 2: اختيار التاريخ
-  const formattedDate = selectDate_(ui);
-  if (!formattedDate) return;
-
-  // الخطوة 3: إدراج البيانات في الشيت
-  insertTransactionData_(sheet, formattedDate, natureType);
-}
-
-/**
- * عرض قائمة أنواع الحركات للاختيار
- */
-function selectNatureType_(ui) {
-  // بناء قائمة الخيارات
   let menuText = '➕ اختر نوع الحركة:\n\n';
-  CONFIG.NATURE_TYPES.forEach((type, index) => {
-    menuText += (index + 1) + '. ' + type + '\n';
-  });
+  for (let i = 0; i < CONFIG.NATURE_TYPES.length; i++) {
+    menuText += (i + 1) + '. ' + CONFIG.NATURE_TYPES[i] + '\n';
+  }
   menuText += '\nأدخل رقم الخيار (1-' + CONFIG.NATURE_TYPES.length + '):';
 
-  const response = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
+  const natureResponse = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
+  if (natureResponse.getSelectedButton() !== ui.Button.OK) return;
 
-  if (response.getSelectedButton() !== ui.Button.OK) {
-    return null;
+  const natureChoice = parseInt(natureResponse.getResponseText().trim(), 10);
+  if (isNaN(natureChoice) || natureChoice < 1 || natureChoice > CONFIG.NATURE_TYPES.length) {
+    ui.alert('❌ خطأ', 'رقم غير صحيح!', ui.ButtonSet.OK);
+    return;
   }
+  const natureType = CONFIG.NATURE_TYPES[natureChoice - 1];
 
-  const input = response.getResponseText().trim();
-  const choice = parseInt(input, 10);
-
-  if (isNaN(choice) || choice < 1 || choice > CONFIG.NATURE_TYPES.length) {
-    ui.alert('❌ خطأ', 'الرجاء إدخال رقم صحيح بين 1 و ' + CONFIG.NATURE_TYPES.length, ui.ButtonSet.OK);
-    return null;
-  }
-
-  return CONFIG.NATURE_TYPES[choice - 1];
-}
-
-/**
- * اختيار التاريخ (اليوم أو مخصص)
- */
-function selectDate_(ui) {
-  const choice = ui.alert(
+  // الخطوة 2: اختيار التاريخ
+  const dateChoice = ui.alert(
     '📅 اختيار التاريخ',
-    'اختر طريقة إدخال التاريخ:\n\n' +
-    '• نعم = تاريخ اليوم\n' +
-    '• لا = إدخال تاريخ مختلف\n' +
-    '• إلغاء = خروج',
+    'نعم = تاريخ اليوم\nلا = إدخال تاريخ مختلف',
     ui.ButtonSet.YES_NO_CANCEL
   );
+  if (dateChoice === ui.Button.CANCEL) return;
 
-  if (choice === ui.Button.CANCEL) {
-    return null;
-  }
-
-  if (choice === ui.Button.YES) {
-    const today = new Date();
-    return Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  let formattedDate;
+  if (dateChoice === ui.Button.YES) {
+    formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   } else {
-    return promptForDate_(ui);
-  }
-}
+    const dateResponse = ui.prompt(
+      '📅 إدخال التاريخ',
+      'أدخل التاريخ بصيغة: يوم.شهر.سنة\nمثال: 24.12.2025',
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (dateResponse.getSelectedButton() !== ui.Button.OK) return;
 
-/**
- * يطلب من المستخدم إدخال تاريخ مخصص مع 3 محاولات
- */
-function promptForDate_(ui) {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const msg = (attempt > 1 ? '⚠️ المحاولة ' + attempt + '/3\n\n' : '') +
-      'أدخل التاريخ بصيغة: يوم.شهر.سنة\n' +
-      'مثال: 24.12.2025';
-
-    const response = ui.prompt('📅 إدخال التاريخ', msg, ui.ButtonSet.OK_CANCEL);
-
-    if (response.getSelectedButton() !== ui.Button.OK) {
-      return null;
+    const dateInput = dateResponse.getResponseText().trim();
+    const parseResult = parseDateInput_(dateInput);
+    if (!parseResult.success) {
+      ui.alert('❌ خطأ', parseResult.error, ui.ButtonSet.OK);
+      return;
     }
-
-    const input = response.getResponseText().trim();
-
-    if (!input) {
-      ui.alert('❌ خطأ', 'لم تدخل أي تاريخ!', ui.ButtonSet.OK);
-      continue;
-    }
-
-    // محاولة تحويل التاريخ
-    const result = parseDateInput_(input);
-    if (result.success) {
-      return result.date;
-    } else {
-      ui.alert('❌ خطأ في التاريخ', result.error, ui.ButtonSet.OK);
-    }
+    formattedDate = parseResult.date;
   }
 
-  ui.alert('❌ فشل', 'تم تجاوز عدد المحاولات (3)!', ui.ButtonSet.OK);
-  return null;
-}
-
-/**
- * تحويل صيغة التاريخ من dd.MM.yyyy إلى yyyy-MM-dd
- * @returns {{success: boolean, date?: string, error?: string}}
- */
-function parseDateInput_(dateStr) {
-  // التحقق من الصيغة: dd.MM.yyyy
-  const regex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
-  const match = dateStr.match(regex);
-
-  if (!match) {
-    return {
-      success: false,
-      error: 'صيغة التاريخ غير صحيحة!\n\nالصيغة المطلوبة: يوم.شهر.سنة\nمثال: 24.12.2025'
-    };
-  }
-
-  const day = parseInt(match[1], 10);
-  const month = parseInt(match[2], 10);
-  const year = parseInt(match[3], 10);
-
-  if (month < 1 || month > 12) {
-    return { success: false, error: 'الشهر يجب أن يكون بين 1 و 12' };
-  }
-
-  if (day < 1 || day > 31) {
-    return { success: false, error: 'اليوم يجب أن يكون بين 1 و 31' };
-  }
-
-  // التحقق من صحة التاريخ الفعلي
-  const dateObj = new Date(year, month - 1, day);
-  if (dateObj.getDate() !== day || dateObj.getMonth() !== month - 1) {
-    return { success: false, error: 'التاريخ غير موجود!\nمثال: 31.02 غير صحيح' };
-  }
-
-  // تحويل إلى yyyy-MM-dd
-  const formatted = year + '-' +
-    String(month).padStart(2, '0') + '-' +
-    String(day).padStart(2, '0');
-
-  return { success: true, date: formatted };
-}
-
-/**
- * إدراج بيانات الحركة في أول صف فارغ بالشيت
- * @param {Sheet} sheet - شيت الحركات
- * @param {string} formattedDate - التاريخ بصيغة yyyy-MM-dd
- * @param {string} natureType - طبيعة الحركة
- */
-function insertTransactionData_(sheet, formattedDate, natureType) {
+  // الخطوة 3: إدراج البيانات
   const lastRow = sheet.getLastRow();
   let targetRow = 2;
 
-  // البحث عن أول صف فارغ في عمود B
   if (lastRow > 1) {
     const dateColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
     let foundEmpty = false;
@@ -457,23 +352,44 @@ function insertTransactionData_(sheet, formattedDate, natureType) {
         break;
       }
     }
-    if (!foundEmpty) {
-      targetRow = lastRow + 1;
-    }
+    if (!foundEmpty) targetRow = lastRow + 1;
   }
 
-  // إدراج التاريخ في العمود B وطبيعة الحركة في العمود C
-  sheet.getRange(targetRow, 2).setValue(formattedDate);  // B: التاريخ
-  sheet.getRange(targetRow, 3).setValue(natureType);     // C: طبيعة الحركة
+  sheet.getRange(targetRow, 2).setValue(formattedDate);
+  sheet.getRange(targetRow, 3).setValue(natureType);
+  SpreadsheetApp.flush();
 
-  // الانتقال للعمود D (وصف الحركة)
   sheet.setActiveRange(sheet.getRange(targetRow, 4));
+  ss.toast('✅ تم إضافة: ' + natureType + ' | ' + formattedDate + ' | صف ' + targetRow, 'تم', 3);
+}
 
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    'تم إضافة: ' + natureType + '\nالتاريخ: ' + formattedDate + '\nالصف: ' + targetRow,
-    '✅ تم بنجاح',
-    4
-  );
+/**
+ * تحويل صيغة التاريخ من dd.MM.yyyy إلى yyyy-MM-dd
+ */
+function parseDateInput_(dateStr) {
+  const regex = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+  const match = dateStr.match(regex);
+
+  if (!match) {
+    return { success: false, error: 'صيغة غير صحيحة!\nالمطلوب: يوم.شهر.سنة\nمثال: 24.12.2025' };
+  }
+
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const year = parseInt(match[3], 10);
+
+  if (month < 1 || month > 12) return { success: false, error: 'الشهر يجب أن يكون 1-12' };
+  if (day < 1 || day > 31) return { success: false, error: 'اليوم يجب أن يكون 1-31' };
+
+  const dateObj = new Date(year, month - 1, day);
+  if (dateObj.getDate() !== day || dateObj.getMonth() !== month - 1) {
+    return { success: false, error: 'تاريخ غير موجود!' };
+  }
+
+  return {
+    success: true,
+    date: year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0')
+  };
 }
 
 /**
