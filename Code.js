@@ -355,6 +355,7 @@ function onOpen() {
 // ==================== إضافة حركة جديدة ====================
 /**
  * يعرض نافذة لاختيار نوع الحركة والتاريخ
+ * أنواع الحركة تُقرأ ديناميكياً من قاعدة بيانات البنود (عمود B)
  */
 function addTransactionWithDate() {
   var ui = SpreadsheetApp.getUi();
@@ -366,22 +367,29 @@ function addTransactionWithDate() {
     return;
   }
 
+  // قراءة أنواع الحركة ديناميكياً من قاعدة بيانات البنود (عمود B)
+  var natureTypes = getNatureTypesFromItemsDB_();
+  if (natureTypes.length === 0) {
+    // fallback للقيم الافتراضية إذا لم توجد بيانات
+    natureTypes = CONFIG.NATURE_TYPES;
+  }
+
   // الخطوة 1: اختيار نوع الحركة
   var menuText = '➕ اختر نوع الحركة:\n\n';
-  for (var i = 0; i < CONFIG.NATURE_TYPES.length; i++) {
-    menuText += (i + 1) + '. ' + CONFIG.NATURE_TYPES[i] + '\n';
+  for (var i = 0; i < natureTypes.length; i++) {
+    menuText += (i + 1) + '. ' + natureTypes[i] + '\n';
   }
-  menuText += '\nأدخل رقم الخيار (1-' + CONFIG.NATURE_TYPES.length + '):';
+  menuText += '\nأدخل رقم الخيار (1-' + natureTypes.length + '):';
 
   var natureResponse = ui.prompt('➕ إضافة حركة جديدة', menuText, ui.ButtonSet.OK_CANCEL);
   if (natureResponse.getSelectedButton() !== ui.Button.OK) return;
 
   var natureChoice = parseInt(natureResponse.getResponseText().trim(), 10);
-  if (isNaN(natureChoice) || natureChoice < 1 || natureChoice > CONFIG.NATURE_TYPES.length) {
+  if (isNaN(natureChoice) || natureChoice < 1 || natureChoice > natureTypes.length) {
     ui.alert('❌ خطأ', 'رقم غير صحيح!', ui.ButtonSet.OK);
     return;
   }
-  var natureType = CONFIG.NATURE_TYPES[natureChoice - 1];
+  var natureType = natureTypes[natureChoice - 1];
 
   // الخطوة 2: اختيار التاريخ
   var dateChoice = ui.alert(
@@ -465,6 +473,42 @@ function getMovementTypeFromNature_(natureType) {
     return CONFIG.MOVEMENT.CREDIT; // 'دائن دفعة'
   }
   return null;
+}
+
+/**
+ * قراءة أنواع الحركة (طبيعة الحركة) ديناميكياً من قاعدة بيانات البنود
+ * تُقرأ القيم الفريدة من العمود B وتُرتب
+ * @returns {string[]} مصفوفة بأنواع الحركة الفريدة
+ */
+function getNatureTypesFromItemsDB_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+
+  if (!itemsSheet) {
+    return []; // سيستخدم fallback
+  }
+
+  var lastRow = itemsSheet.getLastRow();
+  if (lastRow < 2) {
+    return [];
+  }
+
+  // قراءة عمود B (طبيعة الحركة) من الصف 2
+  var data = itemsSheet.getRange(2, 2, lastRow - 1, 1).getValues();
+
+  // استخراج القيم الفريدة
+  var uniqueTypes = [];
+  var seen = {};
+
+  for (var i = 0; i < data.length; i++) {
+    var value = data[i][0];
+    if (value && value.toString().trim() !== '' && !seen[value]) {
+      seen[value] = true;
+      uniqueTypes.push(value.toString().trim());
+    }
+  }
+
+  return uniqueTypes;
 }
 
 /**
