@@ -518,6 +518,7 @@ function onOpen() {
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
         .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
+        .addItem('📄 إضافة عمود كشف الحساب', 'addStatementLinkColumn')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
@@ -3529,6 +3530,86 @@ function fixAllDropdowns() {
     '• عمود S (عدد الأسابيع) - أرقام 0-52\n\n' +
     'تم تصحيح ' + fixedCount + ' خلية فارغة في عمود S\n' +
     'عدد الصفوف: ' + lastRow,
+    ui.ButtonSet.OK
+  );
+}
+
+
+// ==================== إضافة عمود كشف الحساب للشيت الحالي ====================
+/**
+ * إضافة عمود "📄 كشف" (Y) لدفتر الحركات الحالي
+ * يضيف العمود ويملأه بالرمز 📄 لكل صف فيه بيانات
+ */
+function addStatementLinkColumn() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // التحقق من وجود العمود مسبقاً
+  const currentHeader = sheet.getRange(1, 25).getValue();
+  if (currentHeader === '📄 كشف') {
+    // العمود موجود، نسأل المستخدم إذا يريد إعادة ملء الرموز
+    const response = ui.alert(
+      '📄 عمود موجود',
+      'عمود "📄 كشف" موجود بالفعل.\n\nهل تريد إعادة ملء الرموز 📄 في جميع الصفوف؟',
+      ui.ButtonSet.YES_NO
+    );
+    if (response !== ui.Button.YES) return;
+  } else {
+    // إضافة العنوان
+    sheet.getRange(1, 25)
+      .setValue('📄 كشف')
+      .setBackground('#4a86e8')
+      .setFontColor('white')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+
+    // تعيين عرض العمود
+    sheet.setColumnWidth(25, 60);
+  }
+
+  // ملء العمود بالرمز 📄 لكل صف فيه بيانات
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('✅ تم', 'تم إضافة عمود "📄 كشف".\n\nلا توجد بيانات لملء الرموز.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة عمود التاريخ (B) لمعرفة الصفوف التي فيها بيانات
+  const dates = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+  const icons = [];
+
+  for (let i = 0; i < dates.length; i++) {
+    // إذا كان هناك تاريخ، نضع الرمز
+    if (dates[i][0]) {
+      icons.push(['📄']);
+    } else {
+      icons.push(['']);
+    }
+  }
+
+  // كتابة الرموز دفعة واحدة
+  sheet.getRange(2, 25, lastRow - 1, 1).setValues(icons);
+
+  // تنسيق العمود
+  sheet.getRange(2, 25, lastRow - 1, 1)
+    .setHorizontalAlignment('center')
+    .setFontSize(12);
+
+  // إحصائية
+  const filledCount = icons.filter(row => row[0] === '📄').length;
+
+  ui.alert(
+    '✅ تم بنجاح',
+    'تم إضافة عمود "📄 كشف" (Y) لدفتر الحركات.\n\n' +
+    '• عدد الصفوف التي تم ملؤها: ' + filledCount + '\n\n' +
+    '📌 طريقة الاستخدام:\n' +
+    'اضغط على خلية 📄 في أي صف → سيتم إنشاء كشف حساب للطرف تلقائياً',
     ui.ButtonSet.OK
   );
 }
