@@ -1082,11 +1082,13 @@ function createTransactionsSheet(ss) {
     // فوري = تاريخ الحركة
     // بعد التسليم = تاريخ التسليم المتوقع + (عدد الأسابيع × 7)
     // تاريخ مخصص = التاريخ المُدخل يدوياً
+    // ملاحظة: التحقق من وجود تاريخ التسليم قبل الحساب لتجنب 30/12/1899
     formulasU.push([
       `=IF(OR(N${row}<>"مدين استحقاق",R${row}=""),"",` +
       `IF(R${row}="فوري",B${row},` +
       `IF(R${row}="بعد التسليم",` +
-      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE),"")+IF(OR(S${row}="",S${row}=0),0,S${row})*7,` +
+      `IF(OR(E${row}="",NOT(ISNUMBER(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE)))),"",` +
+      `VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE)+IF(OR(S${row}="",S${row}=0),0,S${row})*7),` +
       `IF(AND(R${row}="تاريخ مخصص",T${row}<>""),T${row},""))))`
     ]);
 
@@ -1215,13 +1217,15 @@ function refreshDueDateFormulas() {
   }
 
   // بناء المعادلات لكل صف
+  // التحقق من وجود تاريخ التسليم قبل الحساب لتجنب 30/12/1899
   const formulas = [];
   for (let row = 2; row <= lastRow; row++) {
     formulas.push([
       `=IF(OR(N${row}<>"مدين استحقاق",R${row}=""),"",` +
       `IF(R${row}="فوري",B${row},` +
       `IF(R${row}="بعد التسليم",` +
-      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE),"")+IF(OR(S${row}="",S${row}=0),0,S${row})*7,` +
+      `IF(OR(E${row}="",NOT(ISNUMBER(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE)))),"",` +
+      `VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE)+IF(OR(S${row}="",S${row}=0),0,S${row})*7),` +
       `IF(AND(R${row}="تاريخ مخصص",T${row}<>""),T${row},""))))`
     ]);
   }
