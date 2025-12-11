@@ -1193,9 +1193,9 @@ function createProjectsSheet(ss) {
   
   // تنسيق
   sheet.getRange(2, 8, 200, 2).setNumberFormat('$#,##0.00');
-  sheet.getRange(2, 10, 200, 1).setNumberFormat('yyyy-mm-dd');
-  sheet.getRange(2, 11, 200, 1).setNumberFormat('yyyy-mm-dd');
-  sheet.getRange(2, 12, 200, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(2, 10, 200, 1).setNumberFormat('dd/MM/yyyy'); // J - تاريخ البدء
+  sheet.getRange(2, 11, 200, 1).setNumberFormat('dd/MM/yyyy'); // K - تاريخ التسليم المتوقع
+  sheet.getRange(2, 12, 200, 1).setNumberFormat('dd/MM/yyyy'); // L - تاريخ التسليم الفعلي
   sheet.getRange(2, 14, 200, 1).setNumberFormat('0');
   
   // تلوين حالة المشروع
@@ -2384,29 +2384,22 @@ function cleanupNatureTypeEmojis() {
 }
 
 /**
- * تطبيع التواريخ في أعمدة B و T
+ * تطبيع التواريخ في جميع الشيتات
+ * - دفتر الحركات المالية: أعمدة B و T
+ * - قاعدة بيانات المشاريع: أعمدة J و K
  * تحويل النصوص إلى Date objects وضبط التنسيق إلى dd/MM/yyyy
  */
 function normalizeDateColumns() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-
-  if (!sheet) {
-    ui.alert('⚠️ شيت دفتر الحركات المالية غير موجود!');
-    return;
-  }
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) {
-    ui.alert('لا توجد بيانات للتحديث');
-    return;
-  }
 
   // تأكيد من المستخدم
   const response = ui.alert(
     '📅 تطبيع التواريخ',
-    'سيتم تحويل جميع التواريخ في أعمدة B و T إلى صيغة موحدة (dd/MM/yyyy)\n\n' +
+    'سيتم تحويل جميع التواريخ إلى صيغة موحدة (dd/MM/yyyy)\n\n' +
+    'الشيتات المشمولة:\n' +
+    '• دفتر الحركات المالية: أعمدة B و T\n' +
+    '• قاعدة بيانات المشاريع: أعمدة J و K\n\n' +
     'هذا سيصلح:\n' +
     '• التواريخ المكتوبة كنصوص\n' +
     '• التواريخ بفواصل مختلفة (/ . -)\n\n' +
@@ -2416,66 +2409,84 @@ function normalizeDateColumns() {
 
   if (response !== ui.Button.YES) return;
 
-  let updatedB = 0;
-  let updatedT = 0;
+  let results = [];
 
-  // عمود B (التاريخ) - العمود 2
-  const rangeB = sheet.getRange(2, 2, lastRow - 1, 1);
-  const valuesB = rangeB.getValues();
+  // ═══════════════════════════════════════════════════════════
+  // 1. دفتر الحركات المالية
+  // ═══════════════════════════════════════════════════════════
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  if (transSheet && transSheet.getLastRow() > 1) {
+    const lastRow = transSheet.getLastRow();
 
-  for (let i = 0; i < valuesB.length; i++) {
-    const val = valuesB[i][0];
-    if (!val) continue;
+    // عمود B (التاريخ)
+    const updatedB = normalizeColumnDates_(transSheet, 2, lastRow);
 
-    // إذا كان Date object بالفعل، تجاهله
-    if (val instanceof Date) continue;
+    // عمود T (تاريخ مخصص)
+    const updatedT = normalizeColumnDates_(transSheet, 20, lastRow);
 
-    // إذا كان نص، حاول تحويله
-    if (typeof val === 'string') {
-      const parseResult = parseDateInput_(val.trim());
-      if (parseResult.success) {
-        valuesB[i][0] = parseResult.dateObj;
-        updatedB++;
-      }
-    }
+    results.push('دفتر الحركات المالية:');
+    results.push('  • عمود B (التاريخ): ' + updatedB + ' خلية');
+    results.push('  • عمود T (تاريخ مخصص): ' + updatedT + ' خلية');
   }
 
-  if (updatedB > 0) {
-    rangeB.setValues(valuesB);
+  // ═══════════════════════════════════════════════════════════
+  // 2. قاعدة بيانات المشاريع
+  // ═══════════════════════════════════════════════════════════
+  const projSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  if (projSheet && projSheet.getLastRow() > 1) {
+    const lastRow = projSheet.getLastRow();
+
+    // عمود J (تاريخ البدء)
+    const updatedJ = normalizeColumnDates_(projSheet, 10, lastRow);
+
+    // عمود K (تاريخ التسليم المتوقع)
+    const updatedK = normalizeColumnDates_(projSheet, 11, lastRow);
+
+    results.push('');
+    results.push('قاعدة بيانات المشاريع:');
+    results.push('  • عمود J (تاريخ البدء): ' + updatedJ + ' خلية');
+    results.push('  • عمود K (تاريخ التسليم المتوقع): ' + updatedK + ' خلية');
   }
-  rangeB.setNumberFormat('dd/MM/yyyy');
-
-  // عمود T (تاريخ مخصص) - العمود 20
-  const rangeT = sheet.getRange(2, 20, lastRow - 1, 1);
-  const valuesT = rangeT.getValues();
-
-  for (let i = 0; i < valuesT.length; i++) {
-    const val = valuesT[i][0];
-    if (!val) continue;
-
-    if (val instanceof Date) continue;
-
-    if (typeof val === 'string') {
-      const parseResult = parseDateInput_(val.trim());
-      if (parseResult.success) {
-        valuesT[i][0] = parseResult.dateObj;
-        updatedT++;
-      }
-    }
-  }
-
-  if (updatedT > 0) {
-    rangeT.setValues(valuesT);
-  }
-  rangeT.setNumberFormat('dd/MM/yyyy');
 
   ui.alert(
     '✅ تم تطبيع التواريخ!',
-    'عمود B (التاريخ): ' + updatedB + ' خلية\n' +
-    'عمود T (تاريخ مخصص): ' + updatedT + ' خلية\n\n' +
-    'تم ضبط تنسيق العمودين إلى dd/MM/yyyy',
+    results.join('\n') + '\n\nتم ضبط تنسيق جميع الأعمدة إلى dd/MM/yyyy',
     ui.ButtonSet.OK
   );
+}
+
+/**
+ * تطبيع عمود تاريخ معين
+ * @param {Sheet} sheet - الشيت
+ * @param {number} col - رقم العمود
+ * @param {number} lastRow - آخر صف
+ * @returns {number} عدد الخلايا المحدثة
+ */
+function normalizeColumnDates_(sheet, col, lastRow) {
+  const range = sheet.getRange(2, col, lastRow - 1, 1);
+  const values = range.getValues();
+  let updated = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const val = values[i][0];
+    if (!val) continue;
+    if (val instanceof Date) continue;
+
+    if (typeof val === 'string') {
+      const parseResult = parseDateInput_(val.trim());
+      if (parseResult.success) {
+        values[i][0] = parseResult.dateObj;
+        updated++;
+      }
+    }
+  }
+
+  if (updated > 0) {
+    range.setValues(values);
+  }
+  range.setNumberFormat('dd/MM/yyyy');
+
+  return updated;
 }
 
 
@@ -4257,13 +4268,15 @@ function createDashboardSheet(ss) {
 }
 
 /**
- * onEdit - معالجة التعديلات في دفتر الحركات المالية
+ * onEdit - معالجة التعديلات في الشيتات
  *
- * 1. تطبيع التواريخ (أعمدة B و T):
+ * 1. تطبيع التواريخ:
+ *    - دفتر الحركات المالية: أعمدة B (2) و T (20)
+ *    - قاعدة بيانات المشاريع: أعمدة J (10) و K (11)
  *    - تحويل النصوص إلى Date objects
  *    - قبول فواصل متعددة (/ . -)
  *
- * 2. المزامنة الثنائية (أعمدة E و F):
+ * 2. المزامنة الثنائية في دفتر الحركات (أعمدة E و F):
  *    - عند اختيار كود المشروع → يُملأ اسم المشروع تلقائياً
  *    - عند اختيار اسم المشروع → يُملأ كود المشروع تلقائياً
  */
@@ -4271,8 +4284,7 @@ function onEdit(e) {
   if (!e || !e.range || !e.source) return;
 
   const sheet = e.source.getActiveSheet();
-  if (sheet.getName() !== CONFIG.SHEETS.TRANSACTIONS) return;
-
+  const sheetName = sheet.getName();
   const row = e.range.getRow();
   const col = e.range.getColumn();
 
@@ -4283,25 +4295,25 @@ function onEdit(e) {
   if (!value) return;
 
   // ═══════════════════════════════════════════════════════════
+  // معالجة أعمدة التاريخ في قاعدة بيانات المشاريع: J (10) و K (11)
+  // ═══════════════════════════════════════════════════════════
+  if (sheetName === CONFIG.SHEETS.PROJECTS) {
+    if (col === 10 || col === 11) {
+      normalizeDateCell_(e.range, value);
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // معالجة دفتر الحركات المالية فقط
+  // ═══════════════════════════════════════════════════════════
+  if (sheetName !== CONFIG.SHEETS.TRANSACTIONS) return;
+
+  // ═══════════════════════════════════════════════════════════
   // معالجة أعمدة التاريخ: B (2) و T (20)
-  // تحويل النص إلى Date object للترتيب الصحيح
   // ═══════════════════════════════════════════════════════════
   if (col === 2 || col === 20) {
-    // تجاهل إذا كانت القيمة Date object بالفعل
-    if (value instanceof Date) return;
-
-    // تجاهل إذا كانت القيمة رقم (serial date من Sheets)
-    if (typeof value === 'number') return;
-
-    // محاولة تحويل النص إلى تاريخ
-    const dateStr = String(value).trim();
-    if (!dateStr) return;
-
-    const parseResult = parseDateInput_(dateStr);
-    if (parseResult.success) {
-      // تعيين Date object بدلاً من النص
-      e.range.setValue(parseResult.dateObj);
-    }
+    normalizeDateCell_(e.range, value);
     return;
   }
 
@@ -4332,6 +4344,28 @@ function onEdit(e) {
         break;
       }
     }
+  }
+}
+
+/**
+ * تطبيع خلية تاريخ - تحويل النص إلى Date object
+ * @param {Range} range - الخلية
+ * @param {*} value - القيمة الحالية
+ */
+function normalizeDateCell_(range, value) {
+  // تجاهل إذا كانت القيمة Date object بالفعل
+  if (value instanceof Date) return;
+
+  // تجاهل إذا كانت القيمة رقم (serial date من Sheets)
+  if (typeof value === 'number') return;
+
+  // محاولة تحويل النص إلى تاريخ
+  const dateStr = String(value).trim();
+  if (!dateStr) return;
+
+  const parseResult = parseDateInput_(dateStr);
+  if (parseResult.success) {
+    range.setValue(parseResult.dateObj);
   }
 }
 
