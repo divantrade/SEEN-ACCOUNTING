@@ -266,6 +266,175 @@ function setupSheet_(sheet, headers, widths, bgColor, options = {}) {
 }
 
 
+// ==================== دالة مساعدة للحصول على بيانات الطرف ====================
+/**
+ * الحصول على بيانات الطرف من قاعدة البيانات الموحدة (PARTIES) مع fallback للقواعد القديمة
+ * @param {Spreadsheet} ss - ملف الجدول
+ * @param {string} partyName - اسم الطرف
+ * @param {string} partyType - نوع الطرف ('مورد' / 'عميل' / 'ممول') - اختياري للتصفية
+ * @returns {Object} بيانات الطرف {name, type, specialization, phone, email, city, paymentMethod, bankInfo, notes}
+ */
+function getPartyData_(ss, partyName, partyType) {
+  // النتيجة الافتراضية
+  const defaultResult = {
+    name: partyName,
+    type: partyType || '',
+    specialization: '',
+    phone: '',
+    email: '',
+    city: '',
+    paymentMethod: '',
+    bankInfo: '',
+    notes: ''
+  };
+
+  if (!partyName) return defaultResult;
+
+  // ✅ أولاً: البحث في قاعدة البيانات الموحدة (PARTIES)
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  if (partiesSheet) {
+    const partiesData = partiesSheet.getDataRange().getValues();
+    for (let i = 1; i < partiesData.length; i++) {
+      const row = partiesData[i];
+      if (row[0] === partyName) {
+        // تأكد من مطابقة نوع الطرف إذا تم تحديده
+        if (partyType && row[1] !== partyType) continue;
+
+        return {
+          name: row[0] || partyName,
+          type: row[1] || partyType || '',
+          specialization: row[2] || '',
+          phone: row[3] || '',
+          email: row[4] || '',
+          city: row[5] || '',
+          paymentMethod: row[6] || '',
+          bankInfo: row[7] || '',
+          notes: row[8] || ''
+        };
+      }
+    }
+  }
+
+  // ✅ ثانياً: Fallback للقواعد القديمة حسب نوع الطرف
+  if (!partyType || partyType === 'مورد') {
+    const vendorsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_VENDORS);
+    if (vendorsSheet) {
+      const vData = vendorsSheet.getDataRange().getValues();
+      for (let i = 1; i < vData.length; i++) {
+        if (vData[i][0] === partyName) {
+          return {
+            name: partyName,
+            type: 'مورد',
+            specialization: vData[i][1] || '',
+            phone: vData[i][2] || '',
+            email: vData[i][3] || '',
+            city: vData[i][4] || '',
+            paymentMethod: '',
+            bankInfo: vData[i][5] || '',
+            notes: vData[i][6] || ''
+          };
+        }
+      }
+    }
+  }
+
+  if (!partyType || partyType === 'عميل') {
+    const clientsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_CLIENTS);
+    if (clientsSheet) {
+      const cData = clientsSheet.getDataRange().getValues();
+      for (let i = 1; i < cData.length; i++) {
+        if (cData[i][0] === partyName) {
+          return {
+            name: partyName,
+            type: 'عميل',
+            specialization: cData[i][1] || '', // نوع العميل
+            phone: cData[i][2] || '',
+            email: cData[i][3] || '',
+            city: cData[i][4] || '',
+            paymentMethod: cData[i][5] || '', // قناة التواصل
+            bankInfo: cData[i][6] || '', // الشخص المسئول
+            notes: cData[i][7] || ''
+          };
+        }
+      }
+    }
+  }
+
+  if (!partyType || partyType === 'ممول') {
+    const fundersSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_FUNDERS);
+    if (fundersSheet) {
+      const fData = fundersSheet.getDataRange().getValues();
+      for (let i = 1; i < fData.length; i++) {
+        if (fData[i][0] === partyName) {
+          return {
+            name: partyName,
+            type: 'ممول',
+            specialization: fData[i][1] || '',
+            phone: fData[i][2] || '',
+            email: fData[i][3] || '',
+            city: fData[i][4] || '',
+            paymentMethod: '',
+            bankInfo: fData[i][5] || '',
+            notes: fData[i][6] || ''
+          };
+        }
+      }
+    }
+  }
+
+  return defaultResult;
+}
+
+/**
+ * الحصول على خريطة تخصصات جميع الأطراف من نوع معين
+ * @param {Spreadsheet} ss - ملف الجدول
+ * @param {string} partyType - نوع الطرف ('مورد' / 'عميل' / 'ممول')
+ * @returns {Object} خريطة {اسم الطرف: التخصص}
+ */
+function getPartySpecializationMap_(ss, partyType) {
+  const specialMap = {};
+
+  // ✅ أولاً: من قاعدة البيانات الموحدة
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  if (partiesSheet) {
+    const partiesData = partiesSheet.getDataRange().getValues();
+    for (let i = 1; i < partiesData.length; i++) {
+      const row = partiesData[i];
+      if (row[0] && (!partyType || row[1] === partyType)) {
+        specialMap[row[0]] = row[2] || '';
+      }
+    }
+  }
+
+  // ✅ ثانياً: Fallback للقواعد القديمة
+  if (!partyType || partyType === 'مورد') {
+    const vendorsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_VENDORS);
+    if (vendorsSheet) {
+      const vData = vendorsSheet.getDataRange().getValues();
+      for (let i = 1; i < vData.length; i++) {
+        if (vData[i][0] && !specialMap[vData[i][0]]) {
+          specialMap[vData[i][0]] = vData[i][1] || '';
+        }
+      }
+    }
+  }
+
+  if (!partyType || partyType === 'عميل') {
+    const clientsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_CLIENTS);
+    if (clientsSheet) {
+      const cData = clientsSheet.getDataRange().getValues();
+      for (let i = 1; i < cData.length; i++) {
+        if (cData[i][0] && !specialMap[cData[i][0]]) {
+          specialMap[cData[i][0]] = cData[i][1] || '';
+        }
+      }
+    }
+  }
+
+  return specialMap;
+}
+
+
 // ==================== القائمة الرئيسية ====================
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
@@ -1066,10 +1235,11 @@ function createTransactionsSheet(ss) {
     // القيمة بالدولار (M)
     // إذا العملة دولار (USD أو دولار) → نفس قيمة J
     // إذا العملة أخرى (TRY/EGP/ليرة/جنيه) → J ÷ سعر الصرف (L)
+    // ⚠️ إذا العملة أخرى ولا يوجد سعر صرف → ترك فارغ (يحتاج إدخال سعر الصرف)
     formulasM.push([
       `=IF(J${row}="","",` +
       `IF(OR(K${row}="USD",K${row}="دولار",K${row}=""),J${row},` +
-      `IF(OR(L${row}="",L${row}=0),J${row},J${row}/L${row})))`
+      `IF(OR(L${row}="",L${row}=0),"",J${row}/L${row})))`
     ]);
 
     // الرصيد O = مجموع (مدين استحقاق - دائن دفعة) لنفس الطرف حتى هذا الصف
@@ -1317,18 +1487,25 @@ function refreshValueAndBalanceFormulas() {
 
     // ═══════════════════════════════════════════════════════════
     // 1. حساب القيمة بالدولار (M)
+    // ⚠️ إذا كانت العملة غير دولار ولا يوجد سعر صرف = ترك الخلية فارغة
     // ═══════════════════════════════════════════════════════════
     let amountUsd = 0;
+    let hasValidConversion = true;
     if (amount > 0) {
+      // حالة 1: العملة دولار أو فارغة (افتراضي دولار)
       if (currency === 'USD' || currency === 'دولار' || currency === '') {
         amountUsd = amount;
-      } else if (exchangeRate > 0) {
+      }
+      // حالة 2: عملة أخرى مع سعر صرف صحيح
+      else if (exchangeRate > 0) {
         amountUsd = amount / exchangeRate;
-      } else {
-        amountUsd = amount;
+      }
+      // حالة 3: عملة أخرى بدون سعر صرف = ترك فارغ (⚠️ يحتاج إدخال سعر الصرف)
+      else {
+        hasValidConversion = false;
       }
     }
-    valuesM.push([amountUsd > 0 ? Math.round(amountUsd * 100) / 100 : '']);
+    valuesM.push([hasValidConversion && amountUsd > 0 ? Math.round(amountUsd * 100) / 100 : '']);
 
     // ═══════════════════════════════════════════════════════════
     // 2. حساب الرصيد (O) وحالة السداد (V)
@@ -1349,13 +1526,13 @@ function refreshValueAndBalanceFormulas() {
 
       balance = Math.round(partyBalances[party] * 100) / 100;
 
-      // حساب حالة السداد
+      // حساب حالة السداد (باستخدام CONFIG.PAYMENT_STATUS للتوحيد)
       if (movementKind === 'دائن دفعة') {
-        status = 'عملية دفع';
+        status = CONFIG.PAYMENT_STATUS.OPERATION; // 'عملية دفع/تحصيل'
       } else if (balance > 0.01) {
-        status = 'معلق';
+        status = CONFIG.PAYMENT_STATUS.PENDING; // 'معلق'
       } else {
-        status = 'مدفوع بالكامل';
+        status = CONFIG.PAYMENT_STATUS.PAID; // 'مدفوع بالكامل'
       }
     }
     valuesO.push([balance]);
@@ -1400,9 +1577,10 @@ function refreshValueAndBalanceFormulas() {
     '✅ تم التحديث الشامل للأعمدة المحسوبة',
     'تم حساب وكتابة القيم (بدون معادلات) في:\n\n' +
     '• M - القيمة بالدولار: المبلغ ÷ سعر الصرف (أو نفسه للدولار)\n' +
+    '   ⚠️ إذا كانت العملة غير دولار ولا يوجد سعر صرف = ترك فارغ\n' +
     '• O - الرصيد: مدين استحقاق - دائن دفعة لكل طرف\n' +
     '• U - تاريخ الاستحقاق: حسب نوع شرط الدفع\n' +
-    '• V - حالة السداد: معلق / مدفوع بالكامل / عملية دفع\n\n' +
+    '• V - حالة السداد: معلق / مدفوع بالكامل / عملية دفع/تحصيل\n\n' +
     '⚡ الحسابات تتم تلقائياً عند تعديل البيانات (onEdit)\n\n' +
     '📊 عدد الصفوف المحدثة: ' + numRows,
     ui.ButtonSet.OK
@@ -3361,8 +3539,7 @@ function generateVendorStatementSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  const vendorsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_VENDORS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
 
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -3400,21 +3577,12 @@ function generateVendorStatementSheet() {
   sheet.setColumnWidth(7, 120);
   sheet.setColumnWidth(8, 130);
 
-  // ===== بيانات المورد =====
-  let phone = '', email = '', bank = '', vNotes = '';
-
-  if (vendorsSheet) {
-    const vData = vendorsSheet.getDataRange().getValues();
-    for (let i = 1; i < vData.length; i++) {
-      if (vData[i][0] === vendorName) {
-        phone  = vData[i][2] || ''; // رقم الهاتف
-        email  = vData[i][3] || ''; // البريد الإلكتروني
-        bank   = vData[i][5] || ''; // بيانات الحساب البنكي
-        vNotes = vData[i][6] || ''; // ملاحظات
-        break;
-      }
-    }
-  }
+  // ===== بيانات المورد (من القاعدة الموحدة مع fallback للقديمة) =====
+  const vendorData = getPartyData_(ss, vendorName, 'مورد');
+  const phone  = vendorData.phone;
+  const email  = vendorData.email;
+  const bank   = vendorData.bankInfo;
+  const vNotes = vendorData.notes;
 
   // ===== العنوان الرئيسي — بدون "نظام المحاسبة 2.1" =====
   sheet.getRange('A1:H1').merge();
@@ -3616,8 +3784,7 @@ function generateClientStatementSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  const clientsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_CLIENTS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
 
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
@@ -3632,9 +3799,9 @@ function generateClientStatementSheet() {
   if (response.getSelectedButton() !== ui.Button.OK) return;
 
   const clientName = response.getResponseText().trim();
-  if (!clientName) { 
-    ui.alert('⚠️ لم يتم إدخال الاسم.'); 
-    return; 
+  if (!clientName) {
+    ui.alert('⚠️ لم يتم إدخال الاسم.');
+    return;
   }
 
   // إنشاء أو تفريغ الشيت
@@ -3646,22 +3813,12 @@ function generateClientStatementSheet() {
   // إعداد الأعمدة
   sheet.setColumnWidths(1, 9, 140);
 
-  // ========== جلب بيانات العميل ==========
-  let phone = '', email = '', address = '', notes = '';
-  if (clientsSheet) {
-    const rows = clientsSheet.getDataRange().getValues();
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === clientName) {
-        // 0 اسم العميل, 1 نوع العميل, 2 رقم الهاتف, 3 البريد الإلكتروني,
-        // 4 المدينة/الدولة, 5 قناة التواصل, 6 الشخص المسئول, 7 ملاحظات
-        phone   = rows[i][2] || '';
-        email   = rows[i][3] || '';
-        address = rows[i][4] || '';
-        notes   = rows[i][7] || '';
-        break;
-      }
-    }
-  }
+  // ========== جلب بيانات العميل (من القاعدة الموحدة مع fallback للقديمة) ==========
+  const clientData = getPartyData_(ss, clientName, 'عميل');
+  const phone   = clientData.phone;
+  const email   = clientData.email;
+  const address = clientData.city;
+  const notes   = clientData.notes;
 
   // ========== رأس الصفحة ==========
   sheet.getRange('A1:I2').merge()
@@ -4121,23 +4278,14 @@ function rebuildVendorSummaryReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
-  const vendorsSheet = ss.getSheetByName(CONFIG.SHEETS.LEGACY_VENDORS);
-  
+
   if (!transSheet || !reportSheet) {
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الموردين".');
     return;
   }
-  
-  // خريطة تخصص المورد من قاعدة بيانات الموردين
-  const specialMap = {};
-  if (vendorsSheet) {
-    const vData = vendorsSheet.getDataRange().getValues();
-    for (let i = 1; i < vData.length; i++) {
-      const name = vData[i][0];
-      const spec = vData[i][1];
-      if (name) specialMap[name] = spec;
-    }
-  }
+
+  // خريطة تخصص المورد (من القاعدة الموحدة مع fallback للقديمة)
+  const specialMap = getPartySpecializationMap_(ss, 'مورد');
   
   const data = transSheet.getDataRange().getValues();
   const map = {};
@@ -4975,6 +5123,7 @@ function onEdit(e) {
 /**
  * حساب القيمة بالدولار (M) لصف معين
  * المنطق: لو دولار = نفس القيمة، لو عملة أخرى = القيمة ÷ سعر الصرف
+ * ⚠️ إذا كانت العملة غير دولار ولا يوجد سعر صرف = ترك الخلية فارغة (تحتاج إدخال سعر الصرف)
  */
 function calculateUsdValue_(sheet, row) {
   const rowData = sheet.getRange(row, 10, 1, 3).getValues()[0]; // J, K, L
@@ -4984,12 +5133,17 @@ function calculateUsdValue_(sheet, row) {
 
   let amountUsd = '';
   if (amount > 0) {
+    // حالة 1: العملة دولار أو فارغة (افتراضي دولار)
     if (currency === 'USD' || currency === 'دولار' || currency === '') {
       amountUsd = amount;
-    } else if (exchangeRate > 0) {
+    }
+    // حالة 2: عملة أخرى مع سعر صرف صحيح
+    else if (exchangeRate > 0) {
       amountUsd = Math.round((amount / exchangeRate) * 100) / 100;
-    } else {
-      amountUsd = amount;
+    }
+    // حالة 3: عملة أخرى بدون سعر صرف = ترك فارغ (⚠️ يحتاج إدخال سعر الصرف)
+    else {
+      amountUsd = ''; // لا نفترض أن المبلغ بالدولار - هذا خطأ منطقي
     }
   }
 
@@ -5092,13 +5246,13 @@ function recalculatePartyBalance_(sheet, editedRow) {
 
       balance = Math.round(partyBalances[rowParty] * 100) / 100;
 
-      // حساب حالة السداد
+      // حساب حالة السداد (باستخدام CONFIG.PAYMENT_STATUS للتوحيد)
       if (movementKind === 'دائن دفعة') {
-        status = 'عملية دفع';
+        status = CONFIG.PAYMENT_STATUS.OPERATION; // 'عملية دفع/تحصيل'
       } else if (balance > 0.01) {
-        status = 'معلق';
+        status = CONFIG.PAYMENT_STATUS.PENDING; // 'معلق'
       } else {
-        status = 'مدفوع بالكامل';
+        status = CONFIG.PAYMENT_STATUS.PAID; // 'مدفوع بالكامل'
       }
     }
 
