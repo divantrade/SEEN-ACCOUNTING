@@ -567,7 +567,7 @@ function addTransactionWithDate() {
   var transactionFormula = '=IF(B' + targetRow + '="","",ROW()-1)';
 
   sheet.getRange(targetRow, 1).setFormula(transactionFormula);  // A: رقم الحركة
-  sheet.getRange(targetRow, 2).setValue(dateObj);                // B: التاريخ (Date object)
+  sheet.getRange(targetRow, 2).setValue(dateObj).setNumberFormat('dd/mm/yyyy');  // B: التاريخ
   sheet.getRange(targetRow, 3).setValue(natureType);             // C: طبيعة الحركة
   sheet.getRange(targetRow, 14).setValue(movementType);          // N: نوع الحركة
 
