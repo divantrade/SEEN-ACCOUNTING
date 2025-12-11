@@ -1321,7 +1321,8 @@ function createTransactionsSheet(ss) {
     'تاريخ الاستحقاق',     // 21 - U
     'حالة السداد',         // 22 - V
     'الشهر',               // 23 - W
-    'ملاحظات'              // 24 - X
+    'ملاحظات',             // 24 - X
+    '📄 كشف'               // 25 - Y (عمود روابط كشف الحساب)
   ];
   
   sheet.getRange(1, 1, 1, headers.length)
@@ -1357,7 +1358,8 @@ function createTransactionsSheet(ss) {
     130,  // U
     130,  // V
     90,   // W
-    250   // X
+    250,  // X
+    60    // Y (كشف)
   ];
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
   
@@ -3804,6 +3806,195 @@ function generateChannelInvoice() {
   );
 }
 
+// ==================== 📄 إنشاء كشف حساب من صف في دفتر الحركات ====================
+/**
+ * دالة مساعدة تُستدعى من onEdit عند التعديل على عمود "كشف" (Y)
+ * تقرأ اسم الطرف من الصف وتنشئ كشف حساب له تلقائياً
+ */
+function generateStatementFromRow_(ss, sheet, row) {
+  const ui = SpreadsheetApp.getUi();
+
+  // قراءة اسم الطرف من عمود I (9)
+  const partyName = sheet.getRange(row, 9).getValue();
+
+  if (!partyName || String(partyName).trim() === '') {
+    ui.alert('⚠️ تنبيه', 'لا يوجد اسم طرف في هذا الصف!', ui.ButtonSet.OK);
+    // إعادة الرمز للخلية
+    sheet.getRange(row, 25).setValue('📄');
+    return;
+  }
+
+  // البحث عن نوع الطرف في قاعدة البيانات
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  let partyType = null;
+
+  if (partiesSheet) {
+    const partiesData = partiesSheet.getRange('A2:B500').getValues();
+    for (let i = 0; i < partiesData.length; i++) {
+      if (partiesData[i][0] === partyName) {
+        partyType = partiesData[i][1]; // B: نوع الطرف
+        break;
+      }
+    }
+  }
+
+  // إعادة الرمز للخلية فوراً
+  sheet.getRange(row, 25).setValue('📄');
+
+  if (!partyType) {
+    ui.alert('⚠️ تنبيه', 'الطرف "' + partyName + '" غير موجود في قاعدة بيانات الأطراف!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // استدعاء الدالة المناسبة حسب نوع الطرف
+  if (partyType === 'مورد') {
+    generateStatementForParty_(ss, partyName, 'مورد');
+  } else if (partyType === 'عميل') {
+    generateStatementForParty_(ss, partyName, 'عميل');
+  } else if (partyType === 'ممول') {
+    generateStatementForParty_(ss, partyName, 'ممول');
+  } else {
+    ui.alert('⚠️ تنبيه', 'نوع الطرف "' + partyType + '" غير معروف!', ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * إنشاء كشف حساب لطرف معين (مورد/عميل/ممول)
+ * نسخة موحدة تعمل مع جميع أنواع الأطراف
+ */
+function generateStatementForParty_(ss, partyName, partyType) {
+  const ui = SpreadsheetApp.getUi();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // تحديد عنوان الكشف حسب نوع الطرف
+  let titlePrefix = '';
+  if (partyType === 'مورد') {
+    titlePrefix = 'كشف مورد';
+  } else if (partyType === 'عميل') {
+    titlePrefix = 'كشف عميل';
+  } else if (partyType === 'ممول') {
+    titlePrefix = 'كشف ممول';
+  }
+
+  // إنشاء أو الحصول على شيت الكشف
+  const sheetName = titlePrefix + ' - ' + partyName;
+  let statementSheet = ss.getSheetByName(sheetName);
+
+  if (statementSheet) {
+    // الشيت موجود - تأكيد الاستبدال
+    const confirm = ui.alert(
+      '📋 كشف موجود',
+      'يوجد كشف حساب لـ "' + partyName + '" بالفعل.\n\nهل تريد تحديثه؟',
+      ui.ButtonSet.YES_NO
+    );
+    if (confirm !== ui.Button.YES) return;
+    statementSheet.clear();
+  } else {
+    statementSheet = ss.insertSheet(sheetName);
+  }
+
+  // جلب بيانات الحركات
+  const lastRow = transSheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('⚠️ تنبيه', 'لا توجد حركات في دفتر الحركات!', ui.ButtonSet.OK);
+    return;
+  }
+
+  const data = transSheet.getRange(2, 1, lastRow - 1, 24).getValues();
+
+  // فلترة حركات هذا الطرف
+  const partyTransactions = [];
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    if (row[8] === partyName) { // I = index 8
+      partyTransactions.push({
+        date: row[1],         // B: التاريخ
+        project: row[5],      // F: اسم المشروع
+        details: row[7],      // H: التفاصيل
+        refNum: row[15],      // P: رقم مرجعي
+        notes: row[23],       // X: ملاحظات
+        movementKind: row[13], // N: نوع الحركة
+        amountUsd: Number(row[12]) || 0 // M: القيمة بالدولار
+      });
+    }
+  }
+
+  if (partyTransactions.length === 0) {
+    ui.alert('⚠️ تنبيه', 'لا توجد حركات لـ "' + partyName + '"!', ui.ButtonSet.OK);
+    ss.deleteSheet(statementSheet);
+    return;
+  }
+
+  // إعداد الكشف
+  // العنوان
+  statementSheet.getRange('A1').setValue(titlePrefix + ': ' + partyName)
+    .setFontSize(14).setFontWeight('bold');
+  statementSheet.getRange('A2').setValue('تاريخ الإنشاء: ' + new Date().toLocaleDateString('ar-EG'));
+
+  // الهيدر
+  const headers = ['التاريخ', 'المشروع', 'التفاصيل', 'مدين (USD)', 'دائن (USD)', 'الرصيد (USD)', 'رقم مرجعي', 'ملاحظات'];
+  statementSheet.getRange(4, 1, 1, headers.length)
+    .setValues([headers])
+    .setBackground('#4a86e8')
+    .setFontColor('white')
+    .setFontWeight('bold');
+
+  // البيانات
+  let balance = 0;
+  const rows = [];
+
+  for (let i = 0; i < partyTransactions.length; i++) {
+    const t = partyTransactions[i];
+    let debit = 0, credit = 0;
+
+    if (t.movementKind === 'مدين استحقاق') {
+      debit = t.amountUsd;
+      balance += debit;
+    } else if (t.movementKind === 'دائن دفعة') {
+      credit = t.amountUsd;
+      balance -= credit;
+    }
+
+    rows.push([
+      t.date,
+      t.project,
+      t.details,
+      debit || '',
+      credit || '',
+      Math.round(balance * 100) / 100,
+      t.refNum || '',
+      t.notes || ''
+    ]);
+  }
+
+  if (rows.length > 0) {
+    statementSheet.getRange(5, 1, rows.length, 8).setValues(rows);
+  }
+
+  // صف الإجمالي
+  const totalRow = rows.length + 5;
+  statementSheet.getRange(totalRow, 1).setValue('الإجمالي').setFontWeight('bold');
+  statementSheet.getRange(totalRow, 6).setValue(Math.round(balance * 100) / 100)
+    .setFontWeight('bold').setBackground('#fff2cc');
+
+  // تنسيقات
+  statementSheet.getRange(5, 1, rows.length, 1).setNumberFormat('dd/mm/yyyy');
+  statementSheet.getRange(5, 4, rows.length + 1, 3).setNumberFormat('$#,##0.00');
+  statementSheet.setColumnWidths(1, 8, 120);
+  statementSheet.setColumnWidth(3, 200); // التفاصيل
+  statementSheet.setColumnWidth(8, 200); // ملاحظات
+
+  // تفعيل الشيت
+  ss.setActiveSheet(statementSheet);
+
+  ui.alert('✅ تم', 'تم إنشاء كشف حساب "' + partyName + '" بنجاح!', ui.ButtonSet.OK);
+}
+
 // ==================== كشف حساب مورد - في شيت (محدث للهيكل الجديد) ====================
 function generateVendorStatementSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -5368,6 +5559,14 @@ function onEdit(e) {
   if (col === 14 || col === 9) {
     // تحديث الرصيد أولاً ثم حالة السداد
     recalculatePartyBalance_(sheet, row);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 📄 إنشاء كشف حساب عند التعديل على عمود Y (25)
+  // ═══════════════════════════════════════════════════════════
+  if (col === 25) {
+    generateStatementFromRow_(ss, sheet, row);
+    return; // لا نحتاج معالجة إضافية
   }
 
   // ═══════════════════════════════════════════════════════════
