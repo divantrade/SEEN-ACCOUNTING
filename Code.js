@@ -345,6 +345,7 @@ function onOpen() {
         .addSeparator()
         .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
         .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
+        .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
@@ -1099,28 +1100,60 @@ function createTransactionsSheet(ss) {
 
 // ==================== التلوين الشرطي (حسب نوع الحركة فقط) ====================
 function applyConditionalFormatting(sheet, lastRow) {
+  // مسح القواعد القديمة أولاً
+  sheet.clearConditionalFormatRules();
+
   const rules = [];
-  const dataRange = sheet.getRange(2, 1, lastRow, 24); // من A إلى X
-  
-  // استحقاق = لون
+  // استخدام نطاق أكبر لضمان شمول الصفوف الجديدة
+  const maxRows = Math.max(lastRow, 1000);
+  const dataRange = sheet.getRange(2, 1, maxRows, 24); // من A إلى X
+
+  // استحقاق = برتقالي فاتح
+  // استخدام INDIRECT للتأكد من أن الصيغة تعمل مع كل صف
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
-      .whenFormulaSatisfied('=$N2="مدين استحقاق"')
-      .setBackground(CONFIG.COLORS.BG.LIGHT_ORANGE) // برتقالي فاتح
+      .whenFormulaSatisfied('=AND($N2<>"",$N2="مدين استحقاق")')
+      .setBackground(CONFIG.COLORS.BG.LIGHT_ORANGE)
       .setRanges([dataRange])
       .build()
   );
-  
-  // دفعة = لون
+
+  // دفعة = أزرق فاتح
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
-      .whenFormulaSatisfied('=$N2="دائن دفعة"')
-      .setBackground(CONFIG.COLORS.BG.LIGHT_BLUE) // أزرق فاتح
+      .whenFormulaSatisfied('=AND($N2<>"",$N2="دائن دفعة")')
+      .setBackground(CONFIG.COLORS.BG.LIGHT_BLUE)
       .setRanges([dataRange])
       .build()
   );
-  
+
   sheet.setConditionalFormatRules(rules);
+}
+
+/**
+ * إعادة تطبيق التلوين الشرطي على دفتر الحركات المالية
+ * يُستدعى من القائمة لإصلاح التلوين على الصفوف الموجودة والجديدة
+ */
+function refreshTransactionsFormatting() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('❌ لم يتم العثور على شيت "دفتر الحركات المالية"');
+    return;
+  }
+
+  const lastRow = Math.max(sheet.getLastRow(), 500);
+  applyConditionalFormatting(sheet, lastRow);
+
+  SpreadsheetApp.getUi().alert(
+    '✅ تم تحديث التلوين الشرطي',
+    'تم إعادة تطبيق التلوين الشرطي على دفتر الحركات المالية.\n\n' +
+    '• مدين استحقاق = برتقالي فاتح 🟧\n' +
+    '• دائن دفعة = أزرق فاتح 🟦\n\n' +
+    'النطاق: ' + lastRow + ' صف',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
 }
 
 
