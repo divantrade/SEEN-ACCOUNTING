@@ -1069,9 +1069,9 @@ function createTransactionsSheet(ss) {
   sheet.getRange(2, 13, lastRow, 1).setNumberFormat('#,##0.00');   // M
   sheet.getRange(2, 15, lastRow, 1).setNumberFormat('#,##0.00');   // O
 
-  sheet.getRange(2, 2,  lastRow, 1).setNumberFormat('dd/MM/yyyy'); // B - التاريخ
-  sheet.getRange(2, 20, lastRow, 1).setNumberFormat('dd/MM/yyyy'); // T - تاريخ مخصص
-  sheet.getRange(2, 21, lastRow, 1).setNumberFormat('dd/MM/yyyy'); // U - تاريخ الاستحقاق
+  sheet.getRange(2, 2,  lastRow, 1).setNumberFormat('dd/mm/yyyy'); // B - التاريخ
+  sheet.getRange(2, 20, lastRow, 1).setNumberFormat('dd/mm/yyyy'); // T - تاريخ مخصص
+  sheet.getRange(2, 21, lastRow, 1).setNumberFormat('dd/mm/yyyy'); // U - تاريخ الاستحقاق
   
   // 🎨 تلوين شرطي حسب نوع الحركة فقط
   applyConditionalFormatting(sheet, lastRow);
@@ -1193,9 +1193,9 @@ function createProjectsSheet(ss) {
   
   // تنسيق
   sheet.getRange(2, 8, 200, 2).setNumberFormat('$#,##0.00');
-  sheet.getRange(2, 10, 200, 1).setNumberFormat('dd/MM/yyyy'); // J - تاريخ البدء
-  sheet.getRange(2, 11, 200, 1).setNumberFormat('dd/MM/yyyy'); // K - تاريخ التسليم المتوقع
-  sheet.getRange(2, 12, 200, 1).setNumberFormat('dd/MM/yyyy'); // L - تاريخ التسليم الفعلي
+  sheet.getRange(2, 10, 200, 1).setNumberFormat('dd/mm/yyyy'); // J - تاريخ البدء
+  sheet.getRange(2, 11, 200, 1).setNumberFormat('dd/mm/yyyy'); // K - تاريخ التسليم المتوقع
+  sheet.getRange(2, 12, 200, 1).setNumberFormat('dd/mm/yyyy'); // L - تاريخ التسليم الفعلي
   sheet.getRange(2, 14, 200, 1).setNumberFormat('0');
   
   // تلوين حالة المشروع
@@ -2484,7 +2484,7 @@ function normalizeColumnDates_(sheet, col, lastRow) {
   if (updated > 0) {
     range.setValues(values);
   }
-  range.setNumberFormat('dd/MM/yyyy');
+  range.setNumberFormat('dd/mm/yyyy');
 
   return updated;
 }
@@ -4806,7 +4806,7 @@ function rebuildBankAndCashFromTransactions() {
     if (!acc.rows.length) return;
 
     sheet.getRange(2, 1, acc.rows.length, 8).setValues(acc.rows);
-    sheet.getRange(2, 1, acc.rows.length, 1).setNumberFormat('dd/MM/yyyy');
+    sheet.getRange(2, 1, acc.rows.length, 1).setNumberFormat('dd/mm/yyyy');
     sheet.getRange(2, 5, acc.rows.length, 3).setNumberFormat('#,##0.00');
   });
 
