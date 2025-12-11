@@ -1003,10 +1003,33 @@ function sortTransactionsByDate() {
   // ═══════════════════════════════════════════════════════════
   const numRows = validRows.length;
 
+  // دالة مساعدة لتحويل التاريخ لـ Date object بشكل صحيح
+  function ensureDateObject(dateVal) {
+    if (dateVal instanceof Date) {
+      return dateVal;
+    }
+    if (typeof dateVal === 'string') {
+      // إزالة أي شرطات مائلة مزدوجة
+      dateVal = dateVal.replace(/\/+/g, '/');
+      const parts = dateVal.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+    }
+    return new Date(dateVal);
+  }
+
   // استخراج أعمدة البيانات فقط وكتابتها
   // B-L (indexes 1-11, columns 2-12)
+  // مع التأكد من أن التاريخ (B) هو Date object صحيح
   const dataBtoL = validRows.map(function(row) {
-    return row.slice(1, 12); // B to L
+    const rowData = row.slice(1, 12); // B to L
+    // تحويل التاريخ (أول عنصر = B) لـ Date object
+    rowData[0] = ensureDateObject(rowData[0]);
+    return rowData;
   });
   sheet.getRange(2, 2, numRows, 11).setValues(dataBtoL);
 
@@ -1015,8 +1038,14 @@ function sortTransactionsByDate() {
   sheet.getRange(2, 14, numRows, 1).setValues(dataN);
 
   // Q-T (indexes 16-19, columns 17-20)
+  // T (index 19) هو تاريخ مخصص - يجب التأكد من أنه Date object
   const dataQtoT = validRows.map(function(row) {
-    return row.slice(16, 20); // Q to T
+    const rowData = row.slice(16, 20); // Q to T
+    // T = العنصر الرابع (index 3) - تحويله لـ Date إذا كان تاريخاً
+    if (rowData[3]) {
+      rowData[3] = ensureDateObject(rowData[3]);
+    }
+    return rowData;
   });
   sheet.getRange(2, 17, numRows, 4).setValues(dataQtoT);
 
