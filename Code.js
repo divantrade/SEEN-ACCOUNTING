@@ -964,9 +964,30 @@ function sortTransactionsByDate() {
   // ═══════════════════════════════════════════════════════════
   // 3. ترتيب الصفوف حسب التاريخ (تصاعدي: الأقدم أولاً)
   // ═══════════════════════════════════════════════════════════
+
+  // دالة مساعدة لتحويل التاريخ لـ timestamp بشكل صحيح
+  function getDateTimestamp(dateVal) {
+    // إذا كان Date object من Google Sheets
+    if (dateVal instanceof Date) {
+      return dateVal.getTime();
+    }
+    // إذا كان نصاً بصيغة dd/mm/yyyy
+    if (typeof dateVal === 'string') {
+      const parts = dateVal.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // الشهر يبدأ من 0
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day).getTime();
+      }
+    }
+    // محاولة أخيرة
+    return new Date(dateVal).getTime();
+  }
+
   validRows.sort(function(a, b) {
-    const dateA = new Date(a[1]).getTime();
-    const dateB = new Date(b[1]).getTime();
+    const dateA = getDateTimestamp(a[1]);
+    const dateB = getDateTimestamp(b[1]);
     return dateA - dateB; // تصاعدي: الأقدم في الأعلى
   });
 
