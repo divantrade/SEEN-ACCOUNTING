@@ -288,6 +288,7 @@ function onOpen() {
     .addItem('🧹 تنظيف الايقونات من طبيعة الحركة', 'cleanupNatureTypeEmojis')
     .addItem('⏰ عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
     .addItem('🔔 تحديث التنبيهات', 'updateAlerts')
+    .addItem('📊 تقرير الاستحقاقات الشامل', 'generateDueReport')
     .addSeparator()
 
     // الموردون / العملاء / الممولون
@@ -443,7 +444,7 @@ function submitSmartFormTransaction(formData) {
   // تحديد آخر صف
   const targetRow = findLastDataRowInColumn_(sheet, 2) + 1;
 
-  // إدراج البيانات
+  // إدراج البيانات الأساسية
   const transactionFormula = '=IF(B' + targetRow + '="","",ROW()-1)';
 
   sheet.getRange(targetRow, 1).setFormula(transactionFormula);  // A: رقم الحركة
@@ -453,9 +454,29 @@ function submitSmartFormTransaction(formData) {
   sheet.getRange(targetRow, 7).setValue(formData.item);          // G: البند
   sheet.getRange(targetRow, 14).setValue(formData.movementType); // N: نوع الحركة
 
+  // إدراج بيانات شروط الدفع (للحركات المدينة فقط)
+  if (formData.movementType === CONFIG.MOVEMENT.DEBIT && formData.paymentTerm) {
+    sheet.getRange(targetRow, 18).setValue(formData.paymentTerm);  // R: نوع شرط الدفع
+    sheet.getRange(targetRow, 19).setValue(formData.weeksCount || 0); // S: عدد الأسابيع
+
+    // تاريخ مخصص (T) - فقط إذا تم اختيار "تاريخ مخصص"
+    if (formData.paymentTerm === 'تاريخ مخصص' && formData.customDueDate) {
+      sheet.getRange(targetRow, 20).setValue(formData.customDueDate); // T: تاريخ مخصص
+    }
+  } else {
+    // للحركات الدائنة: عدد الأسابيع = 0
+    sheet.getRange(targetRow, 19).setValue(0);
+  }
+
+  // بناء ملخص النتيجة
+  let summary = formData.natureType + ' | ' + formData.movementType;
+  if (formData.paymentTerm) {
+    summary += ' | شرط: ' + formData.paymentTerm;
+  }
+
   return {
     row: targetRow,
-    summary: formData.natureType + ' | ' + formData.movementType
+    summary: summary
   };
 }
 
@@ -1758,34 +1779,37 @@ function compareBudget() {
 }
 
 
-// ==================== التنبيهات والاستحقاقات (محدث مع نوع الحركة + العملات) ====================
+// ==================== التنبيهات والاستحقاقات (محدث: مدين + دائن + أرصدة) ====================
 function updateAlerts() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const alertSheet = ss.getSheetByName(CONFIG.SHEETS.ALERTS);
-  
+
   if (!transSheet || !alertSheet) {
     SpreadsheetApp.getUi().alert('⚠️ شيت الحركات أو التنبيهات غير موجود!');
     return;
   }
-  
+
   alertSheet.clear();
-  
+
   const headers = [
     'نوع التنبيه', 'الأولوية', 'المشروع', 'الطرف', 'المبلغ (USD)',
     'تاريخ الاستحقاق', 'الأيام المتبقية', 'الحالة', 'الإجراء المطلوب'
   ];
-  
+
   alertSheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
     .setBackground(CONFIG.COLORS.HEADER.ALERTS)
     .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
-  
+
   const data = transSheet.getDataRange().getValues();
   const today = new Date();
   const alerts = [];
-  
+
+  // تجميع أرصدة الأطراف لتنبيهات التحصيل
+  const partyBalances = {};
+
   for (let i = 1; i < data.length; i++) {
     const movementKind = data[i][13]; // N: نوع الحركة (مدين استحقاق / دائن دفعة)
     const project      = data[i][5];  // F: اسم المشروع
@@ -1793,29 +1817,45 @@ function updateAlerts() {
     const amountUsd    = Number(data[i][12]) || 0; // M: القيمة بالدولار
     const dueDate      = data[i][20]; // U: تاريخ الاستحقاق
     const status       = data[i][21]; // V: حالة السداد
-    
+    const natureType   = data[i][2];  // C: طبيعة الحركة
+
+    // تجميع أرصدة الأطراف
+    if (party && amountUsd > 0) {
+      if (!partyBalances[party]) {
+        partyBalances[party] = { debit: 0, credit: 0, nature: natureType, project: project };
+      }
+      if (movementKind === CONFIG.MOVEMENT.DEBIT) {
+        partyBalances[party].debit += amountUsd;
+      } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
+        partyBalances[party].credit += amountUsd;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 1. تنبيهات الاستحقاقات المدينة (فواتير يجب سدادها)
+    // ═══════════════════════════════════════════════════════════
     if (movementKind === CONFIG.MOVEMENT.DEBIT && amountUsd > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
       const dueDateObj = new Date(dueDate);
       const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
-      
+
       let priority, alertType, action;
-      
+
       if (daysLeft < 0) {
         priority = '🔴 عاجل';
-        alertType = 'استحقاق متأخر';
+        alertType = '💸 استحقاق متأخر';
         action = 'سداد فوري';
       } else if (daysLeft <= 3) {
         priority = '🟠 مهم';
-        alertType = 'استحقاق قريب';
+        alertType = '💸 استحقاق قريب';
         action = 'تجهيز المبلغ';
       } else if (daysLeft <= 7) {
         priority = '🟡 متوسط';
-        alertType = 'استحقاق قادم';
+        alertType = '💸 استحقاق قادم';
         action = 'متابعة';
       } else {
         continue;
       }
-      
+
       alerts.push([
         alertType,
         priority,
@@ -1824,22 +1864,220 @@ function updateAlerts() {
         amountUsd,
         Utilities.formatDate(dueDateObj, Session.getScriptTimeZone(), 'dd/MM/yyyy'),
         daysLeft + ' يوم',
-        status,
+        status || 'معلق',
         action
       ]);
     }
   }
-  
-  if (alerts.length > 0) {
-    // ترتيب حسب الأيام المتبقية (عمود "الأيام المتبقية" = index 6 في alerts)
-    alerts.sort((a, b) => parseInt(a[6]) - parseInt(b[6]));
-    alertSheet.getRange(2, 1, alerts.length, headers.length).setValues(alerts);
+
+  // ═══════════════════════════════════════════════════════════
+  // 2. تنبيهات الأرصدة المستحقة التحصيل (إيرادات لم تُحصّل)
+  // ═══════════════════════════════════════════════════════════
+  for (const party in partyBalances) {
+    const balance = partyBalances[party].debit - partyBalances[party].credit;
+
+    // إذا كان الرصيد موجب (على الطرف لنا فلوس) وطبيعة الحركة إيرادية
+    if (balance > 100 && partyBalances[party].nature &&
+        (partyBalances[party].nature.includes('إيراد') || partyBalances[party].nature.includes('تحصيل'))) {
+      alerts.push([
+        '💰 تحصيل مستحق',
+        '🟣 متابعة',
+        partyBalances[party].project || '-',
+        party,
+        balance,
+        '-',
+        '-',
+        'رصيد مستحق',
+        'متابعة التحصيل'
+      ]);
+    }
   }
-  
+
+  if (alerts.length > 0) {
+    // ترتيب: الاستحقاقات المتأخرة أولاً
+    alerts.sort((a, b) => {
+      // الأولوية: عاجل > مهم > متوسط > متابعة
+      const priorityOrder = { '🔴 عاجل': 1, '🟠 مهم': 2, '🟡 متوسط': 3, '🟣 متابعة': 4 };
+      return (priorityOrder[a[1]] || 5) - (priorityOrder[b[1]] || 5);
+    });
+    alertSheet.getRange(2, 1, alerts.length, headers.length).setValues(alerts);
+
+    // تلوين الصفوف حسب الأولوية
+    for (let i = 0; i < alerts.length; i++) {
+      let bgColor = '#ffffff';
+      if (alerts[i][1] === '🔴 عاجل') bgColor = '#ffcdd2';
+      else if (alerts[i][1] === '🟠 مهم') bgColor = '#ffe0b2';
+      else if (alerts[i][1] === '🟡 متوسط') bgColor = '#fff9c4';
+      else if (alerts[i][1] === '🟣 متابعة') bgColor = '#e1bee7';
+
+      alertSheet.getRange(i + 2, 1, 1, headers.length).setBackground(bgColor);
+    }
+  }
+
+  // إحصائيات
+  const urgentCount = alerts.filter(a => a[1] === '🔴 عاجل').length;
+  const importantCount = alerts.filter(a => a[1] === '🟠 مهم').length;
+  const collectCount = alerts.filter(a => a[0] === '💰 تحصيل مستحق').length;
+
   SpreadsheetApp.getUi().alert(
     '✅ تم تحديث التنبيهات!\n\n' +
-    'عدد التنبيهات: ' + alerts.length
+    '📊 الإحصائيات:\n' +
+    '• 🔴 عاجل: ' + urgentCount + '\n' +
+    '• 🟠 مهم: ' + importantCount + '\n' +
+    '• 💰 تحصيلات مستحقة: ' + collectCount + '\n\n' +
+    '📝 إجمالي التنبيهات: ' + alerts.length
   );
+}
+
+// ==================== تقرير الاستحقاقات الشامل ====================
+/**
+ * إنشاء تقرير استحقاقات شامل يتضمن:
+ * - الاستحقاقات المدينة (فواتير يجب سدادها)
+ * - الإيرادات المستحقة التحصيل
+ * - ملخص حسب الفترة الزمنية
+ */
+function generateDueReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const ui = SpreadsheetApp.getUi();
+
+  if (!transSheet) {
+    ui.alert('⚠️ شيت دفتر الحركات غير موجود!');
+    return;
+  }
+
+  const data = transSheet.getDataRange().getValues();
+  const today = new Date();
+
+  // تصنيف الاستحقاقات
+  const overdue = [];      // متأخرة
+  const thisWeek = [];     // هذا الأسبوع
+  const thisMonth = [];    // هذا الشهر
+  const later = [];        // لاحقاً
+
+  let totalOverdue = 0;
+  let totalThisWeek = 0;
+  let totalThisMonth = 0;
+  let totalLater = 0;
+
+  // تجميع أرصدة الأطراف للتحصيلات
+  const partyBalances = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const movementKind = data[i][13]; // N
+    const party = data[i][8];         // I
+    const project = data[i][5];       // F
+    const amountUsd = Number(data[i][12]) || 0; // M
+    const dueDate = data[i][20];      // U
+    const status = data[i][21];       // V
+    const natureType = data[i][2];    // C
+
+    // تجميع الأرصدة
+    if (party && amountUsd > 0) {
+      if (!partyBalances[party]) {
+        partyBalances[party] = { debit: 0, credit: 0, nature: natureType, project: project };
+      }
+      if (movementKind === CONFIG.MOVEMENT.DEBIT) {
+        partyBalances[party].debit += amountUsd;
+      } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
+        partyBalances[party].credit += amountUsd;
+      }
+    }
+
+    // الاستحقاقات المدينة
+    if (movementKind === CONFIG.MOVEMENT.DEBIT && amountUsd > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
+      const dueDateObj = new Date(dueDate);
+      const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
+      const item = { party, project, amount: amountUsd, dueDate: dueDateObj, daysLeft };
+
+      if (daysLeft < 0) {
+        overdue.push(item);
+        totalOverdue += amountUsd;
+      } else if (daysLeft <= 7) {
+        thisWeek.push(item);
+        totalThisWeek += amountUsd;
+      } else if (daysLeft <= 30) {
+        thisMonth.push(item);
+        totalThisMonth += amountUsd;
+      } else {
+        later.push(item);
+        totalLater += amountUsd;
+      }
+    }
+  }
+
+  // حساب التحصيلات المستحقة
+  let totalReceivables = 0;
+  const receivables = [];
+  for (const party in partyBalances) {
+    const balance = partyBalances[party].debit - partyBalances[party].credit;
+    if (balance > 100 && partyBalances[party].nature &&
+        (partyBalances[party].nature.includes('إيراد') || partyBalances[party].nature.includes('تحصيل'))) {
+      receivables.push({ party, amount: balance, project: partyBalances[party].project });
+      totalReceivables += balance;
+    }
+  }
+
+  // بناء التقرير
+  let report = '═══════════════════════════════════════════\n';
+  report += '📊 تقرير الاستحقاقات الشامل\n';
+  report += '📅 ' + Utilities.formatDate(today, Session.getScriptTimeZone(), 'dd/MM/yyyy') + '\n';
+  report += '═══════════════════════════════════════════\n\n';
+
+  // 1. الاستحقاقات المتأخرة
+  report += '🔴 الاستحقاقات المتأخرة (' + overdue.length + ')\n';
+  report += '────────────────────────────────────────\n';
+  if (overdue.length > 0) {
+    overdue.sort((a, b) => a.daysLeft - b.daysLeft);
+    overdue.slice(0, 5).forEach(item => {
+      report += `• ${item.party}: $${item.amount.toLocaleString()} (متأخر ${Math.abs(item.daysLeft)} يوم)\n`;
+    });
+    if (overdue.length > 5) report += `  ... و ${overdue.length - 5} أخرى\n`;
+  } else {
+    report += '  لا يوجد استحقاقات متأخرة ✅\n';
+  }
+  report += `💰 الإجمالي: $${totalOverdue.toLocaleString()}\n\n`;
+
+  // 2. استحقاقات هذا الأسبوع
+  report += '🟠 استحقاقات هذا الأسبوع (' + thisWeek.length + ')\n';
+  report += '────────────────────────────────────────\n';
+  if (thisWeek.length > 0) {
+    thisWeek.slice(0, 5).forEach(item => {
+      report += `• ${item.party}: $${item.amount.toLocaleString()} (${item.daysLeft} يوم)\n`;
+    });
+    if (thisWeek.length > 5) report += `  ... و ${thisWeek.length - 5} أخرى\n`;
+  } else {
+    report += '  لا يوجد استحقاقات هذا الأسبوع ✅\n';
+  }
+  report += `💰 الإجمالي: $${totalThisWeek.toLocaleString()}\n\n`;
+
+  // 3. استحقاقات هذا الشهر
+  report += '🟡 استحقاقات هذا الشهر (' + thisMonth.length + ')\n';
+  report += '────────────────────────────────────────\n';
+  report += `💰 الإجمالي: $${totalThisMonth.toLocaleString()}\n\n`;
+
+  // 4. التحصيلات المستحقة
+  report += '💰 إيرادات مستحقة التحصيل (' + receivables.length + ')\n';
+  report += '────────────────────────────────────────\n';
+  if (receivables.length > 0) {
+    receivables.slice(0, 5).forEach(item => {
+      report += `• ${item.party}: $${item.amount.toLocaleString()}\n`;
+    });
+    if (receivables.length > 5) report += `  ... و ${receivables.length - 5} أخرى\n`;
+  } else {
+    report += '  لا يوجد إيرادات مستحقة ✅\n';
+  }
+  report += `💰 الإجمالي: $${totalReceivables.toLocaleString()}\n\n`;
+
+  // الملخص
+  report += '═══════════════════════════════════════════\n';
+  report += '📈 الملخص المالي\n';
+  report += '═══════════════════════════════════════════\n';
+  report += `💸 إجمالي الاستحقاقات: $${(totalOverdue + totalThisWeek + totalThisMonth + totalLater).toLocaleString()}\n`;
+  report += `💰 إجمالي التحصيلات المستحقة: $${totalReceivables.toLocaleString()}\n`;
+  report += `📊 صافي الموقف: $${(totalReceivables - totalOverdue - totalThisWeek - totalThisMonth - totalLater).toLocaleString()}\n`;
+
+  ui.alert(report);
 }
 
 // ==================== نافذة الاستحقاقات القادمة (30 يوم) ====================
