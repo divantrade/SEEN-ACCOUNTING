@@ -1012,7 +1012,17 @@ function createTransactionsSheet(ss) {
     .build();
   sheet.getRange(2, 18, lastRow, 1) // R
     .setDataValidation(termValidation);
-  
+
+  // عدد الأسابيع (S = 19) - validation للأرقام فقط 0-52
+  const weeksValidation = SpreadsheetApp.newDataValidation()
+    .requireNumberBetween(0, 52)
+    .setAllowInvalid(false)
+    .setHelpText('أدخل عدد الأسابيع (0-52) - يُستخدم مع شرط "بعد التسليم"')
+    .build();
+  sheet.getRange(2, 19, lastRow, 1) // S
+    .setDataValidation(weeksValidation)
+    .setValue(0);  // قيمة افتراضية = 0
+
   // المعادلات لكل صف - باستخدام Batch Operations للأداء الأمثل
   // بدلاً من 4000 طلب API (7 معادلات × 500 صف) = 7 طلبات فقط
   // ملاحظة: عمود F (اسم المشروع) يُملأ عبر onEdit للمزامنة الثنائية مع E
@@ -1046,13 +1056,16 @@ function createTransactionsSheet(ss) {
       `"REF-"&TEXT(B${row},"YYYYMMDD")&"-"&ROW(),"")`
     ]);
 
-    // تاريخ الاستحقاق U (21)
+    // تاريخ الاستحقاق U (21) - محسّن للتعامل مع القيم الفارغة
+    // فوري = تاريخ الحركة
+    // بعد التسليم = تاريخ التسليم المتوقع + (عدد الأسابيع × 7)
+    // تاريخ مخصص = التاريخ المُدخل يدوياً
     formulasU.push([
-      `=IF(N${row}<>"مدين استحقاق","",` +
+      `=IF(OR(N${row}<>"مدين استحقاق",R${row}=""),"",` +
       `IF(R${row}="فوري",B${row},` +
       `IF(R${row}="بعد التسليم",` +
-      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE),"")+S${row}*7,` +
-      `IF(R${row}="تاريخ مخصص",T${row},""))))`
+      `IFERROR(VLOOKUP(E${row},'قاعدة بيانات المشاريع'!A2:K200,11,FALSE),"")+IF(OR(S${row}="",S${row}=0),0,S${row})*7,` +
+      `IF(AND(R${row}="تاريخ مخصص",T${row}<>""),T${row},""))))`
     ]);
 
     // حالة السداد V (22)
@@ -2577,13 +2590,37 @@ function fixAllDropdowns() {
     .build();
   sheet.getRange(2, 18, lastRow, 1).setDataValidation(termValidation);
 
+  // عدد الأسابيع (S = 19) - validation للأرقام فقط 0-52
+  const weeksValidation = SpreadsheetApp.newDataValidation()
+    .requireNumberBetween(0, 52)
+    .setAllowInvalid(false)
+    .setHelpText('أدخل عدد الأسابيع (0-52) - يُستخدم مع شرط "بعد التسليم"')
+    .build();
+  sheet.getRange(2, 19, lastRow, 1).setDataValidation(weeksValidation);
+
+  // تعيين القيمة الافتراضية 0 للخلايا الفارغة في عمود S
+  const weeksRange = sheet.getRange(2, 19, lastRow, 1);
+  const weeksValues = weeksRange.getValues();
+  let fixedCount = 0;
+  for (let i = 0; i < weeksValues.length; i++) {
+    if (weeksValues[i][0] === '' || weeksValues[i][0] === null) {
+      weeksValues[i][0] = 0;
+      fixedCount++;
+    }
+  }
+  if (fixedCount > 0) {
+    weeksRange.setValues(weeksValues);
+  }
+
   ui.alert(
     '✅ تم إصلاح القوائم المنسدلة!',
-    'تم تطبيق الـ dropdowns على:\n\n' +
+    'تم تطبيق الـ dropdowns والـ validations على:\n\n' +
     '• عمود N (نوع الحركة)\n' +
     '• عمود K (العملة)\n' +
     '• عمود Q (طريقة الدفع)\n' +
-    '• عمود R (نوع شرط الدفع)\n\n' +
+    '• عمود R (نوع شرط الدفع)\n' +
+    '• عمود S (عدد الأسابيع) - أرقام 0-52\n\n' +
+    'تم تصحيح ' + fixedCount + ' خلية فارغة في عمود S\n' +
     'عدد الصفوف: ' + lastRow,
     ui.ButtonSet.OK
   );
