@@ -343,7 +343,9 @@ function onOpen() {
         .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
         .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
         .addSeparator()
-        .addItem('📅 تطبيع التواريخ (B & T)', 'normalizeDateColumns')
+        .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
+        .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
+        .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
 
@@ -569,7 +571,16 @@ function addTransactionWithDate() {
   sheet.getRange(targetRow, 1).setFormula(transactionFormula);  // A: رقم الحركة
   sheet.getRange(targetRow, 2).setValue(dateObj).setNumberFormat('dd/mm/yyyy');  // B: التاريخ
   sheet.getRange(targetRow, 3).setValue(natureType);             // C: طبيعة الحركة
-  sheet.getRange(targetRow, 14).setValue(movementType);          // N: نوع الحركة
+
+  // N: نوع الحركة مع dropdown
+  var movementCell = sheet.getRange(targetRow, 14);
+  movementCell.setValue(movementType);
+  movementCell.setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(CONFIG.MOVEMENT.TYPES, true)
+      .setAllowInvalid(true)
+      .build()
+  );
 
   ss.toast('✅ صف ' + targetRow + ': ' + natureType + ' | ' + movementType, 'تم', 3);
 }
@@ -2487,6 +2498,62 @@ function normalizeColumnDates_(sheet, col, lastRow) {
   range.setNumberFormat('dd/mm/yyyy');
 
   return updated;
+}
+
+/**
+ * إصلاح جميع الـ dropdowns في دفتر الحركات المالية
+ * يُستخدم لإعادة تطبيق القوائم المنسدلة على الأعمدة
+ */
+function fixAllDropdowns() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('⚠️ شيت دفتر الحركات المالية غير موجود!');
+    return;
+  }
+
+  const lastRow = Math.max(sheet.getLastRow(), 500);
+
+  // نوع الحركة (N = 14)
+  const movementValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(CONFIG.MOVEMENT.TYPES, true)
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(2, 14, lastRow, 1).setDataValidation(movementValidation);
+
+  // العملة (K = 11)
+  const currencyValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(CONFIG.CURRENCIES.LIST, true)
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(2, 11, lastRow, 1).setDataValidation(currencyValidation);
+
+  // طريقة الدفع (Q = 17)
+  const payMethodValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['نقدي', 'تحويل بنكي', 'شيك', 'بطاقة', 'أخرى'])
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(2, 17, lastRow, 1).setDataValidation(payMethodValidation);
+
+  // نوع شرط الدفع (R = 18)
+  const termValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(CONFIG.PAYMENT_TERMS.LIST)
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(2, 18, lastRow, 1).setDataValidation(termValidation);
+
+  ui.alert(
+    '✅ تم إصلاح القوائم المنسدلة!',
+    'تم تطبيق الـ dropdowns على:\n\n' +
+    '• عمود N (نوع الحركة)\n' +
+    '• عمود K (العملة)\n' +
+    '• عمود Q (طريقة الدفع)\n' +
+    '• عمود R (نوع شرط الدفع)\n\n' +
+    'عدد الصفوف: ' + lastRow,
+    ui.ButtonSet.OK
+  );
 }
 
 
