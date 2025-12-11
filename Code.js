@@ -4348,16 +4348,23 @@ function onEdit(e) {
 }
 
 /**
- * تطبيع خلية تاريخ - تحويل النص إلى Date object
+ * تطبيع خلية تاريخ - تحويل النص إلى Date object وضبط التنسيق
  * @param {Range} range - الخلية
  * @param {*} value - القيمة الحالية
  */
 function normalizeDateCell_(range, value) {
   // تجاهل إذا كانت القيمة Date object بالفعل
-  if (value instanceof Date) return;
+  if (value instanceof Date) {
+    // فقط تأكد من التنسيق الصحيح
+    range.setNumberFormat('dd/mm/yyyy');
+    return;
+  }
 
   // تجاهل إذا كانت القيمة رقم (serial date من Sheets)
-  if (typeof value === 'number') return;
+  if (typeof value === 'number') {
+    range.setNumberFormat('dd/mm/yyyy');
+    return;
+  }
 
   // محاولة تحويل النص إلى تاريخ
   const dateStr = String(value).trim();
@@ -4366,6 +4373,7 @@ function normalizeDateCell_(range, value) {
   const parseResult = parseDateInput_(dateStr);
   if (parseResult.success) {
     range.setValue(parseResult.dateObj);
+    range.setNumberFormat('dd/mm/yyyy');
   }
 }
 
