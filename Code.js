@@ -894,11 +894,16 @@ function parseDateInput_(dateStr) {
 /**
  * ترتيب الحركات في دفتر الحركات المالية حسب التاريخ
  * الأقدم في الأعلى (صف 2) والأحدث في الأسفل (آخر صف)
+ *
+ * ⚠️ ملاحظة: هذه الدالة تحافظ على جميع المعادلات في الأعمدة المحسوبة:
+ * A (رقم الحركة), M (القيمة بالدولار), O (الرصيد), P (رقم مرجعي),
+ * U (تاريخ الاستحقاق), V (حالة السداد), W (الشهر)
  */
 function sortTransactionsByDate() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
 
   if (!sheet) {
     ui.alert('❌ خطأ', 'شيت دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
@@ -910,7 +915,9 @@ function sortTransactionsByDate() {
     '🔃 ترتيب الحركات',
     'سيتم ترتيب جميع الحركات حسب التاريخ:\n' +
     '• الأقدم في الأعلى (صف 2)\n' +
-    '• الأحدث في الأسفل (آخر صف)\n\n' +
+    '• الأحدث في الأسفل (آخر صف)\n' +
+    '• ستتم إزالة الصفوف الفارغة (بدون تاريخ)\n' +
+    '• سيتم إعادة بناء جميع المعادلات\n\n' +
     'هل تريد المتابعة؟',
     ui.ButtonSet.YES_NO
   );
@@ -920,36 +927,244 @@ function sortTransactionsByDate() {
   }
 
   const lastRow = sheet.getLastRow();
-  const lastCol = sheet.getLastColumn();
+  const lastCol = Math.max(sheet.getLastColumn(), 24); // على الأقل 24 عمود (A-X)
 
   if (lastRow <= 1) {
     ui.alert('ℹ️ تنبيه', 'لا توجد حركات للترتيب!', ui.ButtonSet.OK);
     return;
   }
 
-  // قراءة كل البيانات
+  // ═══════════════════════════════════════════════════════════
+  // 1. قراءة كل البيانات
+  // ═══════════════════════════════════════════════════════════
   const dataRange = sheet.getRange(2, 1, lastRow - 1, lastCol);
-  const data = dataRange.getValues();
+  const allData = dataRange.getValues();
 
-  // ترتيب البيانات حسب التاريخ (عمود B = index 1)
-  // ascending = الأقدم أولاً (في الأعلى)
-  data.sort(function(a, b) {
-    const dateA = a[1] ? new Date(a[1]).getTime() : 0;
-    const dateB = b[1] ? new Date(b[1]).getTime() : 0;
-    return dateA - dateB; // تصاعدي: الأقدم أولاً
+  // ═══════════════════════════════════════════════════════════
+  // 2. فلترة الصفوف الفارغة (صفوف بدون تاريخ صحيح في عمود B)
+  // ═══════════════════════════════════════════════════════════
+  const validRows = allData.filter(function(row) {
+    const dateVal = row[1]; // B = index 1
+    // تاريخ صحيح = كائن Date أو نص يمكن تحويله لتاريخ
+    if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+      return true;
+    }
+    if (typeof dateVal === 'string' && dateVal.trim() !== '') {
+      const parsed = new Date(dateVal);
+      return !isNaN(parsed.getTime());
+    }
+    return false;
   });
 
-  // كتابة البيانات المرتبة
-  dataRange.setValues(data);
+  if (validRows.length === 0) {
+    ui.alert('⚠️ تنبيه', 'لا توجد حركات بتواريخ صحيحة للترتيب!', ui.ButtonSet.OK);
+    return;
+  }
 
-  // رسالة نجاح
-  ui.alert(
-    '✅ تم الترتيب',
-    'تم ترتيب ' + (lastRow - 1) + ' حركة حسب التاريخ.\n\n' +
+  // ═══════════════════════════════════════════════════════════
+  // 3. ترتيب الصفوف حسب التاريخ (تصاعدي: الأقدم أولاً)
+  // ═══════════════════════════════════════════════════════════
+  validRows.sort(function(a, b) {
+    const dateA = new Date(a[1]).getTime();
+    const dateB = new Date(b[1]).getTime();
+    return dateA - dateB; // تصاعدي: الأقدم في الأعلى
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // 4. مسح كل البيانات القديمة
+  // ═══════════════════════════════════════════════════════════
+  dataRange.clearContent();
+
+  // ═══════════════════════════════════════════════════════════
+  // 5. كتابة البيانات المرتبة (أعمدة البيانات فقط، بدون أعمدة المعادلات)
+  // أعمدة البيانات: B, C, D, E, F, G, H, I, J, K, L, N, Q, R, S, T, X
+  // أعمدة المعادلات/المحسوبة: A, M, O, P, U, V, W
+  // ═══════════════════════════════════════════════════════════
+  const numRows = validRows.length;
+
+  // استخراج أعمدة البيانات فقط وكتابتها
+  // B-L (indexes 1-11, columns 2-12)
+  const dataBtoL = validRows.map(function(row) {
+    return row.slice(1, 12); // B to L
+  });
+  sheet.getRange(2, 2, numRows, 11).setValues(dataBtoL);
+
+  // N (index 13, column 14)
+  const dataN = validRows.map(function(row) { return [row[13]]; });
+  sheet.getRange(2, 14, numRows, 1).setValues(dataN);
+
+  // Q-T (indexes 16-19, columns 17-20)
+  const dataQtoT = validRows.map(function(row) {
+    return row.slice(16, 20); // Q to T
+  });
+  sheet.getRange(2, 17, numRows, 4).setValues(dataQtoT);
+
+  // X (index 23, column 24)
+  const dataX = validRows.map(function(row) { return [row[23] || '']; });
+  sheet.getRange(2, 24, numRows, 1).setValues(dataX);
+
+  // ═══════════════════════════════════════════════════════════
+  // 6. إعادة بناء معادلات الأعمدة: A, P, W
+  // ═══════════════════════════════════════════════════════════
+  const formulasA = [];
+  const formulasP = [];
+  const formulasW = [];
+
+  for (let row = 2; row <= numRows + 1; row++) {
+    // A: رقم الحركة
+    formulasA.push([`=IF(B${row}="","",ROW()-1)`]);
+
+    // P: رقم مرجعي (للحركات المدينة فقط)
+    formulasP.push([
+      `=IF(AND(N${row}="مدين استحقاق",B${row}<>""),` +
+      `"REF-"&TEXT(B${row},"YYYYMMDD")&"-"&ROW(),"")`
+    ]);
+
+    // W: الشهر
+    formulasW.push([`=IF(B${row}="","",TEXT(B${row},"YYYY-MM"))`]);
+  }
+
+  sheet.getRange(2, 1, numRows, 1).setFormulas(formulasA);   // A
+  sheet.getRange(2, 16, numRows, 1).setFormulas(formulasP);  // P
+  sheet.getRange(2, 23, numRows, 1).setFormulas(formulasW);  // W
+
+  // ═══════════════════════════════════════════════════════════
+  // 7. حساب القيم للأعمدة: M, O, U, V
+  // (نفس منطق refreshValueAndBalanceFormulas ولكن للصفوف المرتبة)
+  // ═══════════════════════════════════════════════════════════
+
+  // جلب بيانات المشاريع (للحصول على تواريخ التسليم)
+  const projectDeliveryDates = {};
+  if (projectsSheet) {
+    const projectData = projectsSheet.getRange('A2:K200').getValues();
+    for (let i = 0; i < projectData.length; i++) {
+      const code = projectData[i][0];
+      const deliveryDate = projectData[i][10]; // K: تاريخ التسليم المتوقع
+      if (code && deliveryDate instanceof Date) {
+        projectDeliveryDates[code] = deliveryDate;
+      }
+    }
+  }
+
+  const valuesM = [];  // القيمة بالدولار
+  const valuesO = [];  // الرصيد
+  const valuesU = [];  // تاريخ الاستحقاق
+  const valuesV = [];  // حالة السداد
+
+  // لتتبع الأرصدة التراكمية لكل طرف
+  const partyBalances = {};
+
+  for (let i = 0; i < validRows.length; i++) {
+    const row = validRows[i];
+    const dateVal = row[1];                                   // B
+    const projectCode = row[4];                               // E
+    const party = String(row[8] || '').trim();                // I
+    const amount = Number(row[9]) || 0;                       // J
+    const currency = String(row[10] || '').trim().toUpperCase(); // K
+    const exchangeRate = Number(row[11]) || 0;                // L
+    const movementKind = String(row[13] || '').trim();        // N
+    const paymentTermType = String(row[17] || '').trim();     // R
+    const weeks = Number(row[18]) || 0;                       // S
+    const customDate = row[19];                               // T
+
+    // ─────────────────────────────────────────────────────────
+    // M: حساب القيمة بالدولار
+    // ─────────────────────────────────────────────────────────
+    let amountUsd = 0;
+    let hasValidConversion = true;
+    if (amount > 0) {
+      if (currency === 'USD' || currency === 'دولار' || currency === '') {
+        amountUsd = amount;
+      } else if (exchangeRate > 0) {
+        amountUsd = amount / exchangeRate;
+      } else {
+        hasValidConversion = false;
+      }
+    }
+    valuesM.push([hasValidConversion && amountUsd > 0 ? Math.round(amountUsd * 100) / 100 : '']);
+
+    // ─────────────────────────────────────────────────────────
+    // O, V: حساب الرصيد وحالة السداد
+    // ─────────────────────────────────────────────────────────
+    let balance = '';
+    let status = '';
+
+    if (party && amountUsd > 0) {
+      if (!partyBalances[party]) {
+        partyBalances[party] = 0;
+      }
+
+      if (movementKind === 'مدين استحقاق') {
+        partyBalances[party] += amountUsd;
+      } else if (movementKind === 'دائن دفعة') {
+        partyBalances[party] -= amountUsd;
+      }
+
+      balance = Math.round(partyBalances[party] * 100) / 100;
+
+      if (movementKind === 'دائن دفعة') {
+        status = CONFIG.PAYMENT_STATUS.OPERATION;
+      } else if (balance > 0.01) {
+        status = CONFIG.PAYMENT_STATUS.PENDING;
+      } else {
+        status = CONFIG.PAYMENT_STATUS.PAID;
+      }
+    }
+    valuesO.push([balance]);
+    valuesV.push([status]);
+
+    // ─────────────────────────────────────────────────────────
+    // U: حساب تاريخ الاستحقاق
+    // ─────────────────────────────────────────────────────────
+    let dueDate = '';
+
+    if (movementKind === 'مدين استحقاق' && paymentTermType) {
+      if (paymentTermType === 'فوري') {
+        dueDate = dateVal;
+      } else if (paymentTermType === 'بعد التسليم' && projectCode) {
+        const deliveryDate = projectDeliveryDates[projectCode];
+        if (deliveryDate) {
+          const newDate = new Date(deliveryDate);
+          newDate.setDate(newDate.getDate() + (weeks * 7));
+          dueDate = newDate;
+        }
+      } else if (paymentTermType === 'تاريخ مخصص' && customDate) {
+        dueDate = customDate;
+      }
+    }
+    valuesU.push([dueDate]);
+  }
+
+  // كتابة القيم المحسوبة
+  sheet.getRange(2, 13, numRows, 1).setValues(valuesM);  // M
+  sheet.getRange(2, 15, numRows, 1).setValues(valuesO);  // O
+  sheet.getRange(2, 21, numRows, 1).setValues(valuesU);  // U
+  sheet.getRange(2, 22, numRows, 1).setValues(valuesV);  // V
+
+  // ═══════════════════════════════════════════════════════════
+  // 8. تنسيقات
+  // ═══════════════════════════════════════════════════════════
+  sheet.getRange(2, 2, numRows, 1).setNumberFormat('dd/mm/yyyy');   // B: التاريخ
+  sheet.getRange(2, 10, numRows, 1).setNumberFormat('#,##0.00');    // J: المبلغ
+  sheet.getRange(2, 12, numRows, 1).setNumberFormat('#,##0.0000');  // L: سعر الصرف
+  sheet.getRange(2, 13, numRows, 1).setNumberFormat('#,##0.00');    // M: القيمة بالدولار
+  sheet.getRange(2, 15, numRows, 1).setNumberFormat('#,##0.00');    // O: الرصيد
+  sheet.getRange(2, 21, numRows, 1).setNumberFormat('dd/mm/yyyy');  // U: تاريخ الاستحقاق
+
+  // ═══════════════════════════════════════════════════════════
+  // 9. رسالة نجاح
+  // ═══════════════════════════════════════════════════════════
+  const removedRows = allData.length - validRows.length;
+  let message = 'تم ترتيب ' + validRows.length + ' حركة حسب التاريخ.\n\n' +
     '• الأقدم في الأعلى (صف 2)\n' +
-    '• الأحدث في الأسفل (آخر صف)',
-    ui.ButtonSet.OK
-  );
+    '• الأحدث في الأسفل (آخر صف)\n' +
+    '• تم إعادة بناء جميع المعادلات';
+
+  if (removedRows > 0) {
+    message += '\n• تم إزالة ' + removedRows + ' صف فارغ';
+  }
+
+  ui.alert('✅ تم الترتيب', message, ui.ButtonSet.OK);
 
   SpreadsheetApp.getActiveSpreadsheet().toast('تم ترتيب الحركات بنجاح!', '✅ تم', 3);
 }
