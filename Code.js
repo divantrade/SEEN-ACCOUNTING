@@ -518,6 +518,7 @@ function onOpen() {
         .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
         .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
+        .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
         .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
         .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
@@ -1966,15 +1967,56 @@ function createProjectsSheet(ss) {
       .setRanges([sheet.getRange(2, 15, 200, 1)])
       .build()
   );
+  // تظليل اسم المشروع عند وجود رقم فاتورة في العمود Q
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=AND($Q2<>"",$B2<>"")')
+      .setBackground('#a8e6cf')  // أخضر فاتح مميز
+      .setRanges([sheet.getRange(2, 2, 200, 1)])  // عمود B فقط
+      .build()
+  );
+
   sheet.setConditionalFormatRules(rules);
-  
+
   sheet.setFrozenRows(1);
-  
+  sheet.setFrozenColumns(2);  // تثبيت عمود كود المشروع واسم المشروع
+
   const protection = sheet.getRange(2, 1, 200, 1).protect();
   protection.setDescription('كود المشروع محسوب تلقائياً');
   protection.setWarningOnly(true);
-  
+
   sheet.getRange('N1').setNote('🆕 مدة المشروع بالأشهر\nيُستخدم لحساب المصروفات العمومية 30% في تقرير الربحية');
+}
+
+/**
+ * تطبيق إعدادات تثبيت الأعمدة وتظليل الفواتير على شيت المشاريع الموجود
+ */
+function applyProjectsSheetEnhancements() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('⚠️ لم يتم العثور على شيت "قاعدة بيانات المشاريع"');
+    return;
+  }
+
+  // تثبيت العمودين الأولين
+  sheet.setFrozenColumns(2);
+
+  // الحصول على القواعد الموجودة
+  const existingRules = sheet.getConditionalFormatRules();
+
+  // إضافة قاعدة تظليل الفاتورة إذا لم تكن موجودة
+  const invoiceRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND($Q2<>"",$B2<>"")')
+    .setBackground('#a8e6cf')  // أخضر فاتح مميز
+    .setRanges([sheet.getRange(2, 2, 500, 1)])  // عمود B
+    .build();
+
+  existingRules.push(invoiceRule);
+  sheet.setConditionalFormatRules(existingRules);
+
+  SpreadsheetApp.getUi().alert('✅ تم تطبيق التحسينات:\n• تثبيت عمودي كود المشروع واسم المشروع\n• تظليل اسم المشروع عند وجود رقم فاتورة');
 }
 
 
