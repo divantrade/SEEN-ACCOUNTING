@@ -518,7 +518,8 @@ function onOpen() {
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
         .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
-        .addItem('📄 إضافة عمود كشف الحساب', 'addStatementLinkColumn')
+        .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
+        .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
@@ -3634,6 +3635,89 @@ function addStatementLinkColumn() {
   );
 }
 
+// ==================== إضافة عمود كشف الحساب لتقرير الموردين الموجود ====================
+/**
+ * إضافة عمود "📄 كشف" لتقرير الموردين الموجود
+ * يسمح بإنشاء كشف حساب للمورد بضغطة واحدة
+ */
+function addStatementColumnToVendorReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
+
+  if (!sheet) {
+    ui.alert('❌ خطأ', 'شيت "تقرير الموردين" غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  // التحقق من وجود العمود مسبقاً
+  const currentHeader = sheet.getRange(1, 10).getValue();
+  if (currentHeader === '📄 كشف') {
+    // العمود موجود، نسأل المستخدم إذا يريد إعادة ملء الرموز
+    const response = ui.alert(
+      '📄 عمود موجود',
+      'عمود "📄 كشف" موجود بالفعل.\n\nهل تريد إعادة ملء الرموز 📄 في جميع الصفوف؟',
+      ui.ButtonSet.YES_NO
+    );
+    if (response !== ui.Button.YES) return;
+  } else {
+    // إضافة العنوان
+    sheet.getRange(1, 10)
+      .setValue('📄 كشف')
+      .setBackground(CONFIG.COLORS.HEADER.VENDORS)
+      .setFontColor('white')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+
+    // تعيين عرض العمود
+    sheet.setColumnWidth(10, 60);
+
+    // إضافة ملاحظة توضيحية
+    sheet.getRange(1, 10).setNote(
+      '📄 اضغط على أي خلية في هذا العمود لإنشاء كشف حساب للمورد'
+    );
+  }
+
+  // ملء العمود بالرمز 📄 لكل صف فيه بيانات
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('✅ تم', 'تم إضافة عمود "📄 كشف".\n\nلا توجد بيانات لملء الرموز.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة عمود اسم المورد (A) لمعرفة الصفوف التي فيها بيانات
+  const vendors = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const icons = [];
+
+  for (let i = 0; i < vendors.length; i++) {
+    // إذا كان هناك اسم مورد، نضع الرمز
+    if (vendors[i][0]) {
+      icons.push(['📄']);
+    } else {
+      icons.push(['']);
+    }
+  }
+
+  // كتابة الرموز دفعة واحدة
+  sheet.getRange(2, 10, lastRow - 1, 1).setValues(icons);
+
+  // تنسيق العمود
+  sheet.getRange(2, 10, lastRow - 1, 1)
+    .setHorizontalAlignment('center')
+    .setFontSize(12);
+
+  // إحصائية
+  const filledCount = icons.filter(row => row[0] === '📄').length;
+
+  ui.alert(
+    '✅ تم بنجاح',
+    'تم إضافة عمود "📄 كشف" (J) لتقرير الموردين.\n\n' +
+    '• عدد الصفوف التي تم ملؤها: ' + filledCount + '\n\n' +
+    '📌 طريقة الاستخدام:\n' +
+    'اضغط على خلية 📄 في أي صف → سيتم إنشاء كشف حساب للمورد تلقائياً',
+    ui.ButtonSet.OK
+  );
+}
 
 // ==================== تصحيح عنوان عمود الملاحظات (مواكب للهيكل الجديد) ====================
 function patchRenameNotesColumn() {
@@ -4477,21 +4561,24 @@ function rebuildVendorSummaryReport() {
       currentBalance,
       v.payments,
       v.lastDate ? Utilities.formatDate(v.lastDate, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
-      status
+      status,
+      '📄'  // عمود كشف الحساب
     ]);
   });
-  
+
   const lastCol = reportSheet.getLastColumn();
   if (reportSheet.getMaxRows() > 1) {
     reportSheet.getRange(2,1,reportSheet.getMaxRows()-1,lastCol).clearContent();
   }
-  
+
   if (rows.length) {
     rows.sort((a,b) => a[0].localeCompare(b[0]));
     reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
     reportSheet.getRange(2,4,rows.length,3).setNumberFormat('$#,##0.00');
+    // تنسيق عمود الكشف
+    reportSheet.getRange(2,10,rows.length,1).setHorizontalAlignment('center');
   }
-  
+
   SpreadsheetApp.getUi().alert('✅ تم تحديث "تقرير الموردين" (بالدولار).');
 }
 
@@ -4781,13 +4868,16 @@ function createVendorReportSheet(ss) {
 
   const headers = [
     'اسم المورد', 'التخصص', 'عدد المشاريع', 'إجمالي المستحقات',
-    'إجمالي المدفوع', 'الرصيد الحالي', 'عدد الدفعات', 'آخر تعامل', 'الحالة (يدوي)'
+    'إجمالي المدفوع', 'الرصيد الحالي', 'عدد الدفعات', 'آخر تعامل', 'الحالة (يدوي)', '📄 كشف'
   ];
-  const widths = [180, 120, 100, 140, 140, 130, 100, 120, 120];
+  const widths = [180, 120, 100, 140, 140, 130, 100, 120, 120, 60];
 
   setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.VENDORS);
   sheet.getRange('A1').setNote(
     'يمكنك إنشاء Pivot Table من "دفتر الحركات المالية" لتعبئة هذا التقرير تلقائياً.'
+  );
+  sheet.getRange('J1').setNote(
+    '📄 اضغط على أي خلية في هذا العمود لإنشاء كشف حساب للمورد'
   );
 }
 
@@ -5175,6 +5265,20 @@ function onEdit(e) {
   if (sheetName === CONFIG.SHEETS.PROJECTS) {
     if (col === 10 || col === 11) {
       if (value) normalizeDateCell_(e.range, value);
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 📄 معالجة تقرير الموردين - عمود J (10) لإنشاء كشف حساب
+  // ═══════════════════════════════════════════════════════════
+  if (sheetName === CONFIG.SHEETS.VENDORS_REPORT) {
+    if (col === 10) {
+      // الحصول على اسم المورد من العمود A
+      const vendorName = sheet.getRange(row, 1).getValue();
+      if (vendorName) {
+        generateUnifiedStatement_(e.source, vendorName, 'مورد');
+      }
     }
     return;
   }
