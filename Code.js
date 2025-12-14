@@ -3995,8 +3995,16 @@ function generateChannelInvoice() {
 
   // ٥) رقم الفاتورة والتاريخ
   const today = new Date();
-  const invoiceNumber = 'INV-' + projectCode + '-' +
-    Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyyMMdd');
+
+  // استخراج أجزاء كود المشروع: OM-PA-25-002
+  const codeParts = projectCode.split('-');
+  const channelCode = codeParts[0] || '';  // OM
+  const yearCode = codeParts[2] || '';     // 25
+  const seqCode = codeParts[3] || '';      // 002
+
+  // صيغة رقم الفاتورة: OM-25-002-1214
+  const invoiceNumber = channelCode + '-' + yearCode + '-' + seqCode + '-' +
+    Utilities.formatDate(today, Session.getScriptTimeZone(), 'MMdd');
 
   invoiceSheet.getRange('B7').setValue(invoiceNumber);
   invoiceSheet.getRange('B8').setValue(today).setNumberFormat('yyyy-mm-dd');
