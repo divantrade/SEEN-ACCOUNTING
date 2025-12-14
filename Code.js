@@ -4029,11 +4029,53 @@ function generateChannelInvoice() {
   // projectRowIndex هو إندكس الصف داخل data، فصف الشيت = projectRowIndex + 1
   projectsSheet.getRange(projectRowIndex + 1, invoiceColIndex + 1).setValue(invoiceNumber);
 
-  // ٩) رسالة نجاح
+  // ٩) تسجيل الحركة في دفتر الحركات المالية
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  if (transSheet) {
+    const lastRow = transSheet.getLastRow();
+    const newRow = lastRow + 1;
+
+    // البيانات حسب الأعمدة:
+    // A: # (تلقائي), B: التاريخ, C: طبيعة الحركة, D: تصنيف, E: كود المشروع
+    // F: اسم المشروع (معادلة), G: البند, H: التفاصيل, I: اسم الطرف
+    // J: العملة, K: المبلغ, L: سعر الصرف, M: القيمة بالدولار
+    // W: ملاحظات (عمود 23)
+
+    const rowData = [
+      '',                           // A: # (تلقائي)
+      today,                        // B: التاريخ
+      '📈 استحقاق إيراد',           // C: طبيعة الحركة
+      'إيراد',                      // D: تصنيف الحركة
+      projectCode,                  // E: كود المشروع
+      '',                           // F: اسم المشروع (سيملأ بالمعادلة)
+      'إيراد',                      // G: البند
+      descriptionText,              // H: التفاصيل
+      channelName,                  // I: اسم الطرف
+      'USD',                        // J: العملة
+      contractValue,                // K: المبلغ
+      1,                            // L: سعر الصرف
+      contractValue                 // M: القيمة بالدولار
+    ];
+
+    // كتابة البيانات من A إلى M (13 عمود)
+    transSheet.getRange(newRow, 1, 1, 13).setValues([rowData]);
+
+    // إضافة رقم الفاتورة في عمود الملاحظات W (23)
+    transSheet.getRange(newRow, 23).setValue('فاتورة رقم: ' + invoiceNumber);
+
+    // تنسيق التاريخ والمبالغ
+    transSheet.getRange(newRow, 2).setNumberFormat('dd/mm/yyyy');
+    transSheet.getRange(newRow, 11).setNumberFormat('#,##0.00');
+    transSheet.getRange(newRow, 13).setNumberFormat('$#,##0.00');
+  }
+
+  // ١٠) رسالة نجاح
   ui.alert(
-    '✅ Invoice data has been filled in the sheet "فاتورة قناة / جهة".\n\n' +
-    'Description = نوع المشروع + اسم المشروع\n' +
-    'Contract value has been added, and invoice number saved in "قاعدة بيانات المشاريع".'
+    '✅ تم إنشاء الفاتورة بنجاح!\n\n' +
+    '• رقم الفاتورة: ' + invoiceNumber + '\n' +
+    '• القيمة: $' + contractValue.toLocaleString() + '\n' +
+    '• تم حفظ رقم الفاتورة في "قاعدة بيانات المشاريع"\n' +
+    '• تم تسجيل الحركة في "دفتر الحركات المالية"'
   );
 }
 
