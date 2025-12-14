@@ -31,6 +31,7 @@ const CONFIG = {
     // التقارير
     PROJECT_REPORT: 'تقرير المشروع التفصيلي',
     VENDORS_REPORT: 'تقرير الموردين',
+    FUNDERS_REPORT: 'تقرير الممولين',
     EXPENSES_REPORT: 'تقرير المصروفات',
     REVENUE_REPORT: 'تقرير الإيرادات',
     CASHFLOW: 'التدفقات النقدية',
@@ -473,6 +474,7 @@ function onOpen() {
       ui.createMenu('📈 تقارير الملخص')
         .addItem('📋 تقرير المشروع التفصيلي', 'rebuildProjectDetailReport')
         .addItem('🏢 تقرير الموردين الملخص', 'rebuildVendorSummaryReport')
+        .addItem('💼 تقرير الممولين الملخص', 'rebuildFunderSummaryReport')
         .addItem('💸 تقرير المصروفات الملخص', 'rebuildExpenseSummaryReport')
         .addItem('💰 تقرير الإيرادات الملخص', 'rebuildRevenueSummaryReport')
         .addItem('💵 تقرير التدفقات النقدية', 'rebuildCashFlowReport')
@@ -520,6 +522,7 @@ function onOpen() {
         .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
         .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
         .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
+        .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
@@ -3736,6 +3739,7 @@ function setupPart2() {
   
   createProjectReportSheet(ss);
   createVendorReportSheet(ss);
+  createFunderReportSheet(ss);
   createExpenseReportSheet(ss);
   createRevenueReportSheet(ss);
   createCashFlowSheet(ss);
@@ -4839,10 +4843,11 @@ function rebuildCashFlowReport() {
 function rebuildAllSummaryReports() {
   rebuildProjectDetailReport();
   rebuildVendorSummaryReport();
+  rebuildFunderSummaryReport();
   rebuildExpenseSummaryReport();
   rebuildRevenueSummaryReport();
   rebuildCashFlowReport();
-  
+
   SpreadsheetApp.getUi().alert('✅ تم تحديث كل التقارير الملخصة.');
 }
 
@@ -4879,6 +4884,169 @@ function createVendorReportSheet(ss) {
   sheet.getRange('J1').setNote(
     '📄 اضغط على أي خلية في هذا العمود لإنشاء كشف حساب للمورد'
   );
+}
+
+// ========= تقرير الممولين =========
+function createFunderReportSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.FUNDERS_REPORT);
+
+  const headers = [
+    'اسم الممول', 'نوع التمويل', 'عدد المشاريع', 'إجمالي التمويل',
+    'إجمالي السداد', 'الرصيد المتبقي', 'عدد الدفعات', 'آخر تعامل', 'الحالة', '📄 كشف'
+  ];
+  const widths = [180, 120, 100, 140, 140, 130, 100, 120, 120, 60];
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.FUNDER);
+  sheet.getRange('A1').setNote(
+    'تقرير الممولين - يعرض حركات التمويل وسداد التمويل لكل ممول'
+  );
+  sheet.getRange('J1').setNote(
+    '📄 اضغط على أي خلية في هذا العمود لإنشاء كشف حساب للممول'
+  );
+}
+
+// ========= إعادة بناء تقرير الممولين =========
+function rebuildFunderSummaryReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.FUNDERS_REPORT);
+
+  if (!transSheet || !reportSheet) {
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الممولين".');
+    return;
+  }
+
+  const data = transSheet.getDataRange().getValues();
+  const map = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const funder = row[8];              // I: اسم الممول/الجهة
+    const type = row[2];                // C: طبيعة الحركة
+    const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
+    const project = row[4];             // E: كود المشروع
+    const date = row[1];                // B: التاريخ
+    const classification = row[3];      // D: تصنيف الحركة (نوع التمويل)
+
+    if (!funder || !amountUsd) continue;
+
+    // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
+    const typeStr = String(type || '');
+    if (!typeStr.includes('تمويل') && !typeStr.includes('سداد تمويل')) continue;
+
+    if (!map[funder]) {
+      map[funder] = {
+        funder,
+        fundingType: classification || '',
+        projects: new Set(),
+        totalFundingUsd: 0,
+        totalRepaymentUsd: 0,
+        payments: 0,
+        lastDate: null
+      };
+    }
+
+    const f = map[funder];
+    if (project) f.projects.add(project);
+    if (classification && !f.fundingType) f.fundingType = classification;
+
+    if (typeStr.includes('سداد تمويل')) {
+      f.totalRepaymentUsd += amountUsd;
+      if (amountUsd > 0) f.payments++;
+    } else if (typeStr.includes('تمويل')) {
+      f.totalFundingUsd += amountUsd;
+    }
+
+    if (date) {
+      const d = new Date(date);
+      if (!f.lastDate || d > f.lastDate) {
+        f.lastDate = d;
+      }
+    }
+  }
+
+  const rows = [];
+  Object.keys(map).forEach(k => {
+    const f = map[k];
+    const projectsCount = f.projects.size;
+    const balance = f.totalFundingUsd - f.totalRepaymentUsd;
+
+    let status = 'مسدد بالكامل';
+    if (balance > 0) status = 'رصيد متبقي';
+    else if (balance < 0) status = 'سداد زائد';
+
+    rows.push([
+      f.funder,
+      f.fundingType,
+      projectsCount,
+      f.totalFundingUsd,
+      f.totalRepaymentUsd,
+      balance,
+      f.payments,
+      f.lastDate ? Utilities.formatDate(f.lastDate, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
+      status,
+      '📄'  // عمود كشف الحساب
+    ]);
+  });
+
+  const lastCol = reportSheet.getLastColumn();
+  if (reportSheet.getMaxRows() > 1) {
+    reportSheet.getRange(2, 1, reportSheet.getMaxRows() - 1, lastCol).clearContent();
+  }
+
+  if (rows.length) {
+    rows.sort((a, b) => a[0].localeCompare(b[0]));
+    reportSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+    reportSheet.getRange(2, 4, rows.length, 3).setNumberFormat('$#,##0.00');
+    // تنسيق عمود الكشف
+    reportSheet.getRange(2, 10, rows.length, 1).setHorizontalAlignment('center');
+  }
+
+  SpreadsheetApp.getUi().alert('✅ تم تحديث "تقرير الممولين" (بالدولار).');
+}
+
+// ========= إضافة عمود كشف الحساب لتقرير الممولين الموجود =========
+function addStatementColumnToFunderReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.FUNDERS_REPORT);
+
+  if (!sheet) {
+    ui.alert('⚠️ لم يتم العثور على شيت "تقرير الممولين"');
+    return;
+  }
+
+  // التحقق من وجود العمود J
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 10) {
+    // إضافة رأس العمود J
+    sheet.getRange('J1')
+      .setValue('📄 كشف')
+      .setBackground(CONFIG.COLORS.HEADER.FUNDER)
+      .setFontColor(CONFIG.COLORS.TEXT.WHITE)
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    sheet.setColumnWidth(10, 60);
+  }
+
+  // إضافة ملاحظة
+  sheet.getRange('J1').setNote(
+    '📄 اضغط على أي خلية في هذا العمود لإنشاء كشف حساب للممول'
+  );
+
+  // ملء الأيقونات للصفوف الموجودة
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    const icons = [];
+    for (let i = 2; i <= lastRow; i++) {
+      icons.push(['📄']);
+    }
+    sheet.getRange(2, 10, lastRow - 1, 1)
+      .setValues(icons)
+      .setHorizontalAlignment('center');
+  }
+
+  ui.alert('✅ تم إضافة عمود كشف الحساب لتقرير الممولين');
 }
 
 // ========= تقرير المصروفات (يتغذى مباشرة من دفتر الحركات) =========
@@ -5278,6 +5446,20 @@ function onEdit(e) {
       const vendorName = sheet.getRange(row, 1).getValue();
       if (vendorName) {
         generateUnifiedStatement_(e.source, vendorName, 'مورد');
+      }
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // معالجة تقرير الممولين - عمود كشف الحساب (J = 10)
+  // ═══════════════════════════════════════════════════════════
+  if (sheetName === CONFIG.SHEETS.FUNDERS_REPORT) {
+    if (col === 10) {
+      // الحصول على اسم الممول من العمود A
+      const funderName = sheet.getRange(row, 1).getValue();
+      if (funderName) {
+        generateUnifiedStatement_(e.source, funderName, 'ممول');
       }
     }
     return;
