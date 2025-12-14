@@ -4038,7 +4038,7 @@ function generateChannelInvoice() {
     // البيانات حسب الأعمدة:
     // A: # (تلقائي), B: التاريخ, C: طبيعة الحركة, D: تصنيف, E: كود المشروع
     // F: اسم المشروع, G: البند, H: التفاصيل, I: اسم الطرف
-    // J: المبلغ, K: العملة, L: سعر الصرف, M: القيمة بالدولار
+    // J: المبلغ, K: العملة, L: سعر الصرف, M: القيمة بالدولار, N: نوع الحركة
     // W: ملاحظات (عمود 23)
 
     const rowData = [
@@ -4054,11 +4054,12 @@ function generateChannelInvoice() {
       contractValue,                // J: المبلغ
       'USD',                        // K: العملة
       1,                            // L: سعر الصرف
-      contractValue                 // M: القيمة بالدولار
+      contractValue,                // M: القيمة بالدولار
+      'مدين استحقاق'                // N: نوع الحركة
     ];
 
-    // كتابة البيانات من A إلى M (13 عمود)
-    transSheet.getRange(newRow, 1, 1, 13).setValues([rowData]);
+    // كتابة البيانات من A إلى N (14 عمود)
+    transSheet.getRange(newRow, 1, 1, 14).setValues([rowData]);
 
     // إضافة رقم الفاتورة في عمود الملاحظات W (23)
     transSheet.getRange(newRow, 23).setValue('فاتورة رقم: ' + invoiceNumber);
