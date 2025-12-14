@@ -2481,22 +2481,27 @@ function updateAlerts() {
   const partyBalances = {};
 
   for (let i = 1; i < data.length; i++) {
-    const movementKind = data[i][13]; // N: نوع الحركة (مدين استحقاق / دائن دفعة)
+    const movementKind = String(data[i][13] || ''); // N: نوع الحركة (مدين استحقاق / دائن دفعة)
     const project      = data[i][5];  // F: اسم المشروع
     const party        = data[i][8];  // I: الطرف (مورد/عميل/ممول)
     const amountUsd    = Number(data[i][12]) || 0; // M: القيمة بالدولار
     const dueDate      = data[i][20]; // U: تاريخ الاستحقاق
-    const status       = data[i][21]; // V: حالة السداد
-    const natureType   = data[i][2];  // C: طبيعة الحركة
+    const status       = String(data[i][21] || ''); // V: حالة السداد
+    const natureType   = String(data[i][2] || '');  // C: طبيعة الحركة
+
+    // استخدام includes للتعامل مع الإيموجي
+    const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
+    const isCredit = movementKind.includes(CONFIG.MOVEMENT.CREDIT) || movementKind.includes('دائن');
+    const isPaid = status.includes(CONFIG.PAYMENT_STATUS.PAID) || status.includes('مدفوع');
 
     // تجميع أرصدة الأطراف
     if (party && amountUsd > 0) {
       if (!partyBalances[party]) {
         partyBalances[party] = { debit: 0, credit: 0, nature: natureType, project: project };
       }
-      if (movementKind === CONFIG.MOVEMENT.DEBIT) {
+      if (isDebit) {
         partyBalances[party].debit += amountUsd;
-      } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
+      } else if (isCredit) {
         partyBalances[party].credit += amountUsd;
       }
     }
@@ -2504,7 +2509,7 @@ function updateAlerts() {
     // ═══════════════════════════════════════════════════════════
     // 1. تنبيهات الاستحقاقات المدينة (فواتير يجب سدادها)
     // ═══════════════════════════════════════════════════════════
-    if (movementKind === CONFIG.MOVEMENT.DEBIT && amountUsd > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
+    if (isDebit && amountUsd > 0 && dueDate && !isPaid) {
       const dueDateObj = new Date(dueDate);
       const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
 
@@ -2634,28 +2639,30 @@ function generateDueReport() {
   const partyBalances = {};
 
   for (let i = 1; i < data.length; i++) {
-    const movementKind = data[i][13]; // N
+    const movementKind = String(data[i][13] || ''); // N
     const party = data[i][8];         // I
     const project = data[i][5];       // F
     const amountUsd = Number(data[i][12]) || 0; // M
     const dueDate = data[i][20];      // U
-    const status = data[i][21];       // V
-    const natureType = data[i][2];    // C
+    const status = String(data[i][21] || '');       // V
+    const natureType = String(data[i][2] || '');    // C
 
-    // تجميع الأرصدة
+    // تجميع الأرصدة - استخدام includes للتعامل مع الإيموجي
     if (party && amountUsd > 0) {
       if (!partyBalances[party]) {
         partyBalances[party] = { debit: 0, credit: 0, nature: natureType, project: project };
       }
-      if (movementKind === CONFIG.MOVEMENT.DEBIT) {
+      if (movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين')) {
         partyBalances[party].debit += amountUsd;
-      } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
+      } else if (movementKind.includes(CONFIG.MOVEMENT.CREDIT) || movementKind.includes('دائن')) {
         partyBalances[party].credit += amountUsd;
       }
     }
 
     // الاستحقاقات المدينة
-    if (movementKind === CONFIG.MOVEMENT.DEBIT && amountUsd > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
+    const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
+    const isPaid = status.includes(CONFIG.PAYMENT_STATUS.PAID) || status.includes('مدفوع');
+    if (isDebit && amountUsd > 0 && dueDate && !isPaid) {
       const dueDateObj = new Date(dueDate);
       const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
       const item = { party, project, amount: amountUsd, dueDate: dueDateObj, daysLeft };
@@ -2767,14 +2774,17 @@ function showUpcomingPayments() {
   let upcomingPayments = [];
   
   for (let i = 1; i < transData.length; i++) {
-    const movementKind = transData[i][13];  // N: نوع الحركة
-    const status       = transData[i][21];  // V: حالة السداد
+    const movementKind = String(transData[i][13] || '');  // N: نوع الحركة
+    const status       = String(transData[i][21] || '');  // V: حالة السداد
     const dueDate      = transData[i][20];  // U: تاريخ الاستحقاق
     const balance      = Number(transData[i][14]) || 0; // O: الرصيد (بالدولار على مستوى الطرف)
     const party        = transData[i][8];   // I: الطرف
     const project      = transData[i][5];   // F: اسم المشروع
-    
-    if (movementKind === CONFIG.MOVEMENT.DEBIT && balance > 0 && dueDate && status !== CONFIG.PAYMENT_STATUS.PAID) {
+
+    // استخدام includes للتعامل مع الإيموجي
+    const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
+    const isPaid = status.includes(CONFIG.PAYMENT_STATUS.PAID) || status.includes('مدفوع');
+    if (isDebit && balance > 0 && dueDate && !isPaid) {
       const dueDateObj = new Date(dueDate);
       if (dueDateObj <= next30Days) {
         const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
@@ -2875,11 +2885,13 @@ function generateVendorDetailedReport() {
   let totalDebitUsd = 0;
   let totalCreditUsd = 0;
   let paymentCount = 0;
-  
+
   rows.forEach(row => {
-    if (row.movementKind === CONFIG.MOVEMENT.DEBIT) {
+    // استخدام includes للتعامل مع الإيموجي
+    const kindStr = String(row.movementKind || '');
+    if (kindStr.includes(CONFIG.MOVEMENT.DEBIT) || kindStr.includes('مدين')) {
       totalDebitUsd += row.amountUsd;
-    } else if (row.movementKind === CONFIG.MOVEMENT.CREDIT) {
+    } else if (kindStr.includes(CONFIG.MOVEMENT.CREDIT) || kindStr.includes('دائن')) {
       totalCreditUsd += row.amountUsd;
       if (row.amountUsd > 0) paymentCount++;
     }
@@ -2925,9 +2937,11 @@ function generateVendorDetailedReport() {
       amountText = originalPart;
     }
     
-    if (row.movementKind === CONFIG.MOVEMENT.DEBIT) {
+    // استخدام includes للتعامل مع الإيموجي
+    const kindStr2 = String(row.movementKind || '');
+    if (kindStr2.includes(CONFIG.MOVEMENT.DEBIT) || kindStr2.includes('مدين')) {
       report += `   مدين (استحقاق): ${amountText}\n`;
-    } else if (row.movementKind === CONFIG.MOVEMENT.CREDIT) {
+    } else if (kindStr2.includes(CONFIG.MOVEMENT.CREDIT) || kindStr2.includes('دائن')) {
       report += `   دائن (دفعة/تحصيل): ${amountText}\n`;
     }
     
@@ -3006,10 +3020,12 @@ function showVendorStatement() {
       : '';
     
     statement += `${dateStr} | ${row.movementType}\n`;
-    
-    if (row.movementKind === CONFIG.MOVEMENT.DEBIT) {
+
+    // استخدام includes للتعامل مع الإيموجي
+    const kindStr = String(row.movementKind || '');
+    if (kindStr.includes(CONFIG.MOVEMENT.DEBIT) || kindStr.includes('مدين')) {
       statement += `         مدين (استحقاق): $${row.amountUsd.toLocaleString()}\n`;
-    } else if (row.movementKind === CONFIG.MOVEMENT.CREDIT) {
+    } else if (kindStr.includes(CONFIG.MOVEMENT.CREDIT) || kindStr.includes('دائن')) {
       statement += `         دائن (دفعة/تحصيل): $${row.amountUsd.toLocaleString()}\n`;
     }
     
@@ -3080,21 +3096,25 @@ function showProjectProfitability() {
   
   for (let i = 1; i < transData.length; i++) {
     if (transData[i][4] === projectCode) { // E: كود المشروع
-      const movementType   = transData[i][2];  // C: طبيعة الحركة (إيموجي)
-      const classification = transData[i][3];  // D: تصنيف الحركة
-      const movementKind   = transData[i][13]; // N: نوع الحركة
+      const movementType   = String(transData[i][2] || '');  // C: طبيعة الحركة (قد تحتوي على إيموجي)
+      const classification = String(transData[i][3] || '');  // D: تصنيف الحركة
+      const movementKind   = String(transData[i][13] || ''); // N: نوع الحركة
       const amountUsd      = Number(transData[i][12]) || 0; // M: القيمة بالدولار
-      
+
+      // استخدام includes للتعامل مع الإيموجي
+      const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
+      const isCredit = movementKind.includes(CONFIG.MOVEMENT.CREDIT) || movementKind.includes('دائن');
+
       // مصروفات مباشرة/عمومية (استحقاق فقط)
-      if (movementKind === CONFIG.MOVEMENT.DEBIT && classification === 'مصروفات مباشرة') {
+      if (isDebit && classification.includes('مصروفات مباشرة')) {
         directExpenses += amountUsd;
       }
-      if (movementKind === CONFIG.MOVEMENT.DEBIT && classification === 'مصروفات عمومية') {
+      if (isDebit && classification.includes('مصروفات عمومية')) {
         overheadExpenses += amountUsd;
       }
-      
+
       // إيرادات محصّلة (نقدية) = تحصيل إيراد + نوع الحركة دائن دفعة
-      if (movementType === 'تحصيل إيراد' && movementKind === CONFIG.MOVEMENT.CREDIT) {
+      if (movementType.includes('تحصيل إيراد') && isCredit) {
         revenues += amountUsd;
       }
     }
@@ -4061,8 +4081,8 @@ function generateUnifiedStatement_(ss, partyName, partyType) {
     // الفلتر الوحيد: اسم الطرف
     if (row[8] !== partyName) continue;
 
-    const movementKind = row[13];           // N: نوع الحركة
-    const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
+    const movementKind = String(row[13] || '');  // N: نوع الحركة
+    const amountUsd = Number(row[12]) || 0;     // M: القيمة بالدولار
 
     // تجاهل الحركات بدون مبلغ
     if (!amountUsd) continue;
@@ -4073,11 +4093,12 @@ function generateUnifiedStatement_(ss, partyName, partyType) {
 
     let debit = 0, credit = 0;
 
-    if (movementKind === CONFIG.MOVEMENT.DEBIT) {
+    // استخدام includes للتعامل مع الإيموجي
+    if (movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين')) {
       debit = amountUsd;
       balance += debit;
       totalDebit += debit;
-    } else if (movementKind === CONFIG.MOVEMENT.CREDIT) {
+    } else if (movementKind.includes(CONFIG.MOVEMENT.CREDIT) || movementKind.includes('دائن')) {
       credit = amountUsd;
       balance -= credit;
       totalCredit += credit;
@@ -4320,12 +4341,13 @@ function rebuildProjectDetailReport() {
     }
     
     // 🔹 أي "استحقاق" (مصروف أو إيراد) يروح في إجمالي المستحق
-    if (type === 'استحقاق مصروف' || type === 'استحقاق إيراد') {
+    // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
+    if (type.includes('استحقاق مصروف') || type.includes('استحقاق إيراد')) {
       map[key].totalDue += amountUsd;
     }
-    
+
     // 🔹 أي "دفعة" أو "تحصيل" يروح في المدفوع
-    if (type === 'دفعة مصروف' || type === 'تحصيل إيراد') {
+    if (type.includes('دفعة مصروف') || type.includes('تحصيل إيراد')) {
       map[key].totalPaid += amountUsd;
       if (amountUsd > 0) map[key].payments++;
     }
@@ -4402,8 +4424,10 @@ function rebuildVendorSummaryReport() {
     const date    = row[1];              // B: التاريخ
     
     if (!vendor || !amountUsd) continue;
-    if (type !== 'استحقاق مصروف' && type !== 'دفعة مصروف') continue;
-    
+    // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
+    const typeStr = String(type || '');
+    if (!typeStr.includes('استحقاق مصروف') && !typeStr.includes('دفعة مصروف')) continue;
+
     if (!map[vendor]) {
       map[vendor] = {
         vendor,
@@ -4415,13 +4439,13 @@ function rebuildVendorSummaryReport() {
         lastDate: null
       };
     }
-    
+
     const v = map[vendor];
     if (project) v.projects.add(project);
-    
-    if (type === 'استحقاق مصروف') {
+
+    if (typeStr.includes('استحقاق مصروف')) {
       v.totalAccrualUsd += amountUsd;
-    } else if (type === 'دفعة مصروف') {
+    } else if (typeStr.includes('دفعة مصروف')) {
       v.totalPaidUsd += amountUsd;
       if (amountUsd > 0) v.payments++;
     }
@@ -4493,25 +4517,27 @@ function rebuildExpenseSummaryReport() {
     const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
     
     if (!item || !amountUsd) continue;
-    if (type !== 'استحقاق مصروف' && type !== 'دفعة مصروف') continue;
-    
+    // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
+    const typeStr = String(type || '');
+    if (!typeStr.includes('استحقاق مصروف') && !typeStr.includes('دفعة مصروف')) continue;
+
     const key = item + '||' + classification;
     if (!map[key]) {
-      map[key] = { 
-        item, 
-        classification, 
-        totalAccrual: 0, 
-        totalPaid: 0, 
-        accrualCount: 0, 
-        paymentCount: 0 
+      map[key] = {
+        item,
+        classification,
+        totalAccrual: 0,
+        totalPaid: 0,
+        accrualCount: 0,
+        paymentCount: 0
       };
     }
     const v = map[key];
-    
-    if (type === 'استحقاق مصروف') {
+
+    if (typeStr.includes('استحقاق مصروف')) {
       v.totalAccrual += amountUsd;
       v.accrualCount++;
-    } else if (type === 'دفعة مصروف') {
+    } else if (typeStr.includes('دفعة مصروف')) {
       v.totalPaid += amountUsd;
       v.paymentCount++;
     }
@@ -4583,12 +4609,14 @@ function rebuildRevenueSummaryReport() {
   for (let i = 1; i < data.length; i++) {
     const row  = data[i];
     const type = row[2];       // C: طبيعة الحركة
-    if (type !== 'استحقاق إيراد' && type !== 'تحصيل إيراد') continue;
-    
+    // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
+    const typeStr = String(type || '');
+    if (!typeStr.includes('استحقاق إيراد') && !typeStr.includes('تحصيل إيراد')) continue;
+
     const projectCode = row[4];              // E: كود المشروع
     const amountUsd   = Number(row[12]) || 0;// M: القيمة بالدولار
     if (!projectCode || !amountUsd) continue;
-    
+
     if (!map[projectCode]) {
       const info = projectMap[projectCode] || {};
       map[projectCode] = {
@@ -4600,12 +4628,12 @@ function rebuildRevenueSummaryReport() {
         lastDate: null
       };
     }
-    
+
     const v = map[projectCode];
-    if (type === 'استحقاق إيراد') {
+    if (typeStr.includes('استحقاق إيراد')) {
       v.expected += amountUsd;
     }
-    if (type === 'تحصيل إيراد') {
+    if (typeStr.includes('تحصيل إيراد')) {
       v.received += amountUsd;
       const date = row[1];
       if (date) {
@@ -4673,17 +4701,20 @@ function rebuildCashFlowReport() {
     const type      = row[2];               // C: طبيعة الحركة
     const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
     if (!amountUsd) continue;
-    
+
+    // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
+    const typeStr = String(type || '');
+
     const monthKey = Utilities.formatDate(new Date(date), Session.getScriptTimeZone(), 'yyyy-MM');
     if (!map[monthKey]) {
       map[monthKey] = { monthKey, accruals: 0, payments: 0, revenues: 0 };
     }
-    
-    if (type === 'استحقاق مصروف') {
+
+    if (typeStr.includes('استحقاق مصروف')) {
       map[monthKey].accruals += amountUsd;
-    } else if (type === 'دفعة مصروف') {
+    } else if (typeStr.includes('دفعة مصروف')) {
       map[monthKey].payments += amountUsd;
-    } else if (type === 'تحصيل إيراد') {
+    } else if (typeStr.includes('تحصيل إيراد')) {
       map[monthKey].revenues += amountUsd;
     }
   }
