@@ -4909,11 +4909,17 @@ function createFunderReportSheet(ss) {
 function rebuildFunderSummaryReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.FUNDERS_REPORT);
 
-  if (!transSheet || !reportSheet) {
-    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الممولين".');
+  if (!transSheet) {
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
     return;
+  }
+
+  // إنشاء شيت تقرير الممولين إذا لم يكن موجوداً
+  let reportSheet = ss.getSheetByName(CONFIG.SHEETS.FUNDERS_REPORT);
+  if (!reportSheet) {
+    createFunderReportSheet(ss);
+    reportSheet = ss.getSheetByName(CONFIG.SHEETS.FUNDERS_REPORT);
   }
 
   const data = transSheet.getDataRange().getValues();
