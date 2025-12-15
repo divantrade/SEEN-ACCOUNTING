@@ -6204,10 +6204,13 @@ function rebuildBankAndCashFromTransactions() {
       statusVal === CONFIG.PAYMENT_STATUS.PAID   ||
       statusVal === 'مدفوع جزئياً';
 
+    // 5) تحديد هل هي تحويل داخلي؟
+    const isInternalTransfer = typeVal.indexOf('تحويل داخلي') !== -1;
+
     // 🔴 استبعاد كل الاستحقاقات غير الممولة
-    // 🔴 واستبعاد أي حركة غير مدفوعة فعليًا وليست استحقاق تمويل
-    if (!isPaidMovement && !(isAccrual && isFinancing)) {
-      // يعني: ليست حركة مدفوعة، وليست استحقاق تمويل ⇒ مالهاش أثر نقدي
+    // 🔴 واستبعاد أي حركة غير مدفوعة فعليًا وليست استحقاق تمويل وليست تحويل داخلي
+    if (!isPaidMovement && !(isAccrual && isFinancing) && !isInternalTransfer) {
+      // يعني: ليست حركة مدفوعة، وليست استحقاق تمويل، وليست تحويل داخلي ⇒ مالهاش أثر نقدي
       continue;
     }
 
@@ -6249,8 +6252,6 @@ function rebuildBankAndCashFromTransactions() {
     // ═══════════════════════════════════════════════════════════
     // 🔄 معالجة التحويل الداخلي (بين البنك والخزنة)
     // ═══════════════════════════════════════════════════════════
-    const isInternalTransfer = typeVal.indexOf('تحويل داخلي') !== -1;
-
     if (isInternalTransfer) {
       const isTransferToBank = classVal.indexOf('تحويل للبنك') !== -1;
       const isTransferToCash = classVal.indexOf('تحويل للخزنة') !== -1 || classVal.indexOf('تحويل للكاش') !== -1;
