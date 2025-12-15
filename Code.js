@@ -3598,6 +3598,30 @@ function fixAllDropdowns() {
     'عدد الصفوف: ' + lastRow,
     ui.ButtonSet.OK
   );
+
+  // ═══════════════════════════════════════════════════════════
+  // إصلاح قاعدة بيانات الأطراف
+  // ═══════════════════════════════════════════════════════════
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  if (partiesSheet) {
+    const partiesLastRow = Math.max(partiesSheet.getLastRow(), 500);
+
+    // نوع الطرف (B = 2) - مورد / عميل / ممول
+    const partyTypeValidation = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['مورد', 'عميل', 'ممول'], true)
+      .setAllowInvalid(true)
+      .build();
+    partiesSheet.getRange(2, 2, partiesLastRow, 1).setDataValidation(partyTypeValidation);
+
+    // طريقة الدفع المفضلة (G = 7)
+    const partyPayValidation = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['نقدي', 'تحويل بنكي', 'شيك', 'بطاقة', 'أخرى'], true)
+      .setAllowInvalid(true)
+      .build();
+    partiesSheet.getRange(2, 7, partiesLastRow, 1).setDataValidation(partyPayValidation);
+
+    ui.alert('✅ تم أيضاً إصلاح قاعدة بيانات الأطراف (مورد/عميل/ممول)');
+  }
 }
 
 
