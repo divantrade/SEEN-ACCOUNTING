@@ -6246,6 +6246,61 @@ function rebuildBankAndCashFromTransactions() {
     let debitAcc  = 0;
     let creditAcc = 0;
 
+    // ═══════════════════════════════════════════════════════════
+    // 🔄 معالجة التحويل الداخلي (بين البنك والخزنة)
+    // ═══════════════════════════════════════════════════════════
+    const isInternalTransfer = typeVal.indexOf('تحويل داخلي') !== -1;
+
+    if (isInternalTransfer) {
+      const isTransferToBank = classVal.indexOf('تحويل للبنك') !== -1;
+      const isTransferToCash = classVal.indexOf('تحويل للخزنة') !== -1 || classVal.indexOf('تحويل للكاش') !== -1;
+
+      // تحديد العملة
+      const isUsdCurrency = cur.indexOf('usd') !== -1 || cur.indexOf('دولار') !== -1 || cur.indexOf('$') !== -1;
+      const isTryCurrency = cur.indexOf('try') !== -1 || cur.indexOf('tl') !== -1 || cur.indexOf('ليرة') !== -1;
+
+      if (isTransferToBank) {
+        // تحويل للبنك = خصم من الخزنة + إضافة للبنك
+        const destKey = isUsdCurrency ? 'bankUsd' : (isTryCurrency ? 'bankTry' : null);
+        const srcKey = isUsdCurrency ? 'cashUsd' : (isTryCurrency ? 'cashTry' : null);
+
+        if (destKey && srcKey && accounts[destKey] && accounts[srcKey]) {
+          // إضافة للبنك (الوجهة)
+          accounts[destKey].balance += amount;
+          accounts[destKey].rows.push([
+            date, 'تحويل من الخزنة', transNo, refNo, amount, 0, accounts[destKey].balance, notes
+          ]);
+
+          // خصم من الخزنة (المصدر)
+          accounts[srcKey].balance -= amount;
+          accounts[srcKey].rows.push([
+            date, 'تحويل إلى البنك', transNo, refNo, 0, amount, accounts[srcKey].balance, notes
+          ]);
+        }
+      } else if (isTransferToCash) {
+        // تحويل للخزنة = خصم من البنك + إضافة للخزنة
+        const destKey = isUsdCurrency ? 'cashUsd' : (isTryCurrency ? 'cashTry' : null);
+        const srcKey = isUsdCurrency ? 'bankUsd' : (isTryCurrency ? 'bankTry' : null);
+
+        if (destKey && srcKey && accounts[destKey] && accounts[srcKey]) {
+          // إضافة للخزنة (الوجهة)
+          accounts[destKey].balance += amount;
+          accounts[destKey].rows.push([
+            date, 'تحويل من البنك', transNo, refNo, amount, 0, accounts[destKey].balance, notes
+          ]);
+
+          // خصم من البنك (المصدر)
+          accounts[srcKey].balance -= amount;
+          accounts[srcKey].rows.push([
+            date, 'تحويل إلى الخزنة', transNo, refNo, 0, amount, accounts[srcKey].balance, notes
+          ]);
+        }
+      }
+      // التحويل الداخلي تم معالجته، ننتقل للصف التالي
+      continue;
+    }
+    // ═══════════════════════════════════════════════════════════
+
     // فلوس داخلة الحساب (تحصيل / تمويل / استرداد…)
     if (
       typeVal.indexOf('تحصيل') !== -1 ||     // تحصيل إيراد
