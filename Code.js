@@ -4616,21 +4616,26 @@ function rebuildVendorSummaryReport() {
 
   // خريطة تخصص المورد (من القاعدة الموحدة مع fallback للقديمة)
   const specialMap = getPartySpecializationMap_(ss, 'مورد');
-  
+
   const data = transSheet.getDataRange().getValues();
   const map = {};
-  
+
   for (let i = 1; i < data.length; i++) {
     const row    = data[i];
     const vendor = row[8];               // I: اسم المورد/الجهة
     const type   = row[2];               // C: طبيعة الحركة
+    const movementKind = row[13];        // N: نوع الحركة (مدين استحقاق / دائن دفعة)
     const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
     const project = row[4];              // E: كود المشروع
     const date    = row[1];              // B: التاريخ
-    
+
     if (!vendor || !amountUsd) continue;
+
     // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
     const typeStr = String(type || '');
+    const movementStr = String(movementKind || '');
+
+    // فلترة حركات الموردين فقط (استحقاق مصروف أو دفعة مصروف)
     if (!typeStr.includes('استحقاق مصروف') && !typeStr.includes('دفعة مصروف')) continue;
 
     if (!map[vendor]) {
@@ -4638,8 +4643,8 @@ function rebuildVendorSummaryReport() {
         vendor,
         specialization: specialMap[vendor] || '',
         projects: new Set(),
-        totalAccrualUsd: 0,
-        totalPaidUsd: 0,
+        totalDebitUsd: 0,   // مدين (مستحق للمورد)
+        totalCreditUsd: 0,  // دائن (مدفوع للمورد)
         payments: 0,
         lastDate: null
       };
@@ -4648,13 +4653,14 @@ function rebuildVendorSummaryReport() {
     const v = map[vendor];
     if (project) v.projects.add(project);
 
-    if (typeStr.includes('استحقاق مصروف')) {
-      v.totalAccrualUsd += amountUsd;
-    } else if (typeStr.includes('دفعة مصروف')) {
-      v.totalPaidUsd += amountUsd;
+    // استخدام عمود N (نوع الحركة) للحساب - نفس منطق كشف الحساب
+    if (movementStr.includes('مدين استحقاق') || movementStr.includes('مدين')) {
+      v.totalDebitUsd += amountUsd;
+    } else if (movementStr.includes('دائن دفعة') || movementStr.includes('دائن')) {
+      v.totalCreditUsd += amountUsd;
       if (amountUsd > 0) v.payments++;
     }
-    
+
     if (date) {
       const d = new Date(date);
       if (!v.lastDate || d > v.lastDate) {
@@ -4662,23 +4668,23 @@ function rebuildVendorSummaryReport() {
       }
     }
   }
-  
+
   const rows = [];
   Object.keys(map).forEach(k => {
     const v = map[k];
     const projectsCount   = v.projects.size;
-    const currentBalance  = v.totalAccrualUsd - v.totalPaidUsd;
-    
+    const currentBalance  = v.totalDebitUsd - v.totalCreditUsd;  // مدين - دائن = الرصيد
+
     let status = 'مغلق';
     if (currentBalance > 0) status = 'له رصيد مستحق';
     else if (currentBalance < 0) status = 'صرف زائد';
-    
+
     rows.push([
       v.vendor,
       v.specialization,
       projectsCount,
-      v.totalAccrualUsd,
-      v.totalPaidUsd,
+      v.totalDebitUsd,    // إجمالي المدين (المستحق)
+      v.totalCreditUsd,   // إجمالي الدائن (المدفوع)
       currentBalance,
       v.payments,
       v.lastDate ? Utilities.formatDate(v.lastDate, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
