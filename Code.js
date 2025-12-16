@@ -535,6 +535,29 @@ function onOpen() {
     .addSeparator()
     .addItem('📖 دليل الاستخدام', 'showGuide')
     .addToUi();
+
+  // الانتقال لآخر سطر في دفتر الحركات المالية عند فتح الملف
+  scrollToLastRow_();
+}
+
+/**
+ * الانتقال لآخر سطر في دفتر الحركات المالية
+ */
+function scrollToLastRow_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+    if (!sheet) return;
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      // تفعيل الشيت والانتقال لآخر سطر
+      ss.setActiveSheet(sheet);
+      sheet.getRange(lastRow, 1).activate();
+    }
+  } catch (e) {
+    // تجاهل الأخطاء - لا نريد منع فتح الملف
+  }
 }
 
 
