@@ -6773,16 +6773,17 @@ function reviewAndFixMovementTypes() {
     return;
   }
 
-  // قراءة عمود C (طبيعة الحركة) و N (نوع الحركة)
-  // C = 3, N = 14
-  const dataC = sheet.getRange(2, 3, lastRow - 1, 1).getValues();  // طبيعة الحركة
-  const dataN = sheet.getRange(2, 14, lastRow - 1, 1).getValues(); // نوع الحركة
+  // قراءة عمود A (رقم الحركة) و C (طبيعة الحركة) و N (نوع الحركة)
+  // A = 1, C = 3, N = 14
+  const dataA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();   // رقم الحركة
+  const dataC = sheet.getRange(2, 3, lastRow - 1, 1).getValues();   // طبيعة الحركة
+  const dataN = sheet.getRange(2, 14, lastRow - 1, 1).getValues();  // نوع الحركة
 
   let errors = [];
   let fixes = [];
 
   for (let i = 0; i < dataC.length; i++) {
-    const rowNum = i + 2;
+    const transNum = dataA[i][0] || '';  // رقم الحركة من عمود A
     const natureValue = String(dataC[i][0] || '').trim();
     const currentType = String(dataN[i][0] || '').trim();
 
@@ -6798,7 +6799,7 @@ function reviewAndFixMovementTypes() {
     // التحقق من التطابق
     if (currentType !== correctType) {
       errors.push({
-        row: rowNum,
+        transNum: transNum,  // رقم الحركة
         nature: natureValue,
         current: currentType || '(فارغ)',
         correct: correctType
@@ -6822,7 +6823,7 @@ function reviewAndFixMovementTypes() {
   // عرض أول 10 أخطاء فقط في الرسالة
   const showErrors = errors.slice(0, 10);
   showErrors.forEach((err, idx) => {
-    reportMsg += (idx + 1) + '. صف ' + err.row + ': ';
+    reportMsg += (idx + 1) + '. حركة #' + err.transNum + ': ';
     reportMsg += err.nature.substring(0, 20) + '\n';
     reportMsg += '   الحالي: ' + err.current + ' ← الصحيح: ' + err.correct + '\n';
   });
