@@ -517,6 +517,8 @@ function onOpen() {
         .addSeparator()
         .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
         .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
+        .addItem('🔗 مراجعة نوع الحركة (تقرير فقط)', 'reviewMovementTypesOnly')
+        .addItem('🔗 مراجعة وإصلاح نوع الحركة', 'reviewAndFixMovementTypes')
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
@@ -5609,6 +5611,16 @@ function onEdit(e) {
   }
 
   // ═══════════════════════════════════════════════════════════
+  // 🔗 الربط التلقائي: طبيعة الحركة (C=3) ← نوع الحركة (N=14)
+  // استحقاق = مدين استحقاق | غير ذلك = دائن دفعة
+  // ═══════════════════════════════════════════════════════════
+  if (col === 3 && value) {
+    const valueStr = String(value);
+    const movementType = valueStr.indexOf('استحقاق') !== -1 ? 'مدين استحقاق' : 'دائن دفعة';
+    sheet.getRange(row, 14).setValue(movementType);
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // 🆕 إدراج رقم الحركة تلقائياً عند كتابة التاريخ يدوياً
   // إذا تم إدخال تاريخ في B وعمود A فارغ → إضافة معادلة رقم الحركة
   // ═══════════════════════════════════════════════════════════
@@ -6735,4 +6747,155 @@ function refreshDashboard() {
 
   ui.alert('✅ تم تحديث لوحة التحكم وكل التقارير الملخصة بناءً على أحدث بيانات دفتر الحركات.');
 }
+
+// ==================== 🔍 مراجعة وإصلاح نوع الحركة ====================
+
+/**
+ * مراجعة وإصلاح الربط بين طبيعة الحركة (C) ونوع الحركة (N)
+ * القاعدة: استحقاق = مدين استحقاق | غير ذلك = دائن دفعة
+ */
+function reviewAndFixMovementTypes() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('⚠️ لم يتم العثور على دفتر الحركات المالية');
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('ℹ️ لا توجد بيانات للمراجعة');
+    return;
+  }
+
+  // قراءة عمود C (طبيعة الحركة) و N (نوع الحركة)
+  // C = 3, N = 14
+  const dataC = sheet.getRange(2, 3, lastRow - 1, 1).getValues();  // طبيعة الحركة
+  const dataN = sheet.getRange(2, 14, lastRow - 1, 1).getValues(); // نوع الحركة
+
+  let errors = [];
+  let fixes = [];
+
+  for (let i = 0; i < dataC.length; i++) {
+    const rowNum = i + 2;
+    const natureValue = String(dataC[i][0] || '').trim();
+    const currentType = String(dataN[i][0] || '').trim();
+
+    // تخطي الصفوف الفارغة
+    if (!natureValue) continue;
+
+    // تحديد النوع الصحيح
+    const correctType = natureValue.indexOf('استحقاق') !== -1 ? 'مدين استحقاق' : 'دائن دفعة';
+
+    // التحقق من التطابق
+    if (currentType !== correctType) {
+      errors.push({
+        row: rowNum,
+        nature: natureValue,
+        current: currentType || '(فارغ)',
+        correct: correctType
+      });
+      fixes.push([correctType]);
+    } else {
+      fixes.push([currentType]); // لا تغيير
+    }
+  }
+
+  // عرض النتائج
+  if (errors.length === 0) {
+    ui.alert('✅ مراجعة مكتملة\n\nكل البيانات صحيحة، لا توجد أخطاء للإصلاح.');
+    return;
+  }
+
+  // إعداد رسالة التقرير
+  let reportMsg = '🔍 تقرير المراجعة\n\n';
+  reportMsg += 'تم العثور على ' + errors.length + ' خطأ:\n\n';
+
+  // عرض أول 10 أخطاء فقط في الرسالة
+  const showErrors = errors.slice(0, 10);
+  showErrors.forEach((err, idx) => {
+    reportMsg += (idx + 1) + '. صف ' + err.row + ': ';
+    reportMsg += err.nature.substring(0, 20) + '\n';
+    reportMsg += '   الحالي: ' + err.current + ' ← الصحيح: ' + err.correct + '\n';
+  });
+
+  if (errors.length > 10) {
+    reportMsg += '\n... و ' + (errors.length - 10) + ' أخطاء أخرى\n';
+  }
+
+  reportMsg += '\nهل تريد إصلاح كل الأخطاء؟';
+
+  const response = ui.alert('مراجعة نوع الحركة', reportMsg, ui.ButtonSet.YES_NO);
+
+  if (response === ui.Button.YES) {
+    // تطبيق الإصلاحات
+    sheet.getRange(2, 14, fixes.length, 1).setValues(fixes);
+    ui.alert('✅ تم الإصلاح\n\nتم إصلاح ' + errors.length + ' خطأ بنجاح.');
+  } else {
+    ui.alert('ℹ️ تم إلغاء الإصلاح\n\nلم يتم تعديل أي بيانات.');
+  }
+}
+
+/**
+ * مراجعة فقط بدون إصلاح (تقرير)
+ */
+function reviewMovementTypesOnly() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('⚠️ لم يتم العثور على دفتر الحركات المالية');
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('ℹ️ لا توجد بيانات للمراجعة');
+    return;
+  }
+
+  // قراءة عمود C (طبيعة الحركة) و N (نوع الحركة)
+  const dataC = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+  const dataN = sheet.getRange(2, 14, lastRow - 1, 1).getValues();
+
+  let errorCount = 0;
+  let correctCount = 0;
+  let emptyCount = 0;
+
+  for (let i = 0; i < dataC.length; i++) {
+    const natureValue = String(dataC[i][0] || '').trim();
+    const currentType = String(dataN[i][0] || '').trim();
+
+    if (!natureValue) {
+      emptyCount++;
+      continue;
+    }
+
+    const correctType = natureValue.indexOf('استحقاق') !== -1 ? 'مدين استحقاق' : 'دائن دفعة';
+
+    if (currentType === correctType) {
+      correctCount++;
+    } else {
+      errorCount++;
+    }
+  }
+
+  let reportMsg = '📊 تقرير مراجعة نوع الحركة\n\n';
+  reportMsg += '━━━━━━━━━━━━━━━━━━━━\n';
+  reportMsg += '✅ صحيح: ' + correctCount + ' حركة\n';
+  reportMsg += '❌ خطأ: ' + errorCount + ' حركة\n';
+  reportMsg += '⬜ فارغ: ' + emptyCount + ' صف\n';
+  reportMsg += '━━━━━━━━━━━━━━━━━━━━\n';
+  reportMsg += '📝 الإجمالي: ' + (correctCount + errorCount) + ' حركة\n';
+
+  if (errorCount > 0) {
+    reportMsg += '\n💡 لإصلاح الأخطاء، استخدم:\nمراجعة وإصلاح نوع الحركة';
+  }
+
+  ui.alert('تقرير المراجعة', reportMsg, ui.ButtonSet.OK);
+}
+
 // ==================== 🎉 نهاية الكود ====================
