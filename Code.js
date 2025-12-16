@@ -519,6 +519,8 @@ function onOpen() {
         .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
         .addItem('🔗 مراجعة نوع الحركة (تقرير فقط)', 'reviewMovementTypesOnly')
         .addItem('🔗 مراجعة وإصلاح نوع الحركة', 'reviewAndFixMovementTypes')
+        .addItem('⚖️ فحص الاستحقاقات والدفعات (سريع)', 'checkAccrualPaymentBalance')
+        .addItem('⚖️ تقرير الاستحقاقات والدفعات (شيت)', 'generateAccrualPaymentReport')
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
@@ -6909,6 +6911,262 @@ function reviewMovementTypesOnly() {
   }
 
   ui.alert('تقرير المراجعة', reportMsg, ui.ButtonSet.OK);
+}
+
+// ==================== 🔍 مراجعة الاستحقاقات والدفعات ====================
+
+/**
+ * فحص سريع: عرض المشاكل فقط (دفعات بدون استحقاق كافي)
+ */
+function checkAccrualPaymentBalance() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    ui.alert('⚠️ لم يتم العثور على دفتر الحركات المالية');
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('ℹ️ لا توجد بيانات للمراجعة');
+    return;
+  }
+
+  // قراءة البيانات: I (الطرف), M (القيمة بالدولار), N (نوع الحركة)
+  // I = 9, M = 13, N = 14
+  const data = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
+
+  // تجميع حسب الطرف
+  const parties = {};
+
+  for (let i = 0; i < data.length; i++) {
+    const partyName = String(data[i][8] || '').trim();  // عمود I (index 8)
+    const amountUsd = Number(data[i][12]) || 0;         // عمود M (index 12)
+    const movementType = String(data[i][13] || '');     // عمود N (index 13)
+
+    if (!partyName) continue;
+
+    if (!parties[partyName]) {
+      parties[partyName] = { accruals: 0, payments: 0 };
+    }
+
+    if (movementType.indexOf('مدين استحقاق') !== -1) {
+      parties[partyName].accruals += amountUsd;
+    } else if (movementType.indexOf('دائن دفعة') !== -1) {
+      parties[partyName].payments += amountUsd;
+    }
+  }
+
+  // البحث عن المشاكل
+  const problems = [];
+  let healthyCount = 0;
+
+  for (const partyName in parties) {
+    const p = parties[partyName];
+    const balance = p.accruals - p.payments;
+
+    if (balance < -0.01) {  // سماح بفرق بسيط للتقريب
+      problems.push({
+        name: partyName,
+        accruals: p.accruals,
+        payments: p.payments,
+        excess: Math.abs(balance)
+      });
+    } else {
+      healthyCount++;
+    }
+  }
+
+  // عرض النتائج
+  if (problems.length === 0) {
+    ui.alert('✅ فحص مكتمل',
+      'كل الأطراف سليمين!\n\n' +
+      '📊 تم فحص ' + (healthyCount) + ' طرف\n' +
+      'لا توجد دفعات تتجاوز الاستحقاقات.',
+      ui.ButtonSet.OK);
+    return;
+  }
+
+  // إعداد تقرير المشاكل
+  let reportMsg = '⚠️ تم العثور على ' + problems.length + ' مشكلة:\n\n';
+
+  const showProblems = problems.slice(0, 8);
+  showProblems.forEach((prob, idx) => {
+    if (prob.accruals === 0) {
+      reportMsg += (idx + 1) + '. ' + prob.name + '\n';
+      reportMsg += '   ❌ دفعات $' + prob.payments.toFixed(2) + ' بدون أي استحقاق!\n\n';
+    } else {
+      reportMsg += (idx + 1) + '. ' + prob.name + '\n';
+      reportMsg += '   استحقاق: $' + prob.accruals.toFixed(2);
+      reportMsg += ' | دفعات: $' + prob.payments.toFixed(2) + '\n';
+      reportMsg += '   ❌ زيادة: $' + prob.excess.toFixed(2) + '\n\n';
+    }
+  });
+
+  if (problems.length > 8) {
+    reportMsg += '... و ' + (problems.length - 8) + ' مشاكل أخرى\n\n';
+  }
+
+  reportMsg += '━━━━━━━━━━━━━━━━━━━━\n';
+  reportMsg += '✅ سليم: ' + healthyCount + ' طرف\n';
+  reportMsg += '❌ مشاكل: ' + problems.length + ' طرف\n';
+  reportMsg += '\n💡 للتفاصيل الكاملة استخدم:\nتقرير الاستحقاقات والدفعات (شيت)';
+
+  ui.alert('نتيجة الفحص', reportMsg, ui.ButtonSet.OK);
+}
+
+/**
+ * تقرير شامل: إنشاء شيت بكل الأطراف واستحقاقاتهم ودفعاتهم
+ */
+function generateAccrualPaymentReport() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    ui.alert('⚠️ لم يتم العثور على دفتر الحركات المالية');
+    return;
+  }
+
+  const lastRow = transSheet.getLastRow();
+  if (lastRow < 2) {
+    ui.alert('ℹ️ لا توجد بيانات للتقرير');
+    return;
+  }
+
+  // قراءة البيانات
+  const data = transSheet.getRange(2, 1, lastRow - 1, 14).getValues();
+
+  // تجميع حسب الطرف
+  const parties = {};
+
+  for (let i = 0; i < data.length; i++) {
+    const partyName = String(data[i][8] || '').trim();  // عمود I
+    const amountUsd = Number(data[i][12]) || 0;         // عمود M
+    const movementType = String(data[i][13] || '');     // عمود N
+
+    if (!partyName) continue;
+
+    if (!parties[partyName]) {
+      parties[partyName] = { accruals: 0, payments: 0, transCount: 0 };
+    }
+
+    parties[partyName].transCount++;
+
+    if (movementType.indexOf('مدين استحقاق') !== -1) {
+      parties[partyName].accruals += amountUsd;
+    } else if (movementType.indexOf('دائن دفعة') !== -1) {
+      parties[partyName].payments += amountUsd;
+    }
+  }
+
+  // إنشاء أو إعادة استخدام الشيت
+  const reportSheetName = 'تقرير الاستحقاقات والدفعات';
+  let reportSheet = ss.getSheetByName(reportSheetName);
+
+  if (reportSheet) {
+    reportSheet.clear();
+  } else {
+    reportSheet = ss.insertSheet(reportSheetName);
+  }
+
+  // إعداد الهيدر
+  const headers = ['الطرف', 'الاستحقاقات ($)', 'الدفعات ($)', 'المتبقي ($)', 'الحالة', 'عدد الحركات'];
+  reportSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  reportSheet.getRange(1, 1, 1, headers.length)
+    .setBackground('#4a86e8')
+    .setFontColor('white')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+
+  // تحويل البيانات إلى مصفوفة وترتيبها
+  const rows = [];
+  let problemCount = 0;
+  let healthyCount = 0;
+
+  for (const partyName in parties) {
+    const p = parties[partyName];
+    const balance = p.accruals - p.payments;
+    let status = '✅ سليم';
+
+    if (balance < -0.01) {
+      if (p.accruals === 0) {
+        status = '❌ دفعة بدون استحقاق';
+      } else {
+        status = '❌ دفعات زائدة';
+      }
+      problemCount++;
+    } else if (Math.abs(balance) < 0.01) {
+      status = '✅ مسدد بالكامل';
+      healthyCount++;
+    } else {
+      status = '✅ متبقي للسداد';
+      healthyCount++;
+    }
+
+    rows.push([
+      partyName,
+      p.accruals,
+      p.payments,
+      balance,
+      status,
+      p.transCount
+    ]);
+  }
+
+  // ترتيب: المشاكل أولاً، ثم حسب الاسم
+  rows.sort((a, b) => {
+    const aHasProblem = a[4].indexOf('❌') !== -1 ? 0 : 1;
+    const bHasProblem = b[4].indexOf('❌') !== -1 ? 0 : 1;
+    if (aHasProblem !== bHasProblem) return aHasProblem - bHasProblem;
+    return a[0].localeCompare(b[0], 'ar');
+  });
+
+  // كتابة البيانات
+  if (rows.length > 0) {
+    reportSheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+
+    // تنسيق الأرقام
+    reportSheet.getRange(2, 2, rows.length, 3).setNumberFormat('$#,##0.00');
+
+    // تلوين صفوف المشاكل
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][4].indexOf('❌') !== -1) {
+        reportSheet.getRange(i + 2, 1, 1, headers.length).setBackground('#ffcccc');
+      }
+    }
+  }
+
+  // إضافة صف الملخص
+  const summaryRow = rows.length + 3;
+  reportSheet.getRange(summaryRow, 1).setValue('📊 الملخص:');
+  reportSheet.getRange(summaryRow, 1).setFontWeight('bold');
+  reportSheet.getRange(summaryRow + 1, 1).setValue('✅ سليم: ' + healthyCount + ' طرف');
+  reportSheet.getRange(summaryRow + 2, 1).setValue('❌ مشاكل: ' + problemCount + ' طرف');
+  reportSheet.getRange(summaryRow + 3, 1).setValue('📝 الإجمالي: ' + rows.length + ' طرف');
+
+  // تعديل عرض الأعمدة
+  reportSheet.setColumnWidth(1, 200);  // الطرف
+  reportSheet.setColumnWidth(2, 120);  // الاستحقاقات
+  reportSheet.setColumnWidth(3, 120);  // الدفعات
+  reportSheet.setColumnWidth(4, 120);  // المتبقي
+  reportSheet.setColumnWidth(5, 150);  // الحالة
+  reportSheet.setColumnWidth(6, 100);  // عدد الحركات
+
+  reportSheet.setFrozenRows(1);
+
+  // الانتقال للشيت
+  ss.setActiveSheet(reportSheet);
+
+  ui.alert('✅ تم إنشاء التقرير',
+    'تم إنشاء تقرير الاستحقاقات والدفعات.\n\n' +
+    '📊 الملخص:\n' +
+    '• سليم: ' + healthyCount + ' طرف\n' +
+    '• مشاكل: ' + problemCount + ' طرف\n' +
+    '• الإجمالي: ' + rows.length + ' طرف',
+    ui.ButtonSet.OK);
 }
 
 // ==================== 🎉 نهاية الكود ====================
