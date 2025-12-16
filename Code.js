@@ -549,11 +549,20 @@ function scrollToLastRow_() {
     const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
     if (!sheet) return;
 
-    const lastRow = sheet.getLastRow();
-    if (lastRow > 1) {
-      // تفعيل الشيت والانتقال لآخر سطر
+    // البحث عن آخر صف فيه بيانات فعلية في عمود B (التاريخ)
+    const colB = sheet.getRange('B:B').getValues();
+    let lastDataRow = 1;
+    for (let i = colB.length - 1; i >= 0; i--) {
+      if (colB[i][0] !== '' && colB[i][0] !== null) {
+        lastDataRow = i + 1;
+        break;
+      }
+    }
+
+    if (lastDataRow > 1) {
+      // تفعيل الشيت والانتقال لآخر سطر فيه بيانات
       ss.setActiveSheet(sheet);
-      sheet.getRange(lastRow, 1).activate();
+      sheet.getRange(lastDataRow, 1).activate();
     }
   } catch (e) {
     // تجاهل الأخطاء - لا نريد منع فتح الملف
