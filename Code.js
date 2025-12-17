@@ -7282,13 +7282,15 @@ function addProjectManagerColumns() {
 
 /**
  * عرض نافذة اختيار مدير المشروعات لتقرير العمولة
+ * نسخة مبسطة بدون HTML لتجنب مشاكل الصلاحيات
  */
 function showCommissionReportDialog() {
+  const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
 
   if (!projectsSheet) {
-    SpreadsheetApp.getUi().alert('⚠️ لم يتم العثور على قاعدة بيانات المشاريع');
+    ui.alert('⚠️ لم يتم العثور على قاعدة بيانات المشاريع');
     return;
   }
 
@@ -7297,14 +7299,14 @@ function showCommissionReportDialog() {
   const managerColIndex = headers.indexOf('مدير المشروعات');
 
   if (managerColIndex === -1) {
-    SpreadsheetApp.getUi().alert('⚠️ عمود "مدير المشروعات" غير موجود.\n\nاستخدم أولاً: إضافة أعمدة العمولات للمشاريع');
+    ui.alert('⚠️ عمود "مدير المشروعات" غير موجود.\n\nاستخدم أولاً: إضافة أعمدة العمولات للمشاريع');
     return;
   }
 
   // جمع أسماء مديري المشروعات الفريدة
   const lastRow = projectsSheet.getLastRow();
   if (lastRow < 2) {
-    SpreadsheetApp.getUi().alert('⚠️ لا توجد مشاريع في قاعدة البيانات');
+    ui.alert('⚠️ لا توجد مشاريع في قاعدة البيانات');
     return;
   }
 
@@ -7312,70 +7314,44 @@ function showCommissionReportDialog() {
   const uniqueManagers = [...new Set(managersData.filter(row => row[0] !== '').map(row => row[0]))];
 
   if (uniqueManagers.length === 0) {
-    SpreadsheetApp.getUi().alert('⚠️ لا يوجد مديرو مشروعات معينين.\n\nقم بتعيين مدير المشروعات في قاعدة بيانات المشاريع أولاً.');
+    ui.alert('⚠️ لا يوجد مديرو مشروعات معينين.\n\nقم بتعيين مدير المشروعات في قاعدة بيانات المشاريع أولاً.');
     return;
   }
 
-  // إنشاء HTML للنافذة
-  let html = `
-    <style>
-      body { font-family: Arial, sans-serif; padding: 20px; direction: rtl; }
-      .form-group { margin-bottom: 15px; }
-      label { display: block; margin-bottom: 5px; font-weight: bold; }
-      select, input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-      button { background: #4a86e8; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; }
-      button:hover { background: #3a76d8; }
-      button:disabled { background: #ccc; cursor: not-allowed; }
-      #status { margin-top: 10px; text-align: center; color: #666; }
-    </style>
-    <div class="form-group">
-      <label>اختر مدير المشروعات:</label>
-      <select id="manager">
-        ${uniqueManagers.map(m => `<option value="${m}">${m}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-group">
-      <label>من تاريخ (اختياري):</label>
-      <input type="date" id="fromDate">
-    </div>
-    <div class="form-group">
-      <label>إلى تاريخ (اختياري):</label>
-      <input type="date" id="toDate">
-    </div>
-    <button id="btnGenerate" onclick="generate()">📊 إنشاء التقرير</button>
-    <div id="status"></div>
-    <script>
-      function generate() {
-        var btn = document.getElementById('btnGenerate');
-        var status = document.getElementById('status');
-        btn.disabled = true;
-        btn.textContent = '⏳ جاري الإنشاء...';
-        status.textContent = 'يرجى الانتظار...';
+  // عرض قائمة المديرين للاختيار
+  let managersList = 'مديرو المشروعات المتاحون:\n\n';
+  uniqueManagers.forEach((m, i) => {
+    managersList += (i + 1) + '. ' + m + '\n';
+  });
+  managersList += '\nأدخل رقم مدير المشروعات:';
 
-        var manager = document.getElementById('manager').value;
-        var fromDate = document.getElementById('fromDate').value;
-        var toDate = document.getElementById('toDate').value;
+  const response = ui.prompt('📊 تقرير العمولات', managersList, ui.ButtonSet.OK_CANCEL);
 
-        google.script.run
-          .withSuccessHandler(function() {
-            status.textContent = '✅ تم!';
-            google.script.host.close();
-          })
-          .withFailureHandler(function(error) {
-            btn.disabled = false;
-            btn.textContent = '📊 إنشاء التقرير';
-            status.textContent = '❌ خطأ: ' + error.message;
-          })
-          .generateManagerCommissionReport(manager, fromDate, toDate);
-      }
-    </script>
-  `;
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
 
-  const htmlOutput = HtmlService.createHtmlOutput(html)
-    .setWidth(350)
-    .setHeight(320);
+  const selectedIndex = parseInt(response.getResponseText()) - 1;
+  if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= uniqueManagers.length) {
+    ui.alert('⚠️ رقم غير صحيح. اختر رقماً من 1 إلى ' + uniqueManagers.length);
+    return;
+  }
 
-  SpreadsheetApp.getUi().showModalDialog(htmlOutput, '📊 تقرير عمولات مدير المشروعات');
+  const selectedManager = uniqueManagers[selectedIndex];
+
+  // تأكيد الاختيار
+  const confirmResponse = ui.alert(
+    '📊 تأكيد',
+    'سيتم إنشاء تقرير عمولات لـ:\n\n' + selectedManager + '\n\nمتابعة؟',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (confirmResponse !== ui.Button.YES) {
+    return;
+  }
+
+  // إنشاء التقرير
+  generateManagerCommissionReport(selectedManager, '', '');
 }
 
 /**
