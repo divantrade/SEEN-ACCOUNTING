@@ -7394,11 +7394,23 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
     const projectCode = projData[i][projCodeCol];
 
     if (projectManager === managerName && invoiceNum && projectCode) {
+      // معالجة نسبة العمولة - قد تكون "3%" أو 0.03 أو 3
+      let rateValue = projData[i][commissionCol];
+      let commissionRate = 0;
+      if (typeof rateValue === 'string') {
+        // إذا كانت نص مثل "3%"
+        commissionRate = parseFloat(rateValue.replace('%', '').replace('٪', '')) / 100;
+      } else if (typeof rateValue === 'number') {
+        // إذا كانت رقم - نتحقق إذا > 1 (مثل 3 تعني 3%) أو < 1 (مثل 0.03)
+        commissionRate = rateValue > 1 ? rateValue / 100 : rateValue;
+      }
+      if (isNaN(commissionRate)) commissionRate = 0;
+
       managerProjects.push({
         code: projectCode,
         name: projData[i][projNameCol],
         contractValue: Number(projData[i][contractValueCol]) || 0,
-        commissionRate: Number(projData[i][commissionCol]) || 0,
+        commissionRate: commissionRate,
         invoiceNum: invoiceNum
       });
     }
@@ -7420,13 +7432,13 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
   const fromDate = fromDateStr ? new Date(fromDateStr) : null;
   const toDate = toDateStr ? new Date(toDateStr) : null;
 
-  // تجميع المصروفات لكل مشروع
+  // تجميع المصروفات والتحصيلات لكل مشروع
   const projectExpenses = {};
   const projectCollections = {};
 
   for (const proj of managerProjects) {
     projectExpenses[proj.code] = [];
-    projectCollections[proj.code] = 0;
+    projectCollections[proj.code] = { total: 0, payments: [] };
   }
 
   for (let i = 0; i < transData.length; i++) {
@@ -7455,8 +7467,13 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
         date: transDate
       });
     } else if (transType.indexOf('تحصيل') !== -1) {
-      // تحصيلات
-      projectCollections[projectCode] += amountUsd;
+      // تحصيلات - نحفظ التفاصيل مع التاريخ
+      projectCollections[projectCode].total += amountUsd;
+      projectCollections[projectCode].payments.push({
+        amount: amountUsd,
+        date: transDate,
+        party: partyName
+      });
     }
   }
 
@@ -7472,7 +7489,7 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
   let currentRow = 1;
 
   // العنوان الرئيسي
-  reportSheet.getRange(currentRow, 1, 1, 5).merge();
+  reportSheet.getRange(currentRow, 1, 1, 6).merge();
   reportSheet.getRange(currentRow, 1)
     .setValue('📊 تقرير عمولات: ' + managerName)
     .setFontSize(16)
@@ -7489,7 +7506,7 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
   } else {
     periodText += 'كل الفترات';
   }
-  reportSheet.getRange(currentRow, 1, 1, 5).merge();
+  reportSheet.getRange(currentRow, 1, 1, 6).merge();
   reportSheet.getRange(currentRow, 1).setValue(periodText).setHorizontalAlignment('center');
   currentRow += 2;
 
@@ -7502,9 +7519,16 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
     const expenses = projectExpenses[proj.code];
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
     const commission = totalExpenses * proj.commissionRate;
-    const collected = projectCollections[proj.code];
-    const collectionRatio = proj.contractValue > 0 ? collected / proj.contractValue : 0;
+    const collectionData = projectCollections[proj.code];
+    const collectedTotal = collectionData.total;
+    const collectionRatio = proj.contractValue > 0 ? collectedTotal / proj.contractValue : 0;
     const dueCommission = commission * Math.min(collectionRatio, 1);
+    // تاريخ آخر تحصيل
+    let lastCollectionDate = null;
+    if (collectionData.payments.length > 0) {
+      collectionData.payments.sort((a, b) => new Date(b.date) - new Date(a.date));
+      lastCollectionDate = collectionData.payments[0].date;
+    }
 
     grandTotalExpenses += totalExpenses;
     grandTotalCommission += dueCommission;
@@ -7515,13 +7539,15 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
       expenses: totalExpenses,
       rate: proj.commissionRate,
       commission: commission,
-      collected: collected,
+      collectedTotal: collectedTotal,
+      collectionPayments: collectionData.payments,
+      lastCollectionDate: lastCollectionDate,
       contractValue: proj.contractValue,
       dueCommission: dueCommission
     });
 
     // عنوان المشروع
-    reportSheet.getRange(currentRow, 1, 1, 5).merge();
+    reportSheet.getRange(currentRow, 1, 1, 6).merge();
     reportSheet.getRange(currentRow, 1)
       .setValue('📁 المشروع: ' + proj.code + ' - ' + proj.name)
       .setFontWeight('bold')
@@ -7563,12 +7589,80 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
       currentRow++;
     }
 
+    // قسم التحصيلات مع التواريخ
+    currentRow++;
+    if (collectionData.payments.length > 0) {
+      reportSheet.getRange(currentRow, 1)
+        .setValue('   💵 التحصيلات:')
+        .setFontWeight('bold')
+        .setFontColor('#0b5394');
+      currentRow++;
+
+      reportSheet.getRange(currentRow, 1, 1, 3)
+        .setValues([['التاريخ', 'العميل', 'المبلغ ($)']])
+        .setFontWeight('bold')
+        .setBackground('#cfe2f3');
+      currentRow++;
+
+      for (const payment of collectionData.payments) {
+        const paymentDate = payment.date ? Utilities.formatDate(new Date(payment.date), 'GMT+3', 'yyyy-MM-dd') : '-';
+        reportSheet.getRange(currentRow, 1, 1, 3)
+          .setValues([[paymentDate, payment.party, payment.amount]]);
+        reportSheet.getRange(currentRow, 3).setNumberFormat('$#,##0.00');
+        currentRow++;
+      }
+
+      reportSheet.getRange(currentRow, 1, 1, 2).merge();
+      reportSheet.getRange(currentRow, 1)
+        .setValue('إجمالي التحصيلات:')
+        .setFontWeight('bold');
+      reportSheet.getRange(currentRow, 3)
+        .setValue(collectedTotal)
+        .setFontWeight('bold')
+        .setNumberFormat('$#,##0.00')
+        .setBackground('#d0e0e3');
+      currentRow++;
+    } else {
+      reportSheet.getRange(currentRow, 1)
+        .setValue('   ⏳ لم يتم تحصيل أي مبالغ بعد')
+        .setFontColor('#cc0000');
+      currentRow++;
+    }
+
+    // ملخص العمولة للمشروع
+    currentRow++;
+    reportSheet.getRange(currentRow, 1)
+      .setValue('   📈 حساب العمولة:')
+      .setFontWeight('bold')
+      .setFontColor('#38761d');
+    currentRow++;
+
+    const commissionCalc = totalExpenses + ' × ' + (proj.commissionRate * 100).toFixed(0) + '% = $' + commission.toFixed(2);
+    reportSheet.getRange(currentRow, 1).setValue('      العمولة الإجمالية: ' + commissionCalc);
+    currentRow++;
+
+    const collectionPercent = (collectionRatio * 100).toFixed(1);
+    reportSheet.getRange(currentRow, 1).setValue('      نسبة التحصيل: ' + collectionPercent + '% من قيمة العقد');
+    currentRow++;
+
+    reportSheet.getRange(currentRow, 1)
+      .setValue('      ✅ العمولة المستحقة: $' + dueCommission.toFixed(2))
+      .setFontWeight('bold')
+      .setFontColor('#38761d');
+    if (lastCollectionDate) {
+      const formattedDate = Utilities.formatDate(new Date(lastCollectionDate), 'GMT+3', 'yyyy-MM-dd');
+      reportSheet.getRange(currentRow, 3)
+        .setValue('(تاريخ آخر تحصيل: ' + formattedDate + ')')
+        .setFontColor('#666666');
+    }
+    currentRow++;
+
     currentRow++; // سطر فارغ بين المشاريع
   }
 
   // قسم الملخص
   currentRow++;
-  reportSheet.getRange(currentRow, 1, 1, 5).merge();
+  reportSheet.getRange(currentRow, 1, 1, 6).merge();
   reportSheet.getRange(currentRow, 1)
     .setValue('📋 الملخص')
     .setFontSize(14)
@@ -7577,13 +7671,29 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
     .setHorizontalAlignment('center');
   currentRow++;
 
+  // هيدر الملخص
+  reportSheet.getRange(currentRow, 1, 1, 6)
+    .setValues([['المشروع', 'المصروفات', 'النسبة', 'العمولة الإجمالية', 'التحصيل', 'العمولة المستحقة']])
+    .setFontWeight('bold')
+    .setBackground('#fff2cc')
+    .setHorizontalAlignment('center');
+  currentRow++;
+
   // ملخص كل مشروع
   for (const summary of projectSummaries) {
-    reportSheet.getRange(currentRow, 1)
-      .setValue('• ' + summary.code + ' - ' + summary.name + ':');
-    reportSheet.getRange(currentRow, 4)
-      .setValue(summary.expenses)
-      .setNumberFormat('$#,##0.00');
+    reportSheet.getRange(currentRow, 1).setValue(summary.code + ' - ' + summary.name);
+    reportSheet.getRange(currentRow, 2).setValue(summary.expenses).setNumberFormat('$#,##0.00');
+    reportSheet.getRange(currentRow, 3).setValue((summary.rate * 100).toFixed(0) + '%');
+    reportSheet.getRange(currentRow, 4).setValue(summary.commission).setNumberFormat('$#,##0.00');
+    reportSheet.getRange(currentRow, 5).setValue(summary.collectedTotal).setNumberFormat('$#,##0.00');
+    reportSheet.getRange(currentRow, 6).setValue(summary.dueCommission).setNumberFormat('$#,##0.00');
+
+    // تلوين حسب حالة التحصيل
+    if (summary.collectedTotal > 0) {
+      reportSheet.getRange(currentRow, 6).setBackground('#b6d7a8');
+    } else {
+      reportSheet.getRange(currentRow, 6).setBackground('#f4cccc');
+    }
     currentRow++;
   }
 
@@ -7615,10 +7725,12 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
   currentRow++;
 
   // تعديل عرض الأعمدة
-  reportSheet.setColumnWidth(1, 200);
-  reportSheet.setColumnWidth(2, 180);
-  reportSheet.setColumnWidth(3, 120);
-  reportSheet.setColumnWidth(4, 120);
+  reportSheet.setColumnWidth(1, 220);
+  reportSheet.setColumnWidth(2, 150);
+  reportSheet.setColumnWidth(3, 100);
+  reportSheet.setColumnWidth(4, 130);
+  reportSheet.setColumnWidth(5, 120);
+  reportSheet.setColumnWidth(6, 140);
 
   reportSheet.setFrozenRows(3);
 
