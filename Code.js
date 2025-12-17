@@ -505,6 +505,8 @@ function onOpen() {
       ui.createMenu('💹 الربحية والفواتير')
         .addItem('📊 تقرير ربحية مشروع (نافذة)', 'showProjectProfitability')
         .addItem('🧾 إنشاء فاتورة قناة من مشروع', 'generateChannelInvoice')
+        .addSeparator()
+        .addItem('💰 تقرير عمولات مدير مشروعات', 'showCommissionReportDialog')
     )
 
     .addSeparator()
@@ -528,6 +530,7 @@ function onOpen() {
         .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
         .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
         .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
+        .addItem('💰 إضافة أعمدة العمولات للمشاريع', 'addProjectManagerColumns')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
@@ -7198,6 +7201,440 @@ function generateAccrualPaymentReport() {
     '• سليم: ' + healthyCount + ' طرف\n' +
     '• مشاكل: ' + problemCount + ' طرف\n' +
     '• الإجمالي: ' + rows.length + ' طرف',
+    ui.ButtonSet.OK);
+}
+
+// ==================== 💰 نظام عمولات مديري المشروعات ====================
+
+/**
+ * إضافة أعمدة مدير المشروعات ونسبة العمولة لقاعدة بيانات المشاريع
+ */
+function addProjectManagerColumns() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+
+  if (!projectsSheet) {
+    ui.alert('⚠️ لم يتم العثور على قاعدة بيانات المشاريع');
+    return;
+  }
+
+  if (!partiesSheet) {
+    ui.alert('⚠️ لم يتم العثور على قاعدة بيانات الأطراف');
+    return;
+  }
+
+  // التحقق من وجود الأعمدة مسبقاً (نبحث في الصف الأول)
+  const headers = projectsSheet.getRange(1, 1, 1, 25).getValues()[0];
+  const managerColIndex = headers.indexOf('مدير المشروعات');
+  const commissionColIndex = headers.indexOf('نسبة العمولة');
+
+  // تحديد العمود التالي المتاح (بعد عمود الفاتورة Q=17)
+  let nextCol = 18; // R
+  if (managerColIndex !== -1) {
+    nextCol = managerColIndex + 1;
+  }
+
+  // إضافة عمود مدير المشروعات إذا لم يكن موجوداً
+  if (managerColIndex === -1) {
+    projectsSheet.getRange(1, nextCol)
+      .setValue('مدير المشروعات')
+      .setBackground('#4a86e8')
+      .setFontColor('white')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    projectsSheet.setColumnWidth(nextCol, 150);
+
+    // إنشاء قائمة منسدلة من أسماء الأطراف
+    const partiesData = partiesSheet.getRange('A2:A200').getValues();
+    const partyNames = partiesData.filter(row => row[0] !== '').map(row => row[0]);
+
+    if (partyNames.length > 0) {
+      projectsSheet.getRange(2, nextCol, 200, 1).setDataValidation(
+        SpreadsheetApp.newDataValidation()
+          .requireValueInList(partyNames, true)
+          .setAllowInvalid(false)
+          .build()
+      );
+    }
+    nextCol++;
+  }
+
+  // إضافة عمود نسبة العمولة إذا لم يكن موجوداً
+  if (commissionColIndex === -1) {
+    projectsSheet.getRange(1, nextCol)
+      .setValue('نسبة العمولة')
+      .setBackground('#4a86e8')
+      .setFontColor('white')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    projectsSheet.setColumnWidth(nextCol, 100);
+
+    // تنسيق كنسبة مئوية
+    projectsSheet.getRange(2, nextCol, 200, 1).setNumberFormat('0%');
+  }
+
+  ui.alert('✅ تم بنجاح',
+    'تم إضافة أعمدة:\n• مدير المشروعات (قائمة منسدلة من الأطراف)\n• نسبة العمولة',
+    ui.ButtonSet.OK);
+}
+
+/**
+ * عرض نافذة اختيار مدير المشروعات لتقرير العمولة
+ */
+function showCommissionReportDialog() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+
+  if (!projectsSheet) {
+    SpreadsheetApp.getUi().alert('⚠️ لم يتم العثور على قاعدة بيانات المشاريع');
+    return;
+  }
+
+  // البحث عن عمود مدير المشروعات
+  const headers = projectsSheet.getRange(1, 1, 1, 25).getValues()[0];
+  const managerColIndex = headers.indexOf('مدير المشروعات');
+
+  if (managerColIndex === -1) {
+    SpreadsheetApp.getUi().alert('⚠️ عمود "مدير المشروعات" غير موجود.\n\nاستخدم أولاً: إضافة أعمدة العمولات للمشاريع');
+    return;
+  }
+
+  // جمع أسماء مديري المشروعات الفريدة
+  const lastRow = projectsSheet.getLastRow();
+  if (lastRow < 2) {
+    SpreadsheetApp.getUi().alert('⚠️ لا توجد مشاريع في قاعدة البيانات');
+    return;
+  }
+
+  const managersData = projectsSheet.getRange(2, managerColIndex + 1, lastRow - 1, 1).getValues();
+  const uniqueManagers = [...new Set(managersData.filter(row => row[0] !== '').map(row => row[0]))];
+
+  if (uniqueManagers.length === 0) {
+    SpreadsheetApp.getUi().alert('⚠️ لا يوجد مديرو مشروعات معينين.\n\nقم بتعيين مدير المشروعات في قاعدة بيانات المشاريع أولاً.');
+    return;
+  }
+
+  // إنشاء HTML للنافذة
+  let html = `
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; direction: rtl; }
+      .form-group { margin-bottom: 15px; }
+      label { display: block; margin-bottom: 5px; font-weight: bold; }
+      select, input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+      button { background: #4a86e8; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; }
+      button:hover { background: #3a76d8; }
+    </style>
+    <div class="form-group">
+      <label>اختر مدير المشروعات:</label>
+      <select id="manager">
+        ${uniqueManagers.map(m => `<option value="${m}">${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>من تاريخ (اختياري):</label>
+      <input type="date" id="fromDate">
+    </div>
+    <div class="form-group">
+      <label>إلى تاريخ (اختياري):</label>
+      <input type="date" id="toDate">
+    </div>
+    <button onclick="generate()">📊 إنشاء التقرير</button>
+    <script>
+      function generate() {
+        const manager = document.getElementById('manager').value;
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        google.script.run.withSuccessHandler(() => google.script.host.close())
+          .generateManagerCommissionReport(manager, fromDate, toDate);
+      }
+    </script>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(350)
+    .setHeight(300);
+
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, '📊 تقرير عمولات مدير المشروعات');
+}
+
+/**
+ * إنشاء تقرير العمولات لمدير مشروعات معين
+ */
+function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!projectsSheet || !transSheet) {
+    ui.alert('⚠️ خطأ في الوصول للشيتات المطلوبة');
+    return;
+  }
+
+  // البحث عن أعمدة المشاريع
+  const projHeaders = projectsSheet.getRange(1, 1, 1, 25).getValues()[0];
+  const projCodeCol = 0;           // A - كود المشروع
+  const projNameCol = 1;           // B - اسم المشروع
+  const contractValueCol = 8;      // I - قيمة العقد
+  const invoiceCol = projHeaders.indexOf('رقم الفاتورة') !== -1 ? projHeaders.indexOf('رقم الفاتورة') : 16; // Q
+  const managerCol = projHeaders.indexOf('مدير المشروعات');
+  const commissionCol = projHeaders.indexOf('نسبة العمولة');
+
+  if (managerCol === -1 || commissionCol === -1) {
+    ui.alert('⚠️ أعمدة العمولات غير موجودة');
+    return;
+  }
+
+  // قراءة بيانات المشاريع
+  const projLastRow = projectsSheet.getLastRow();
+  const projData = projectsSheet.getRange(2, 1, projLastRow - 1, 25).getValues();
+
+  // تصفية مشاريع المدير المحدد التي لها فاتورة
+  const managerProjects = [];
+  for (let i = 0; i < projData.length; i++) {
+    const projectManager = projData[i][managerCol];
+    const invoiceNum = projData[i][invoiceCol];
+    const projectCode = projData[i][projCodeCol];
+
+    if (projectManager === managerName && invoiceNum && projectCode) {
+      managerProjects.push({
+        code: projectCode,
+        name: projData[i][projNameCol],
+        contractValue: Number(projData[i][contractValueCol]) || 0,
+        commissionRate: Number(projData[i][commissionCol]) || 0,
+        invoiceNum: invoiceNum
+      });
+    }
+  }
+
+  if (managerProjects.length === 0) {
+    ui.alert('ℹ️ لا توجد مشاريع',
+      'لا توجد مشاريع لـ "' + managerName + '" بها فواتير.\n\n' +
+      'تأكد من:\n• تعيين مدير المشروعات\n• قطع فاتورة للمشروع',
+      ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة الحركات المالية
+  const transLastRow = transSheet.getLastRow();
+  const transData = transSheet.getRange(2, 1, transLastRow - 1, 14).getValues();
+
+  // تحويل التواريخ
+  const fromDate = fromDateStr ? new Date(fromDateStr) : null;
+  const toDate = toDateStr ? new Date(toDateStr) : null;
+
+  // تجميع المصروفات لكل مشروع
+  const projectExpenses = {};
+  const projectCollections = {};
+
+  for (const proj of managerProjects) {
+    projectExpenses[proj.code] = [];
+    projectCollections[proj.code] = 0;
+  }
+
+  for (let i = 0; i < transData.length; i++) {
+    const transDate = transData[i][1];   // B - التاريخ
+    const transType = String(transData[i][2] || '');  // C - طبيعة الحركة
+    const classification = String(transData[i][3] || ''); // D - تصنيف الحركة
+    const projectCode = String(transData[i][4] || '');    // E - كود المشروع
+    const itemName = String(transData[i][6] || '');       // G - البند
+    const partyName = String(transData[i][8] || '');      // I - الطرف
+    const amountUsd = Number(transData[i][12]) || 0;      // M - القيمة بالدولار
+
+    // تصفية حسب التاريخ
+    if (fromDate && transDate && new Date(transDate) < fromDate) continue;
+    if (toDate && transDate && new Date(transDate) > toDate) continue;
+
+    // التحقق من أن المشروع ضمن مشاريع المدير
+    if (!projectExpenses.hasOwnProperty(projectCode)) continue;
+
+    // تصنيف الحركة
+    if (classification.indexOf('مصروف') !== -1 || transType.indexOf('مصروف') !== -1) {
+      // مصروفات
+      projectExpenses[projectCode].push({
+        item: itemName || classification,
+        party: partyName,
+        amount: amountUsd,
+        date: transDate
+      });
+    } else if (transType.indexOf('تحصيل') !== -1) {
+      // تحصيلات
+      projectCollections[projectCode] += amountUsd;
+    }
+  }
+
+  // إنشاء شيت التقرير
+  const reportSheetName = 'تقرير عمولة - ' + managerName;
+  let reportSheet = ss.getSheetByName(reportSheetName);
+  if (reportSheet) {
+    reportSheet.clear();
+  } else {
+    reportSheet = ss.insertSheet(reportSheetName);
+  }
+
+  let currentRow = 1;
+
+  // العنوان الرئيسي
+  reportSheet.getRange(currentRow, 1, 1, 5).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📊 تقرير عمولات: ' + managerName)
+    .setFontSize(16)
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setBackground('#4a86e8')
+    .setFontColor('white');
+  currentRow++;
+
+  // الفترة
+  let periodText = 'الفترة: ';
+  if (fromDate || toDate) {
+    periodText += (fromDateStr || 'البداية') + ' إلى ' + (toDateStr || 'الآن');
+  } else {
+    periodText += 'كل الفترات';
+  }
+  reportSheet.getRange(currentRow, 1, 1, 5).merge();
+  reportSheet.getRange(currentRow, 1).setValue(periodText).setHorizontalAlignment('center');
+  currentRow += 2;
+
+  // تفاصيل كل مشروع
+  let grandTotalExpenses = 0;
+  let grandTotalCommission = 0;
+  const projectSummaries = [];
+
+  for (const proj of managerProjects) {
+    const expenses = projectExpenses[proj.code];
+    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const commission = totalExpenses * proj.commissionRate;
+    const collected = projectCollections[proj.code];
+    const collectionRatio = proj.contractValue > 0 ? collected / proj.contractValue : 0;
+    const dueCommission = commission * Math.min(collectionRatio, 1);
+
+    grandTotalExpenses += totalExpenses;
+    grandTotalCommission += dueCommission;
+
+    projectSummaries.push({
+      code: proj.code,
+      name: proj.name,
+      expenses: totalExpenses,
+      rate: proj.commissionRate,
+      commission: commission,
+      collected: collected,
+      contractValue: proj.contractValue,
+      dueCommission: dueCommission
+    });
+
+    // عنوان المشروع
+    reportSheet.getRange(currentRow, 1, 1, 5).merge();
+    reportSheet.getRange(currentRow, 1)
+      .setValue('📁 المشروع: ' + proj.code + ' - ' + proj.name)
+      .setFontWeight('bold')
+      .setBackground('#e8f0fe')
+      .setFontSize(12);
+    currentRow++;
+
+    reportSheet.getRange(currentRow, 1)
+      .setValue('   نسبة العمولة: ' + (proj.commissionRate * 100).toFixed(0) + '%');
+    currentRow++;
+
+    // هيدر تفاصيل المصروفات
+    if (expenses.length > 0) {
+      reportSheet.getRange(currentRow, 1, 1, 3)
+        .setValues([['البند', 'المورد/الطرف', 'المبلغ ($)']])
+        .setFontWeight('bold')
+        .setBackground('#f3f3f3');
+      currentRow++;
+
+      // تفاصيل المصروفات
+      for (const exp of expenses) {
+        reportSheet.getRange(currentRow, 1, 1, 3)
+          .setValues([[exp.item, exp.party, exp.amount]]);
+        currentRow++;
+      }
+
+      // إجمالي مصروفات المشروع
+      reportSheet.getRange(currentRow, 1, 1, 2).merge();
+      reportSheet.getRange(currentRow, 1)
+        .setValue('إجمالي مصروفات المشروع:')
+        .setFontWeight('bold');
+      reportSheet.getRange(currentRow, 3)
+        .setValue(totalExpenses)
+        .setFontWeight('bold')
+        .setNumberFormat('$#,##0.00');
+      currentRow++;
+    } else {
+      reportSheet.getRange(currentRow, 1).setValue('   لا توجد مصروفات مسجلة');
+      currentRow++;
+    }
+
+    currentRow++; // سطر فارغ بين المشاريع
+  }
+
+  // قسم الملخص
+  currentRow++;
+  reportSheet.getRange(currentRow, 1, 1, 5).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📋 الملخص')
+    .setFontSize(14)
+    .setFontWeight('bold')
+    .setBackground('#fce8b2')
+    .setHorizontalAlignment('center');
+  currentRow++;
+
+  // ملخص كل مشروع
+  for (const summary of projectSummaries) {
+    reportSheet.getRange(currentRow, 1)
+      .setValue('• ' + summary.code + ' - ' + summary.name + ':');
+    reportSheet.getRange(currentRow, 4)
+      .setValue(summary.expenses)
+      .setNumberFormat('$#,##0.00');
+    currentRow++;
+  }
+
+  currentRow++;
+
+  // الإجماليات
+  reportSheet.getRange(currentRow, 1, 1, 3).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📊 إجمالي المصروفات على جميع المشاريع:')
+    .setFontWeight('bold');
+  reportSheet.getRange(currentRow, 4)
+    .setValue(grandTotalExpenses)
+    .setFontWeight('bold')
+    .setNumberFormat('$#,##0.00')
+    .setBackground('#d9ead3');
+  currentRow++;
+
+  reportSheet.getRange(currentRow, 1, 1, 3).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('💰 إجمالي العمولة المستحقة:')
+    .setFontWeight('bold')
+    .setFontColor('#006400');
+  reportSheet.getRange(currentRow, 4)
+    .setValue(grandTotalCommission)
+    .setFontWeight('bold')
+    .setNumberFormat('$#,##0.00')
+    .setBackground('#b6d7a8')
+    .setFontColor('#006400');
+  currentRow++;
+
+  // تعديل عرض الأعمدة
+  reportSheet.setColumnWidth(1, 200);
+  reportSheet.setColumnWidth(2, 180);
+  reportSheet.setColumnWidth(3, 120);
+  reportSheet.setColumnWidth(4, 120);
+
+  reportSheet.setFrozenRows(3);
+
+  // الانتقال للشيت
+  ss.setActiveSheet(reportSheet);
+
+  SpreadsheetApp.getUi().alert('✅ تم إنشاء التقرير',
+    'تقرير عمولات: ' + managerName + '\n\n' +
+    '📁 عدد المشاريع: ' + managerProjects.length + '\n' +
+    '💵 إجمالي المصروفات: $' + grandTotalExpenses.toFixed(2) + '\n' +
+    '💰 العمولة المستحقة: $' + grandTotalCommission.toFixed(2),
     ui.ButtonSet.OK);
 }
 
