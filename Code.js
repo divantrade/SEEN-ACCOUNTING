@@ -7322,9 +7322,11 @@ function showCommissionReportDialog() {
       body { font-family: Arial, sans-serif; padding: 20px; direction: rtl; }
       .form-group { margin-bottom: 15px; }
       label { display: block; margin-bottom: 5px; font-weight: bold; }
-      select, input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-      button { background: #4a86e8; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; }
+      select, input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+      button { background: #4a86e8; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; }
       button:hover { background: #3a76d8; }
+      button:disabled { background: #ccc; cursor: not-allowed; }
+      #status { margin-top: 10px; text-align: center; color: #666; }
     </style>
     <div class="form-group">
       <label>اختر مدير المشروعات:</label>
@@ -7340,13 +7342,30 @@ function showCommissionReportDialog() {
       <label>إلى تاريخ (اختياري):</label>
       <input type="date" id="toDate">
     </div>
-    <button onclick="generate()">📊 إنشاء التقرير</button>
+    <button id="btnGenerate" onclick="generate()">📊 إنشاء التقرير</button>
+    <div id="status"></div>
     <script>
       function generate() {
-        const manager = document.getElementById('manager').value;
-        const fromDate = document.getElementById('fromDate').value;
-        const toDate = document.getElementById('toDate').value;
-        google.script.run.withSuccessHandler(() => google.script.host.close())
+        var btn = document.getElementById('btnGenerate');
+        var status = document.getElementById('status');
+        btn.disabled = true;
+        btn.textContent = '⏳ جاري الإنشاء...';
+        status.textContent = 'يرجى الانتظار...';
+
+        var manager = document.getElementById('manager').value;
+        var fromDate = document.getElementById('fromDate').value;
+        var toDate = document.getElementById('toDate').value;
+
+        google.script.run
+          .withSuccessHandler(function() {
+            status.textContent = '✅ تم!';
+            google.script.host.close();
+          })
+          .withFailureHandler(function(error) {
+            btn.disabled = false;
+            btn.textContent = '📊 إنشاء التقرير';
+            status.textContent = '❌ خطأ: ' + error.message;
+          })
           .generateManagerCommissionReport(manager, fromDate, toDate);
       }
     </script>
@@ -7354,7 +7373,7 @@ function showCommissionReportDialog() {
 
   const htmlOutput = HtmlService.createHtmlOutput(html)
     .setWidth(350)
-    .setHeight(300);
+    .setHeight(320);
 
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, '📊 تقرير عمولات مدير المشروعات');
 }
