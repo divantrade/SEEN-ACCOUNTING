@@ -505,6 +505,7 @@ function onOpen() {
     .addSubMenu(
       ui.createMenu('💹 الربحية والفواتير')
         .addItem('📊 تقرير ربحية مشروع (نافذة)', 'showProjectProfitability')
+        .addItem('📋 تقرير ميزانية مشروع', 'generateProjectBudgetReport')
         .addItem('🧾 إنشاء فاتورة قناة من مشروع', 'generateChannelInvoice')
         .addSeparator()
         .addItem('💰 تقرير عمولات مدير مشروعات', 'showCommissionReportDialog')
@@ -7425,6 +7426,379 @@ function generateAccrualPaymentReport() {
     '• مشاكل: ' + problemCount + ' طرف\n' +
     '• الإجمالي: ' + rows.length + ' طرف',
     ui.ButtonSet.OK);
+}
+
+// ==================== 📊 تقرير ميزانية المشروع التفصيلي ====================
+
+/**
+ * إنشاء تقرير ميزانية مشروع تفصيلي
+ * يعرض الميزانية المخططة vs الفعلية + عمولة مدير المشروعات
+ */
+function generateProjectBudgetReport() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1️⃣ طلب كود المشروع من المستخدم
+  const response = ui.prompt(
+    '📊 تقرير ميزانية المشروع',
+    'أدخل كود المشروع (مثال: PRJ-001):',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const projectCode = response.getResponseText().trim().toUpperCase();
+  if (!projectCode) {
+    ui.alert('⚠️ لم يتم إدخال كود المشروع');
+    return;
+  }
+
+  // 2️⃣ قراءة بيانات المشروع
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  if (!projectsSheet) {
+    ui.alert('⚠️ لم يتم العثور على قاعدة بيانات المشاريع');
+    return;
+  }
+
+  const projectsData = projectsSheet.getDataRange().getValues();
+  const projHeaders = projectsData[0];
+
+  // البحث عن أعمدة المشروع
+  const projCodeCol = 0; // A
+  const projNameCol = 1; // B
+  const channelCol = 3;  // D - القناة/الجهة
+  const contractValueCol = 8; // I - قيمة العقد
+  const fundingValueCol = 7;  // H - قيمة التمويل
+
+  // البحث عن عمود مدير المشروعات ونسبة العمولة
+  const managerColIdx = projHeaders.indexOf('مدير المشروعات');
+  const commissionRateColIdx = projHeaders.indexOf('نسبة العمولة');
+
+  let projectInfo = null;
+  for (let i = 1; i < projectsData.length; i++) {
+    if (String(projectsData[i][projCodeCol]).trim().toUpperCase() === projectCode) {
+      projectInfo = {
+        code: projectsData[i][projCodeCol],
+        name: projectsData[i][projNameCol],
+        channel: projectsData[i][channelCol] || '',
+        contractValue: Number(projectsData[i][contractValueCol]) || 0,
+        fundingValue: Number(projectsData[i][fundingValueCol]) || 0,
+        manager: managerColIdx !== -1 ? (projectsData[i][managerColIdx] || '') : '',
+        commissionRate: commissionRateColIdx !== -1 ? (Number(projectsData[i][commissionRateColIdx]) || 0) : 0
+      };
+      break;
+    }
+  }
+
+  if (!projectInfo) {
+    ui.alert('⚠️ لم يتم العثور على مشروع بكود: ' + projectCode);
+    return;
+  }
+
+  // 3️⃣ قراءة الميزانية المخططة
+  const budgetSheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
+  const plannedBudget = {}; // { البند: المبلغ المخطط }
+  let totalPlanned = 0;
+
+  if (budgetSheet && budgetSheet.getLastRow() > 1) {
+    const budgetData = budgetSheet.getDataRange().getValues();
+    for (let i = 1; i < budgetData.length; i++) {
+      const budgetProjCode = String(budgetData[i][0]).trim().toUpperCase();
+      if (budgetProjCode === projectCode) {
+        const item = String(budgetData[i][2] || '').trim();
+        const amount = Number(budgetData[i][3]) || 0;
+        if (item) {
+          plannedBudget[item] = (plannedBudget[item] || 0) + amount;
+          totalPlanned += amount;
+        }
+      }
+    }
+  }
+
+  // 4️⃣ قراءة المصروفات الفعلية من دفتر الحركات
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  if (!transSheet) {
+    ui.alert('⚠️ لم يتم العثور على دفتر الحركات المالية');
+    return;
+  }
+
+  const transData = transSheet.getDataRange().getValues();
+  const transHeaders = transData[0];
+
+  // تحديد أعمدة دفتر الحركات
+  const colE = transHeaders.indexOf('كود المشروع') !== -1 ? transHeaders.indexOf('كود المشروع') : 4;
+  const colG = transHeaders.indexOf('البند') !== -1 ? transHeaders.indexOf('البند') : 6;
+  const colI = transHeaders.indexOf('اسم المورد/الجهة') !== -1 ? transHeaders.indexOf('اسم المورد/الجهة') : 8;
+  const colM = transHeaders.indexOf('القيمة بالدولار') !== -1 ? transHeaders.indexOf('القيمة بالدولار') : 12;
+  const colN = transHeaders.indexOf('نوع الحركة') !== -1 ? transHeaders.indexOf('نوع الحركة') : 13;
+
+  const actualExpenses = {}; // { البند: { total: المبلغ, details: [{vendor, amount}] } }
+  let totalActual = 0;
+  let commissionAmount = 0;
+
+  for (let i = 1; i < transData.length; i++) {
+    const rowProjCode = String(transData[i][colE] || '').trim().toUpperCase();
+    if (rowProjCode !== projectCode) continue;
+
+    const item = String(transData[i][colG] || '').trim();
+    const vendor = String(transData[i][colI] || '').trim();
+    const amountUsd = Number(transData[i][colM]) || 0;
+    const movementType = String(transData[i][colN] || '').trim();
+
+    // فقط المصروفات (مدين استحقاق)
+    if (movementType.indexOf('مدين') === -1) continue;
+    if (!item || amountUsd <= 0) continue;
+
+    // تجميع حسب البند
+    if (!actualExpenses[item]) {
+      actualExpenses[item] = { total: 0, details: [] };
+    }
+    actualExpenses[item].total += amountUsd;
+    actualExpenses[item].details.push({ vendor, amount: amountUsd });
+    totalActual += amountUsd;
+
+    // حساب عمولة مدير المشروعات
+    if (item.indexOf('عمولة مدير') !== -1) {
+      commissionAmount += amountUsd;
+    }
+  }
+
+  // 5️⃣ حساب العمولة المتوقعة (إذا كان هناك مدير ونسبة)
+  let expectedCommission = 0;
+  if (projectInfo.manager && projectInfo.commissionRate > 0 && projectInfo.contractValue > 0) {
+    expectedCommission = projectInfo.contractValue * (projectInfo.commissionRate / 100);
+  }
+
+  // 6️⃣ إنشاء شيت التقرير
+  const reportSheetName = 'تقرير ميزانية - ' + projectCode;
+  let reportSheet = ss.getSheetByName(reportSheetName);
+  if (reportSheet) {
+    ss.deleteSheet(reportSheet);
+  }
+  reportSheet = ss.insertSheet(reportSheetName);
+  reportSheet.setRightToLeft(true);
+
+  let currentRow = 1;
+
+  // ═══════════════════════════════════════════════════════════
+  // العنوان الرئيسي
+  // ═══════════════════════════════════════════════════════════
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue('📊 تقرير ميزانية المشروع: ' + projectInfo.code)
+    .setBackground('#1a237e')
+    .setFontColor('white')
+    .setFontWeight('bold')
+    .setFontSize(16)
+    .setHorizontalAlignment('center');
+  currentRow++;
+
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue(projectInfo.name)
+    .setBackground('#283593')
+    .setFontColor('white')
+    .setFontSize(14)
+    .setHorizontalAlignment('center');
+  currentRow += 2;
+
+  // ═══════════════════════════════════════════════════════════
+  // بيانات المشروع الأساسية
+  // ═══════════════════════════════════════════════════════════
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue('📋 بيانات المشروع')
+    .setBackground('#e8eaf6')
+    .setFontWeight('bold')
+    .setFontSize(12);
+  currentRow++;
+
+  const projectInfoData = [
+    ['القناة/الجهة', projectInfo.channel, 'قيمة العقد', projectInfo.contractValue, 'قيمة التمويل', projectInfo.fundingValue]
+  ];
+  reportSheet.getRange(currentRow, 1, 1, 6).setValues(projectInfoData);
+  reportSheet.getRange(currentRow, 4).setNumberFormat('$#,##0.00');
+  reportSheet.getRange(currentRow, 6).setNumberFormat('$#,##0.00');
+  currentRow += 2;
+
+  // ═══════════════════════════════════════════════════════════
+  // جدول المقارنة: الميزانية المخططة vs الفعلية
+  // ═══════════════════════════════════════════════════════════
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue('📈 الميزانية المخططة vs الفعلية')
+    .setBackground('#e8eaf6')
+    .setFontWeight('bold')
+    .setFontSize(12);
+  currentRow++;
+
+  // رؤوس الأعمدة
+  const budgetHeaders = ['البند', 'المخطط', 'الفعلي', 'الفرق', 'النسبة %', 'الحالة'];
+  reportSheet.getRange(currentRow, 1, 1, 6).setValues([budgetHeaders])
+    .setBackground('#3949ab')
+    .setFontColor('white')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  currentRow++;
+
+  // جمع كل البنود (من المخطط والفعلي)
+  const allItems = new Set([...Object.keys(plannedBudget), ...Object.keys(actualExpenses)]);
+  const budgetRows = [];
+
+  allItems.forEach(item => {
+    // تجاهل عمولة مدير المشروعات (سيظهر في قسم منفصل)
+    if (item.indexOf('عمولة مدير') !== -1) return;
+
+    const planned = plannedBudget[item] || 0;
+    const actual = actualExpenses[item] ? actualExpenses[item].total : 0;
+    const diff = planned - actual;
+    const percentage = planned > 0 ? Math.round((actual / planned) * 100) : (actual > 0 ? '∞' : 0);
+
+    let status = '';
+    if (planned === 0 && actual > 0) {
+      status = '⚠️ غير مخطط';
+    } else if (percentage === '∞' || percentage > 120) {
+      status = '🔴 تجاوز';
+    } else if (percentage > 100) {
+      status = '🟡 تجاوز طفيف';
+    } else if (percentage >= 80) {
+      status = '🟢 ضمن الميزانية';
+    } else if (actual === 0) {
+      status = '⚪ لم يُصرف';
+    } else {
+      status = '🔵 وفر';
+    }
+
+    budgetRows.push([item, planned, actual, diff, percentage === '∞' ? '∞' : percentage + '%', status]);
+  });
+
+  // ترتيب حسب الفعلي تنازلياً
+  budgetRows.sort((a, b) => b[2] - a[2]);
+
+  if (budgetRows.length > 0) {
+    reportSheet.getRange(currentRow, 1, budgetRows.length, 6).setValues(budgetRows);
+    reportSheet.getRange(currentRow, 2, budgetRows.length, 3).setNumberFormat('$#,##0.00');
+
+    // تلوين الفرق
+    for (let i = 0; i < budgetRows.length; i++) {
+      const diffCell = reportSheet.getRange(currentRow + i, 4);
+      const diffValue = budgetRows[i][3];
+      if (diffValue < 0) {
+        diffCell.setFontColor('#c62828'); // أحمر للتجاوز
+      } else if (diffValue > 0) {
+        diffCell.setFontColor('#2e7d32'); // أخضر للوفر
+      }
+    }
+    currentRow += budgetRows.length;
+  } else {
+    reportSheet.getRange(currentRow, 1, 1, 6).merge()
+      .setValue('لا توجد بنود مسجلة')
+      .setFontStyle('italic')
+      .setHorizontalAlignment('center');
+    currentRow++;
+  }
+  currentRow++;
+
+  // ═══════════════════════════════════════════════════════════
+  // عمولة مدير المشروعات
+  // ═══════════════════════════════════════════════════════════
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue('💰 عمولة مدير المشروعات')
+    .setBackground('#e8eaf6')
+    .setFontWeight('bold')
+    .setFontSize(12);
+  currentRow++;
+
+  if (projectInfo.manager) {
+    const commissionHeaders = ['مدير المشروع', 'نسبة العمولة', 'العمولة المتوقعة', 'العمولة المسجلة', 'المتبقي', 'الحالة'];
+    reportSheet.getRange(currentRow, 1, 1, 6).setValues([commissionHeaders])
+      .setBackground('#7b1fa2')
+      .setFontColor('white')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    currentRow++;
+
+    const remaining = expectedCommission - commissionAmount;
+    const commStatus = remaining <= 0 ? '✅ مكتمل' : '⏳ معلق';
+
+    const commissionRow = [
+      projectInfo.manager,
+      projectInfo.commissionRate + '%',
+      expectedCommission,
+      commissionAmount,
+      remaining > 0 ? remaining : 0,
+      commStatus
+    ];
+    reportSheet.getRange(currentRow, 1, 1, 6).setValues([commissionRow]);
+    reportSheet.getRange(currentRow, 3, 1, 3).setNumberFormat('$#,##0.00');
+    currentRow++;
+  } else {
+    reportSheet.getRange(currentRow, 1, 1, 6).merge()
+      .setValue('لا يوجد مدير مشروعات معين')
+      .setFontStyle('italic')
+      .setHorizontalAlignment('center');
+    currentRow++;
+  }
+  currentRow++;
+
+  // ═══════════════════════════════════════════════════════════
+  // الملخص النهائي
+  // ═══════════════════════════════════════════════════════════
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue('📊 الملخص النهائي')
+    .setBackground('#e8eaf6')
+    .setFontWeight('bold')
+    .setFontSize(12);
+  currentRow++;
+
+  const totalWithCommission = totalActual; // العمولة مضمنة في المصروفات
+  const budgetRemaining = totalPlanned - totalActual;
+
+  const summaryData = [
+    ['إجمالي الميزانية المخططة', totalPlanned, '', 'إجمالي المصروفات الفعلية', totalActual, ''],
+    ['عمولة مدير المشروعات (مسجلة)', commissionAmount, '', 'عمولة مدير المشروعات (متوقعة)', expectedCommission, ''],
+    ['', '', '', '', '', ''],
+    ['الميزانية المتبقية', budgetRemaining, budgetRemaining >= 0 ? '✅' : '⚠️ تجاوز', 'نسبة الصرف', totalPlanned > 0 ? Math.round((totalActual / totalPlanned) * 100) + '%' : 'N/A', '']
+  ];
+
+  reportSheet.getRange(currentRow, 1, 4, 6).setValues(summaryData);
+  reportSheet.getRange(currentRow, 2, 4, 1).setNumberFormat('$#,##0.00');
+  reportSheet.getRange(currentRow, 5, 2, 1).setNumberFormat('$#,##0.00');
+
+  // تلوين الميزانية المتبقية
+  const remainingCell = reportSheet.getRange(currentRow + 3, 2);
+  if (budgetRemaining < 0) {
+    remainingCell.setFontColor('#c62828').setFontWeight('bold');
+  } else {
+    remainingCell.setFontColor('#2e7d32').setFontWeight('bold');
+  }
+
+  currentRow += 5;
+
+  // ═══════════════════════════════════════════════════════════
+  // تنسيقات عامة
+  // ═══════════════════════════════════════════════════════════
+  reportSheet.setColumnWidth(1, 180);
+  reportSheet.setColumnWidth(2, 120);
+  reportSheet.setColumnWidth(3, 120);
+  reportSheet.setColumnWidth(4, 120);
+  reportSheet.setColumnWidth(5, 100);
+  reportSheet.setColumnWidth(6, 120);
+
+  reportSheet.setFrozenRows(2);
+  ss.setActiveSheet(reportSheet);
+
+  // تاريخ التقرير
+  reportSheet.getRange(currentRow, 1, 1, 6).merge()
+    .setValue('تاريخ التقرير: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'))
+    .setFontSize(9)
+    .setFontColor('#666666')
+    .setHorizontalAlignment('center');
+
+  ui.alert(
+    '✅ تم إنشاء تقرير ميزانية المشروع',
+    'المشروع: ' + projectInfo.code + ' - ' + projectInfo.name + '\n\n' +
+    '📋 الميزانية المخططة: $' + totalPlanned.toFixed(2) + '\n' +
+    '💰 المصروفات الفعلية: $' + totalActual.toFixed(2) + '\n' +
+    '📊 الفرق: $' + budgetRemaining.toFixed(2) + (budgetRemaining < 0 ? ' ⚠️' : ' ✅'),
+    ui.ButtonSet.OK
+  );
 }
 
 // ==================== 💰 نظام عمولات مديري المشروعات ====================
