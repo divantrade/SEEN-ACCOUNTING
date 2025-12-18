@@ -507,6 +507,7 @@ function onOpen() {
         .addItem('🧾 إنشاء فاتورة قناة من مشروع', 'generateChannelInvoice')
         .addSeparator()
         .addItem('💰 تقرير عمولات مدير مشروعات', 'showCommissionReportDialog')
+        .addItem('➕ إدراج استحقاق عمولة (من التقرير)', 'insertCommissionFromReport')
     )
 
     .addSeparator()
@@ -7969,5 +7970,133 @@ function handleCommissionCheckbox(sheet, row, col) {
   } else {
     sheet.getRange(row, col).setValue(false);
     ss.toast('فشل في إدراج استحقاق العمولة', '❌ خطأ', 5);
+  }
+}
+
+/**
+ * إدراج استحقاق عمولة من تقرير العمولات (يُستدعى من القائمة)
+ * يقرأ السطر المحدد في تقرير العمولات ويدرج الاستحقاق
+ */
+function insertCommissionFromReport() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const sheetName = sheet.getName();
+
+  // التحقق من أننا في تقرير عمولات
+  if (sheetName.indexOf('تقرير عمولة - ') !== 0) {
+    ui.alert('⚠️ خطأ', 'يجب أن تكون في شيت تقرير العمولات\n\nاسم الشيت يجب أن يبدأ بـ "تقرير عمولة - "', ui.ButtonSet.OK);
+    return;
+  }
+
+  // الحصول على السطر المحدد
+  const selection = ss.getActiveRange();
+  const row = selection.getRow();
+
+  // التحقق من أن السطر ليس الهيدر
+  if (row <= 4) {
+    ui.alert('⚠️ خطأ', 'يرجى تحديد سطر مشروع في جدول الملخص', ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة بيانات السطر
+  const rowData = sheet.getRange(row, 1, 1, 8).getValues()[0];
+  const projectInfo = String(rowData[0] || '');
+  const commissionAmount = Number(rowData[3]) || 0;
+
+  // استخراج كود المشروع
+  const projectCode = projectInfo.split(' - ')[0].trim();
+
+  if (!projectCode) {
+    ui.alert('⚠️ خطأ', 'لم يتم العثور على كود المشروع في السطر المحدد\n\nتأكد من تحديد سطر في جدول الملخص', ui.ButtonSet.OK);
+    return;
+  }
+
+  if (commissionAmount <= 0) {
+    ui.alert('⚠️ خطأ', 'قيمة العمولة صفر أو غير صحيحة', ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة اسم المدير من عنوان التقرير
+  const reportTitle = sheet.getRange(1, 1).getValue();
+  const managerName = String(reportTitle).replace('📊 تقرير عمولات: ', '').trim();
+
+  if (!managerName) {
+    ui.alert('⚠️ خطأ', 'لم يتم العثور على اسم المدير في عنوان التقرير', ui.ButtonSet.OK);
+    return;
+  }
+
+  // التحقق من وجود استحقاق سابق
+  const existing = checkExistingCommissionAccrual(projectCode, managerName);
+
+  if (existing.exists) {
+    const diff = commissionAmount - existing.amount;
+
+    if (Math.abs(diff) < 0.01) {
+      // موجود بنفس القيمة
+      sheet.getRange(row, 7).setValue('موجود ✅');
+      ui.alert('ℹ️ تنبيه',
+        'استحقاق العمولة موجود بالفعل!\n\n' +
+        '• المشروع: ' + projectCode + '\n' +
+        '• القيمة: $' + existing.amount.toFixed(2),
+        ui.ButtonSet.OK);
+      return;
+    } else if (diff > 0) {
+      // موجود بقيمة أقل - سؤال لإضافة الفرق
+      const response = ui.alert('⚠️ يوجد استحقاق سابق',
+        'يوجد استحقاق عمولة سابق بقيمة مختلفة:\n\n' +
+        '• المشروع: ' + projectCode + '\n' +
+        '• العمولة السابقة: $' + existing.amount.toFixed(2) + '\n' +
+        '• العمولة الجديدة: $' + commissionAmount.toFixed(2) + '\n' +
+        '• الفرق: $' + diff.toFixed(2) + '\n\n' +
+        'هل تريد إضافة الفرق؟',
+        ui.ButtonSet.YES_NO);
+
+      if (response === ui.Button.YES) {
+        const success = insertCommissionAccrual(projectCode, managerName, diff);
+        if (success) {
+          sheet.getRange(row, 7).setValue('تم إضافة الفرق ✅');
+          ui.alert('✅ تم', 'تم إدراج فرق العمولة: $' + diff.toFixed(2), ui.ButtonSet.OK);
+        } else {
+          ui.alert('❌ خطأ', 'فشل في إدراج استحقاق العمولة', ui.ButtonSet.OK);
+        }
+      }
+      return;
+    } else {
+      // موجود بقيمة أعلى
+      sheet.getRange(row, 7).setValue('موجود (أعلى) ⚠️');
+      ui.alert('⚠️ تنبيه',
+        'يوجد استحقاق سابق بقيمة أعلى!\n\n' +
+        '• العمولة السابقة: $' + existing.amount.toFixed(2) + '\n' +
+        '• العمولة الحالية: $' + commissionAmount.toFixed(2),
+        ui.ButtonSet.OK);
+      return;
+    }
+  }
+
+  // تأكيد الإدراج
+  const confirm = ui.alert('تأكيد إدراج العمولة',
+    'سيتم إدراج استحقاق عمولة:\n\n' +
+    '• المشروع: ' + projectCode + '\n' +
+    '• المدير: ' + managerName + '\n' +
+    '• العمولة: $' + commissionAmount.toFixed(2) + '\n\n' +
+    'هل تريد المتابعة؟',
+    ui.ButtonSet.YES_NO);
+
+  if (confirm !== ui.Button.YES) return;
+
+  // إدراج الاستحقاق
+  const success = insertCommissionAccrual(projectCode, managerName, commissionAmount);
+
+  if (success) {
+    sheet.getRange(row, 7).setValue('تم ✅');
+    ui.alert('✅ تم بنجاح',
+      'تم إدراج استحقاق العمولة:\n\n' +
+      '• المشروع: ' + projectCode + '\n' +
+      '• المدير: ' + managerName + '\n' +
+      '• العمولة: $' + commissionAmount.toFixed(2),
+      ui.ButtonSet.OK);
+  } else {
+    ui.alert('❌ خطأ', 'فشل في إدراج استحقاق العمولة', ui.ButtonSet.OK);
   }
 }
