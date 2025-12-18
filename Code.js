@@ -459,7 +459,7 @@ function onOpen() {
     .addItem('⏰ عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
     .addItem('🔔 تحديث التنبيهات', 'updateAlerts')
     .addItem('📊 تقرير الاستحقاقات الشامل', 'generateDueReport')
-    .addItem('📋 تقرير المستحقات المفصّل', 'generateDetailedPayablesReport')
+    .addItem('📋 دفتر الأستاذ المساعد', 'generateDetailedPayablesReport')
     .addSeparator()
 
     // الموردون / العملاء / الممولون
@@ -2690,7 +2690,7 @@ function updateAlerts() {
 
 // ==================== تقرير الاستحقاقات الشامل ====================
 /**
- * إنشاء تقرير استحقاقات شامل يتضمن:
+ * إنشاء تقرير استحقاقات شامل في شيت منفصل يتضمن:
  * - الاستحقاقات المدينة (فواتير يجب سدادها)
  * - الإيرادات المستحقة التحصيل
  * - ملخص حسب الفترة الزمنية
@@ -2779,66 +2779,204 @@ function generateDueReport() {
     }
   }
 
-  // بناء التقرير
-  let report = '═══════════════════════════════════════════\n';
-  report += '📊 تقرير الاستحقاقات الشامل\n';
-  report += '📅 ' + Utilities.formatDate(today, Session.getScriptTimeZone(), 'dd/MM/yyyy') + '\n';
-  report += '═══════════════════════════════════════════\n\n';
+  // إنشاء أو إعادة استخدام الشيت
+  const reportSheetName = 'تقرير الاستحقاقات';
+  let reportSheet = ss.getSheetByName(reportSheetName);
+
+  if (reportSheet) {
+    reportSheet.clear();
+  } else {
+    reportSheet = ss.insertSheet(reportSheetName);
+  }
+
+  // === بناء التقرير في الشيت ===
+  let currentRow = 1;
+  const numCols = 5;
+
+  // العنوان الرئيسي
+  reportSheet.getRange(currentRow, 1, 1, numCols).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📊 تقرير الاستحقاقات الشامل')
+    .setFontSize(16)
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setBackground('#4a86e8')
+    .setFontColor('white');
+  currentRow++;
+
+  // تاريخ التقرير
+  reportSheet.getRange(currentRow, 1, 1, numCols).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📅 تاريخ التقرير: ' + Utilities.formatDate(today, 'Asia/Riyadh', 'yyyy-MM-dd HH:mm'))
+    .setFontSize(10)
+    .setHorizontalAlignment('center')
+    .setBackground('#cfe2f3');
+  currentRow += 2;
+
+  // دالة مساعدة لإضافة قسم
+  function addSection(title, items, total, bgColor, textColor, showDays) {
+    // عنوان القسم
+    reportSheet.getRange(currentRow, 1, 1, numCols).merge();
+    reportSheet.getRange(currentRow, 1)
+      .setValue(title + ' (' + items.length + ')')
+      .setFontWeight('bold')
+      .setFontSize(12)
+      .setBackground(bgColor)
+      .setFontColor(textColor);
+    currentRow++;
+
+    // هيدر الجدول
+    const headers = showDays ? ['#', 'الطرف', 'المشروع', 'المبلغ ($)', 'الأيام'] : ['#', 'الطرف', 'المشروع', 'المبلغ ($)', ''];
+    reportSheet.getRange(currentRow, 1, 1, numCols).setValues([headers]);
+    reportSheet.getRange(currentRow, 1, 1, numCols)
+      .setBackground('#e0e0e0')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    currentRow++;
+
+    // البيانات
+    if (items.length > 0) {
+      items.sort((a, b) => showDays ? a.daysLeft - b.daysLeft : b.amount - a.amount);
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const daysText = showDays ? (item.daysLeft < 0 ? 'متأخر ' + Math.abs(item.daysLeft) : item.daysLeft + ' يوم') : '';
+        reportSheet.getRange(currentRow, 1, 1, numCols).setValues([[
+          i + 1,
+          item.party || '',
+          item.project || '',
+          item.amount,
+          daysText
+        ]]);
+        if (i % 2 === 1) {
+          reportSheet.getRange(currentRow, 1, 1, numCols).setBackground('#f5f5f5');
+        }
+        // تلوين الأيام المتأخرة
+        if (showDays && item.daysLeft < 0) {
+          reportSheet.getRange(currentRow, 5).setFontColor('#cc0000').setFontWeight('bold');
+        }
+        currentRow++;
+      }
+    } else {
+      reportSheet.getRange(currentRow, 1, 1, numCols).merge();
+      reportSheet.getRange(currentRow, 1)
+        .setValue('✅ لا يوجد')
+        .setHorizontalAlignment('center')
+        .setFontColor('#2e7d32');
+      currentRow++;
+    }
+
+    // إجمالي القسم
+    reportSheet.getRange(currentRow, 1, 1, 3).merge();
+    reportSheet.getRange(currentRow, 1)
+      .setValue('💰 الإجمالي:')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('left')
+      .setBackground('#e8eaf6');
+    reportSheet.getRange(currentRow, 4)
+      .setValue(total)
+      .setNumberFormat('$#,##0.00')
+      .setFontWeight('bold')
+      .setBackground('#e8eaf6');
+    reportSheet.getRange(currentRow, 5).setBackground('#e8eaf6');
+    currentRow += 2;
+  }
 
   // 1. الاستحقاقات المتأخرة
-  report += '🔴 الاستحقاقات المتأخرة (' + overdue.length + ')\n';
-  report += '────────────────────────────────────────\n';
-  if (overdue.length > 0) {
-    overdue.sort((a, b) => a.daysLeft - b.daysLeft);
-    overdue.slice(0, 5).forEach(item => {
-      report += `• ${item.party}: $${item.amount.toLocaleString()} (متأخر ${Math.abs(item.daysLeft)} يوم)\n`;
-    });
-    if (overdue.length > 5) report += `  ... و ${overdue.length - 5} أخرى\n`;
-  } else {
-    report += '  لا يوجد استحقاقات متأخرة ✅\n';
-  }
-  report += `💰 الإجمالي: $${totalOverdue.toLocaleString()}\n\n`;
+  addSection('🔴 الاستحقاقات المتأخرة', overdue, totalOverdue, '#ffcdd2', '#b71c1c', true);
 
   // 2. استحقاقات هذا الأسبوع
-  report += '🟠 استحقاقات هذا الأسبوع (' + thisWeek.length + ')\n';
-  report += '────────────────────────────────────────\n';
-  if (thisWeek.length > 0) {
-    thisWeek.slice(0, 5).forEach(item => {
-      report += `• ${item.party}: $${item.amount.toLocaleString()} (${item.daysLeft} يوم)\n`;
-    });
-    if (thisWeek.length > 5) report += `  ... و ${thisWeek.length - 5} أخرى\n`;
-  } else {
-    report += '  لا يوجد استحقاقات هذا الأسبوع ✅\n';
-  }
-  report += `💰 الإجمالي: $${totalThisWeek.toLocaleString()}\n\n`;
+  addSection('🟠 استحقاقات هذا الأسبوع', thisWeek, totalThisWeek, '#ffe0b2', '#e65100', true);
 
   // 3. استحقاقات هذا الشهر
-  report += '🟡 استحقاقات هذا الشهر (' + thisMonth.length + ')\n';
-  report += '────────────────────────────────────────\n';
-  report += `💰 الإجمالي: $${totalThisMonth.toLocaleString()}\n\n`;
+  addSection('🟡 استحقاقات هذا الشهر', thisMonth, totalThisMonth, '#fff9c4', '#f57f17', true);
 
-  // 4. التحصيلات المستحقة
-  report += '💰 إيرادات مستحقة التحصيل (' + receivables.length + ')\n';
-  report += '────────────────────────────────────────\n';
-  if (receivables.length > 0) {
-    receivables.slice(0, 5).forEach(item => {
-      report += `• ${item.party}: $${item.amount.toLocaleString()}\n`;
-    });
-    if (receivables.length > 5) report += `  ... و ${receivables.length - 5} أخرى\n`;
-  } else {
-    report += '  لا يوجد إيرادات مستحقة ✅\n';
-  }
-  report += `💰 الإجمالي: $${totalReceivables.toLocaleString()}\n\n`;
+  // 4. استحقاقات لاحقة
+  addSection('🟢 استحقاقات لاحقة', later, totalLater, '#c8e6c9', '#2e7d32', true);
 
-  // الملخص
-  report += '═══════════════════════════════════════════\n';
-  report += '📈 الملخص المالي\n';
-  report += '═══════════════════════════════════════════\n';
-  report += `💸 إجمالي الاستحقاقات: $${(totalOverdue + totalThisWeek + totalThisMonth + totalLater).toLocaleString()}\n`;
-  report += `💰 إجمالي التحصيلات المستحقة: $${totalReceivables.toLocaleString()}\n`;
-  report += `📊 صافي الموقف: $${(totalReceivables - totalOverdue - totalThisWeek - totalThisMonth - totalLater).toLocaleString()}\n`;
+  // 5. الإيرادات المستحقة
+  addSection('💰 إيرادات مستحقة التحصيل', receivables, totalReceivables, '#bbdefb', '#0d47a1', false);
 
-  ui.alert(report);
+  // === الملخص المالي ===
+  currentRow++;
+  reportSheet.getRange(currentRow, 1, 1, numCols).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📈 الملخص المالي')
+    .setFontWeight('bold')
+    .setFontSize(14)
+    .setBackground('#4a86e8')
+    .setFontColor('white')
+    .setHorizontalAlignment('center');
+  currentRow++;
+
+  const totalPayables = totalOverdue + totalThisWeek + totalThisMonth + totalLater;
+  const netPosition = totalReceivables - totalPayables;
+
+  // إجمالي الاستحقاقات
+  reportSheet.getRange(currentRow, 1, 1, 3).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('💸 إجمالي الاستحقاقات (علينا):')
+    .setBackground('#ffcdd2');
+  reportSheet.getRange(currentRow, 4, 1, 2).merge();
+  reportSheet.getRange(currentRow, 4)
+    .setValue(totalPayables)
+    .setNumberFormat('$#,##0.00')
+    .setFontWeight('bold')
+    .setBackground('#ffcdd2')
+    .setFontColor('#b71c1c');
+  currentRow++;
+
+  // إجمالي التحصيلات
+  reportSheet.getRange(currentRow, 1, 1, 3).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('💰 إجمالي التحصيلات (لنا):')
+    .setBackground('#c8e6c9');
+  reportSheet.getRange(currentRow, 4, 1, 2).merge();
+  reportSheet.getRange(currentRow, 4)
+    .setValue(totalReceivables)
+    .setNumberFormat('$#,##0.00')
+    .setFontWeight('bold')
+    .setBackground('#c8e6c9')
+    .setFontColor('#2e7d32');
+  currentRow++;
+
+  // صافي الموقف
+  reportSheet.getRange(currentRow, 1, 1, 3).merge();
+  reportSheet.getRange(currentRow, 1)
+    .setValue('📊 صافي الموقف:')
+    .setFontWeight('bold')
+    .setFontSize(12)
+    .setBackground('#fff9c4');
+  reportSheet.getRange(currentRow, 4, 1, 2).merge();
+  reportSheet.getRange(currentRow, 4)
+    .setValue(netPosition)
+    .setNumberFormat('$#,##0.00')
+    .setFontWeight('bold')
+    .setFontSize(12)
+    .setBackground('#fff9c4')
+    .setFontColor(netPosition >= 0 ? '#2e7d32' : '#b71c1c');
+
+  // تنسيق الأعمدة
+  reportSheet.setColumnWidth(1, 40);   // #
+  reportSheet.setColumnWidth(2, 180);  // الطرف
+  reportSheet.setColumnWidth(3, 150);  // المشروع
+  reportSheet.setColumnWidth(4, 120);  // المبلغ
+  reportSheet.setColumnWidth(5, 100);  // الأيام
+
+  // تجميد الصفوف العلوية
+  reportSheet.setFrozenRows(2);
+
+  // الانتقال للشيت
+  ss.setActiveSheet(reportSheet);
+
+  ui.alert('✅ تم إنشاء تقرير الاستحقاقات',
+    'الملخص:\n\n' +
+    '• متأخرة: $' + totalOverdue.toFixed(2) + ' (' + overdue.length + ')\n' +
+    '• هذا الأسبوع: $' + totalThisWeek.toFixed(2) + ' (' + thisWeek.length + ')\n' +
+    '• هذا الشهر: $' + totalThisMonth.toFixed(2) + ' (' + thisMonth.length + ')\n' +
+    '• لاحقاً: $' + totalLater.toFixed(2) + ' (' + later.length + ')\n' +
+    '• تحصيلات: $' + totalReceivables.toFixed(2) + ' (' + receivables.length + ')\n\n' +
+    '📊 صافي الموقف: $' + netPosition.toFixed(2),
+    ui.ButtonSet.OK);
 }
 
 // ==================== نافذة الاستحقاقات القادمة (30 يوم) ====================
@@ -8051,10 +8189,10 @@ function insertCommissionFromReport() {
   }
 }
 
-// ==================== 📋 دفتر المعاون - تقرير المستحقات المفصّل ====================
+// ==================== 📋 دفتر الأستاذ المساعد ====================
 
 /**
- * إنشاء دفتر المعاون (تقرير المستحقات المفصّل)
+ * إنشاء دفتر الأستاذ المساعد
  * يعرض كشف حساب كامل لكل طرف (استحقاقات + دفعات) مع الرصيد التراكمي
  * فقط للأطراف الذين لديهم رصيد متبقي > 0
  */
@@ -8137,7 +8275,7 @@ function generateDetailedPayablesReport() {
   partyNames.sort((a, b) => a.localeCompare(b, 'ar'));
 
   // إنشاء أو إعادة استخدام الشيت
-  const reportSheetName = 'تقرير المستحقات المفصّل';
+  const reportSheetName = 'دفتر الأستاذ المساعد';
   let reportSheet = ss.getSheetByName(reportSheetName);
 
   if (reportSheet) {
@@ -8153,7 +8291,7 @@ function generateDetailedPayablesReport() {
   // العنوان الرئيسي
   reportSheet.getRange(currentRow, 1, 1, numCols).merge();
   reportSheet.getRange(currentRow, 1)
-    .setValue('📋 دفتر المعاون - كشف حساب الأطراف')
+    .setValue('📋 دفتر الأستاذ المساعد - كشف حساب الأطراف')
     .setFontSize(14)
     .setFontWeight('bold')
     .setHorizontalAlignment('center')
@@ -8377,7 +8515,7 @@ function generateDetailedPayablesReport() {
   // الانتقال للشيت
   ss.setActiveSheet(reportSheet);
 
-  ui.alert('✅ تم إنشاء دفتر المعاون',
+  ui.alert('✅ تم إنشاء دفتر الأستاذ المساعد',
     'كشف حساب الأطراف المدينين:\n\n' +
     '• عدد الأطراف: ' + partyNames.length + '\n' +
     '• إجمالي الحركات: ' + totalTransactions + '\n' +
