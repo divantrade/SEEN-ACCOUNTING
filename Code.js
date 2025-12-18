@@ -7877,8 +7877,9 @@ function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
     transSheet.getRange(newRow, 10).setValue(commissionAmount);
     // K - العملة
     transSheet.getRange(newRow, 11).setValue('USD');
-    // L - المبلغ بالدولار (نفس القيمة لأن العملة USD)
-    transSheet.getRange(newRow, 12).setValue(commissionAmount);
+    // L - سعر الصرف (فارغ لأن العملة USD)
+    // M - المبلغ بالدولار
+    transSheet.getRange(newRow, 13).setValue(commissionAmount);
     // N - نوع الحركة
     transSheet.getRange(newRow, 14).setValue('مدين استحقاق');
     // Q - طريقة الدفع
