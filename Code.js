@@ -8518,7 +8518,7 @@ function generateDetailedPayablesReport() {
 
   // رسم الأقسام الثلاثة
   totalVendorsBalance = drawSection('الموردين (مستحقات علينا)', vendors, '#00695c', '🏭');
-  totalClientsBalance = drawSection('العملاء (مستحقات لنا)', clients, '#1565c0', '👥');
+  totalClientsBalance = drawSection('العملاء (مستحقات لنا)', clients, '#f9a825', '👥');
   totalFundersBalance = drawSection('الممولين', funders, '#6a1b9a', '🏦');
 
   // إضافة قسم "أخرى" إذا وجد
@@ -8555,14 +8555,14 @@ function generateDetailedPayablesReport() {
   reportSheet.getRange(currentRow, 1, 1, 5).merge();
   reportSheet.getRange(currentRow, 1)
     .setValue('👥 مستحقات العملاء (لنا):')
-    .setBackground('#e3f2fd');
+    .setBackground('#fff8e1');
   reportSheet.getRange(currentRow, 6, 1, 3).merge();
   reportSheet.getRange(currentRow, 6)
     .setValue(totalClientsBalance)
     .setNumberFormat('$#,##0.00')
     .setFontWeight('bold')
-    .setBackground('#e3f2fd')
-    .setFontColor('#1565c0');
+    .setBackground('#fff8e1')
+    .setFontColor('#f9a825');
   currentRow++;
 
   // مستحقات الممولين
