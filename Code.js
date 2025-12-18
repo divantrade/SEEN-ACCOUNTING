@@ -7805,38 +7805,38 @@ function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
     // تاريخ اليوم
     const today = new Date();
 
-    // إدراج البيانات
-    // A - الرقم التسلسلي
-    transSheet.getRange(newRow, 1).setValue(newNum);
-    // B - التاريخ
-    transSheet.getRange(newRow, 2).setValue(today);
-    // C - طبيعة الحركة (مع الإيموجي)
-    transSheet.getRange(newRow, 3).setValue('💰 استحقاق مصروف');
-    // D - تصنيف الحركة
-    transSheet.getRange(newRow, 4).setValue('مصروفات مباشرة');
-    // E - كود المشروع
-    transSheet.getRange(newRow, 5).setValue(projectCode);
-    // G - البند
-    transSheet.getRange(newRow, 7).setValue('عمولة مدير انتاج');
-    // I - المورد/الجهة
-    transSheet.getRange(newRow, 9).setValue(managerName);
-    // J - المبلغ بالعملة الأصلية
-    transSheet.getRange(newRow, 10).setValue(commissionAmount);
-    // K - العملة
-    transSheet.getRange(newRow, 11).setValue('USD');
-    // L - سعر الصرف (فارغ لأن العملة USD)
-    // M - المبلغ بالدولار
-    transSheet.getRange(newRow, 13).setValue(commissionAmount);
-    // N - نوع الحركة
-    transSheet.getRange(newRow, 14).setValue('مدين استحقاق');
-    // Q - طريقة الدفع
-    transSheet.getRange(newRow, 17).setValue('نقدي');
-    // R - شرط الدفع
-    transSheet.getRange(newRow, 18).setValue('بعد التسليم');
-    // S - عدد الأسابيع
-    transSheet.getRange(newRow, 19).setValue(3);
-    // Y - كشف
-    transSheet.getRange(newRow, 25).setValue('📄');
+    // إعداد البيانات في مصفوفة واحدة (25 عمود = A إلى Y)
+    // A=1, B=2, C=3, D=4, E=5, F=6, G=7, H=8, I=9, J=10, K=11, L=12, M=13, N=14, O=15, P=16, Q=17, R=18, S=19, T=20, U=21, V=22, W=23, X=24, Y=25
+    const rowData = [
+      newNum,                    // A - الرقم التسلسلي
+      today,                     // B - التاريخ
+      '💰 استحقاق مصروف',        // C - طبيعة الحركة
+      'مصروفات مباشرة',          // D - تصنيف الحركة
+      projectCode,               // E - كود المشروع
+      '',                        // F - اسم المشروع (فارغ)
+      'عمولة مدير انتاج',        // G - البند
+      '',                        // H - التفاصيل (فارغ)
+      managerName,               // I - المورد/الجهة
+      commissionAmount,          // J - المبلغ بالعملة الأصلية
+      'USD',                     // K - العملة
+      '',                        // L - سعر الصرف (فارغ)
+      commissionAmount,          // M - المبلغ بالدولار
+      'مدين استحقاق',            // N - نوع الحركة
+      '',                        // O - فارغ
+      '',                        // P - فارغ
+      'نقدي',                    // Q - طريقة الدفع
+      'بعد التسليم',             // R - شرط الدفع
+      3,                         // S - عدد الأسابيع
+      '',                        // T - فارغ
+      '',                        // U - فارغ
+      '',                        // V - فارغ
+      '',                        // W - فارغ
+      '',                        // X - فارغ
+      '📄'                       // Y - كشف
+    ];
+
+    // إدراج البيانات دفعة واحدة
+    transSheet.getRange(newRow, 1, 1, 25).setValues([rowData]);
 
     return true;
   } catch (e) {
