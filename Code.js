@@ -537,6 +537,13 @@ function onOpen() {
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
 
+    .addSubMenu(
+      ui.createMenu('👁️ إخفاء/إظهار الشيتات')
+        .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
+        .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
+        .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
+    )
+
     .addSeparator()
     .addItem('📖 دليل الاستخدام', 'showGuide')
     .addToUi();
@@ -8705,4 +8712,131 @@ function generateDetailedPayablesReport() {
     '🏦 الممولين: ' + funders.length + ' ($' + totalFundersBalance.toFixed(2) + ')\n\n' +
     '💰 صافي الموقف: $' + netPosition.toFixed(2),
     ui.ButtonSet.OK);
+}
+
+// ==================== إخفاء/إظهار الشيتات ====================
+
+/**
+ * إخفاء/إظهار شيتات التقارير
+ */
+function toggleReportsVisibility() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const reportSheets = [
+    CONFIG.SHEETS.PROJECT_REPORT,
+    CONFIG.SHEETS.VENDORS_REPORT,
+    CONFIG.SHEETS.FUNDERS_REPORT,
+    CONFIG.SHEETS.EXPENSES_REPORT,
+    CONFIG.SHEETS.REVENUE_REPORT,
+    CONFIG.SHEETS.CASHFLOW,
+    CONFIG.SHEETS.VENDOR_STATEMENT,
+    CONFIG.SHEETS.CLIENT_STATEMENT,
+    CONFIG.SHEETS.FUNDER_STATEMENT
+  ];
+
+  const result = toggleSheetsVisibility_(ss, reportSheets, 'التقارير');
+  ui.alert(result.title, result.message, ui.ButtonSet.OK);
+}
+
+/**
+ * إخفاء/إظهار شيتات حسابات البنوك والخزنة
+ */
+function toggleBankAccountsVisibility() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const bankSheets = [
+    CONFIG.SHEETS.BANK_USD,
+    CONFIG.SHEETS.BANK_TRY,
+    CONFIG.SHEETS.CASH_USD,
+    CONFIG.SHEETS.CASH_TRY,
+    CONFIG.SHEETS.CARD_TRY
+  ];
+
+  const result = toggleSheetsVisibility_(ss, bankSheets, 'حسابات البنوك والخزنة');
+  ui.alert(result.title, result.message, ui.ButtonSet.OK);
+}
+
+/**
+ * إخفاء/إظهار شيتات قواعد البيانات
+ */
+function toggleDatabasesVisibility() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const dbSheets = [
+    CONFIG.SHEETS.PROJECTS,
+    CONFIG.SHEETS.PARTIES,
+    CONFIG.SHEETS.ITEMS
+  ];
+
+  const result = toggleSheetsVisibility_(ss, dbSheets, 'قواعد البيانات');
+  ui.alert(result.title, result.message, ui.ButtonSet.OK);
+}
+
+/**
+ * دالة مساعدة لتبديل حالة إظهار/إخفاء مجموعة شيتات
+ * @param {Spreadsheet} ss - الجدول
+ * @param {string[]} sheetNames - أسماء الشيتات
+ * @param {string} groupName - اسم المجموعة للعرض
+ * @returns {Object} - عنوان ورسالة النتيجة
+ */
+function toggleSheetsVisibility_(ss, sheetNames, groupName) {
+  let existingSheets = [];
+  let hiddenCount = 0;
+  let visibleCount = 0;
+
+  // جمع الشيتات الموجودة وحساب حالتها
+  for (const name of sheetNames) {
+    const sheet = ss.getSheetByName(name);
+    if (sheet) {
+      existingSheets.push(sheet);
+      if (sheet.isSheetHidden()) {
+        hiddenCount++;
+      } else {
+        visibleCount++;
+      }
+    }
+  }
+
+  if (existingSheets.length === 0) {
+    return {
+      title: '⚠️ لا توجد شيتات',
+      message: 'لم يتم العثور على أي شيت من مجموعة ' + groupName
+    };
+  }
+
+  // تحديد الإجراء: إذا أغلبها مخفي → نظهر، وإلا → نخفي
+  const shouldShow = hiddenCount >= visibleCount;
+
+  let processedCount = 0;
+  let skippedCount = 0;
+
+  for (const sheet of existingSheets) {
+    try {
+      if (shouldShow) {
+        sheet.showSheet();
+      } else {
+        sheet.hideSheet();
+      }
+      processedCount++;
+    } catch (e) {
+      // قد يفشل الإخفاء إذا كان الشيت الوحيد المرئي
+      skippedCount++;
+    }
+  }
+
+  const action = shouldShow ? 'إظهار' : 'إخفاء';
+  const icon = shouldShow ? '👁️' : '🙈';
+
+  let message = 'تم ' + action + ' ' + processedCount + ' شيت من ' + groupName;
+  if (skippedCount > 0) {
+    message += '\n⚠️ تم تخطي ' + skippedCount + ' شيت (لا يمكن إخفاء كل الشيتات)';
+  }
+
+  return {
+    title: icon + ' تم ' + action + ' ' + groupName,
+    message: message
+  };
 }
