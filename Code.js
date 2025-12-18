@@ -7863,8 +7863,8 @@ function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
     transSheet.getRange(newRow, 1).setValue(newNum);
     // B - التاريخ
     transSheet.getRange(newRow, 2).setValue(today);
-    // C - طبيعة الحركة
-    transSheet.getRange(newRow, 3).setValue('استحقاق مصروف');
+    // C - طبيعة الحركة (مع الإيموجي)
+    transSheet.getRange(newRow, 3).setValue('💰 استحقاق مصروف');
     // D - تصنيف الحركة
     transSheet.getRange(newRow, 4).setValue('مصروفات مباشرة');
     // E - كود المشروع
@@ -7873,18 +7873,18 @@ function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
     transSheet.getRange(newRow, 7).setValue('عمولة مدير انتاج');
     // I - المورد/الجهة
     transSheet.getRange(newRow, 9).setValue(managerName);
-    // K - المبلغ بالعملة الأصلية
-    transSheet.getRange(newRow, 11).setValue(commissionAmount);
-    // L - العملة
-    transSheet.getRange(newRow, 12).setValue('USD');
-    // M - المبلغ بالدولار (نفس القيمة لأن العملة USD)
-    transSheet.getRange(newRow, 13).setValue(commissionAmount);
+    // J - المبلغ بالعملة الأصلية
+    transSheet.getRange(newRow, 10).setValue(commissionAmount);
+    // K - العملة
+    transSheet.getRange(newRow, 11).setValue('USD');
+    // L - المبلغ بالدولار (نفس القيمة لأن العملة USD)
+    transSheet.getRange(newRow, 12).setValue(commissionAmount);
     // N - نوع الحركة
     transSheet.getRange(newRow, 14).setValue('مدين استحقاق');
     // Q - طريقة الدفع
     transSheet.getRange(newRow, 17).setValue('نقدي');
     // R - شرط الدفع
-    transSheet.getRange(newRow, 18).setValue('فوري');
+    transSheet.getRange(newRow, 18).setValue('بعد التسليم');
     // S - عدد الأسابيع
     transSheet.getRange(newRow, 19).setValue(3);
     // Y - كشف
