@@ -4708,12 +4708,14 @@ function generateFunderStatementSheet() {
 }
 // ==================== إعادة بناء تقرير المشروع التفصيلي ====================
 
-function rebuildProjectDetailReport() {
+function rebuildProjectDetailReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECT_REPORT);
-  
-  if (!transSheet || !reportSheet) return;
+
+  if (!transSheet || !reportSheet) {
+    return silent ? { success: false, name: 'تقرير المشروع التفصيلي', error: 'الشيتات غير موجودة' } : undefined;
+  }
   
   const data = transSheet.getDataRange().getValues();
   const map = {}; // key = projectCode|projectName|item|vendor
@@ -4800,16 +4802,19 @@ function rebuildProjectDetailReport() {
     // المستحق + المدفوع + المتبقي
     reportSheet.getRange(2, 5, rows.length, 3).setNumberFormat('$#,##0.00');
   }
+
+  return silent ? { success: true, name: 'تقرير المشروع التفصيلي' } : undefined;
 }
 
 // ==================== إعادة بناء تقرير الموردين الملخص ====================
 
-function rebuildVendorSummaryReport() {
+function rebuildVendorSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
 
   if (!transSheet || !reportSheet) {
+    if (silent) return { success: false, name: 'تقرير الموردين', error: 'الشيتات غير موجودة' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الموردين".');
     return;
   }
@@ -4906,16 +4911,18 @@ function rebuildVendorSummaryReport() {
     reportSheet.getRange(2,10,rows.length,1).setHorizontalAlignment('center');
   }
 
+  if (silent) return { success: true, name: 'تقرير الموردين' };
   SpreadsheetApp.getUi().alert('✅ تم تحديث "تقرير الموردين" (بالدولار).');
 }
 
 // ==================== إعادة بناء تقرير المصروفات ====================
 
-function rebuildExpenseSummaryReport() {
+function rebuildExpenseSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet = ss.getSheetByName(CONFIG.SHEETS.EXPENSES_REPORT);
   if (!transSheet || !reportSheet) {
+    if (silent) return { success: false, name: 'تقرير المصروفات', error: 'الشيتات غير موجودة' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير المصروفات".');
     return;
   }
@@ -4985,19 +4992,21 @@ function rebuildExpenseSummaryReport() {
     reportSheet.getRange(2,3,rows.length,3).setNumberFormat('$#,##0.00');
     reportSheet.getRange(2,8,rows.length,1).setNumberFormat('0.0%');
   }
-  
+
+  if (silent) return { success: true, name: 'تقرير المصروفات' };
   SpreadsheetApp.getUi().alert('✅ تم تحديث "تقرير المصروفات" (بالدولار).');
 }
 
 // ==================== إعادة بناء تقرير الإيرادات ====================
 
-function rebuildRevenueSummaryReport() {
+function rebuildRevenueSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.REVENUE_REPORT);
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
-  
+
   if (!transSheet || !reportSheet) {
+    if (silent) return { success: false, name: 'تقرير الإيرادات', error: 'الشيتات غير موجودة' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الإيرادات".');
     return;
   }
@@ -5089,17 +5098,19 @@ function rebuildRevenueSummaryReport() {
     reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
     reportSheet.getRange(2,4,rows.length,3).setNumberFormat('$#,##0.00');
   }
-  
+
+  if (silent) return { success: true, name: 'تقرير الإيرادات' };
   SpreadsheetApp.getUi().alert('✅ تم تحديث "تقرير الإيرادات" (بالدولار).');
 }
 
 // ==================== إعادة بناء التدفقات النقدية ====================
 
-function rebuildCashFlowReport() {
+function rebuildCashFlowReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet = ss.getSheetByName(CONFIG.SHEETS.CASHFLOW);
   if (!transSheet || !reportSheet) {
+    if (silent) return { success: false, name: 'التدفقات النقدية', error: 'الشيتات غير موجودة' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "التدفقات النقدية".');
     return;
   }
@@ -5159,19 +5170,44 @@ function rebuildCashFlowReport() {
     reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
     reportSheet.getRange(2,2,rows.length,5).setNumberFormat('$#,##0.00');
   }
-  
+
+  if (silent) return { success: true, name: 'التدفقات النقدية' };
   SpreadsheetApp.getUi().alert('✅ تم تحديث "التدفقات النقدية" (بالدولار).');
 }
 
-function rebuildAllSummaryReports() {
-  rebuildProjectDetailReport();
-  rebuildVendorSummaryReport();
-  rebuildFunderSummaryReport();
-  rebuildExpenseSummaryReport();
-  rebuildRevenueSummaryReport();
-  rebuildCashFlowReport();
+/**
+ * إعادة بناء كل التقارير الملخصة
+ * @param {boolean} silent - إذا كان true، تُرجع مصفوفة بالنتائج بدلاً من إظهار رسائل
+ * @returns {Array|undefined} - مصفوفة النتائج إذا كان silent = true
+ */
+function rebuildAllSummaryReports(silent) {
+  const results = [];
 
-  SpreadsheetApp.getUi().alert('✅ تم تحديث كل التقارير الملخصة.');
+  results.push(rebuildProjectDetailReport(true));
+  results.push(rebuildVendorSummaryReport(true));
+  results.push(rebuildFunderSummaryReport(true));
+  results.push(rebuildExpenseSummaryReport(true));
+  results.push(rebuildRevenueSummaryReport(true));
+  results.push(rebuildCashFlowReport(true));
+
+  if (silent) return results;
+
+  // إظهار رسالة واحدة شاملة
+  const successList = results.filter(r => r && r.success).map(r => '✅ ' + r.name);
+  const errorList = results.filter(r => r && !r.success).map(r => '❌ ' + r.name + ': ' + r.error);
+
+  let message = '══════════════════════════════\n';
+  message += '     تقرير تحديث البيانات\n';
+  message += '══════════════════════════════\n\n';
+
+  if (successList.length) {
+    message += '✅ تم بنجاح:\n' + successList.join('\n') + '\n\n';
+  }
+  if (errorList.length) {
+    message += '❌ فشل:\n' + errorList.join('\n');
+  }
+
+  SpreadsheetApp.getUi().alert(message);
 }
 
 // ==================== إنشاء شيتات التقارير (بدون تغيير كبير) ====================
@@ -5229,11 +5265,12 @@ function createFunderReportSheet(ss) {
 }
 
 // ========= إعادة بناء تقرير الممولين =========
-function rebuildFunderSummaryReport() {
+function rebuildFunderSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
 
   if (!transSheet) {
+    if (silent) return { success: false, name: 'تقرير الممولين', error: 'دفتر الحركات غير موجود' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
     return;
   }
@@ -5331,6 +5368,7 @@ function rebuildFunderSummaryReport() {
     reportSheet.getRange(2, 10, rows.length, 1).setHorizontalAlignment('center');
   }
 
+  if (silent) return { success: true, name: 'تقرير الممولين' };
   SpreadsheetApp.getUi().alert('✅ تم تحديث "تقرير الممولين" (بالدولار).');
 }
 
@@ -6913,13 +6951,33 @@ function refreshDashboard() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
-  // 1) تحديث كل التقارير الملخصة بناءً على دفتر الحركات
-  rebuildAllSummaryReports();
+  // 1) تحديث كل التقارير الملخصة بناءً على دفتر الحركات (بوضع صامت)
+  const reportResults = rebuildAllSummaryReports(true);
 
   // 2) إعادة بناء لوحة التحكم من جديد
   createDashboardSheet(ss);
 
-  ui.alert('✅ تم تحديث لوحة التحكم وكل التقارير الملخصة بناءً على أحدث بيانات دفتر الحركات.');
+  // 3) إظهار رسالة واحدة شاملة بالنتائج
+  const successList = reportResults.filter(r => r && r.success).map(r => '  ✅ ' + r.name);
+  const errorList = reportResults.filter(r => r && !r.success).map(r => '  ❌ ' + r.name + ': ' + r.error);
+
+  let message = '════════════════════════════════════\n';
+  message += '   📊 تم تحديث لوحة التحكم والتقارير\n';
+  message += '════════════════════════════════════\n\n';
+
+  // إضافة لوحة التحكم للقائمة
+  successList.push('  ✅ لوحة التحكم');
+
+  if (successList.length) {
+    message += 'تم بنجاح:\n' + successList.join('\n') + '\n';
+  }
+  if (errorList.length) {
+    message += '\nفشل:\n' + errorList.join('\n');
+  }
+
+  message += '\n════════════════════════════════════';
+
+  ui.alert(message);
 }
 
 // ==================== 🔍 مراجعة وإصلاح نوع الحركة ====================
