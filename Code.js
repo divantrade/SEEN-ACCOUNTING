@@ -5597,6 +5597,24 @@ function createCashFlowSheet(ss) {
 
 // ========= لوحة التحكم =========
 
+/**
+ * قراءة آخر رصيد من شيت حساب (بنك / خزنة / بطاقة)
+ * @param {Spreadsheet} ss - الملف
+ * @param {string} sheetName - اسم الشيت
+ * @returns {number} - آخر رصيد أو 0 إذا لم يُعثر على بيانات
+ */
+function getLastBalanceFromSheet_(ss, sheetName) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return 0;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0; // لا توجد بيانات (فقط الهيدر)
+
+  // عمود G = 7 = الرصيد (Balance)
+  const balance = sheet.getRange(lastRow, 7).getValue();
+  return Number(balance) || 0;
+}
+
 function createDashboardSheet(ss) {
   let sheet = ss.getSheetByName(CONFIG.SHEETS.DASHBOARD);
   if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.DASHBOARD);
@@ -5676,25 +5694,25 @@ function createDashboardSheet(ss) {
     ],                                            // 18
     ['', '', ''],                                 // 19
     ['💵 السيولة المتاحة (بنك + خزنة + بطاقة)', '', ''], // 20
-    // أرصدة البنك والخزنة والبطاقة (الرصيد في العمود G)
+    // أرصدة البنك والخزنة والبطاقة (تُقرأ مباشرة من آخر صف في كل شيت)
     ['رصيد حساب البنك - دولار',
-      '=IFERROR(LOOKUP(2,1/(\'حساب البنك - دولار\'!A2:A500<>""),\'حساب البنك - دولار\'!G2:G500),0)',
+      getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_USD),
       'USD'
     ],                                            // 21
     ['رصيد حساب البنك - ليرة',
-      '=IFERROR(LOOKUP(2,1/(\'حساب البنك - ليرة\'!A2:A500<>""),\'حساب البنك - ليرة\'!G2:G500),0)',
+      getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_TRY),
       'TRY'
     ],                                            // 22
     ['رصيد خزنة العهدة - دولار',
-      '=IFERROR(LOOKUP(2,1/(\'خزنة العهدة - دولار\'!A2:A500<>""),\'خزنة العهدة - دولار\'!G2:G500),0)',
+      getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_USD),
       'USD'
     ],                                            // 23
     ['رصيد خزنة العهدة - ليرة',
-      '=IFERROR(LOOKUP(2,1/(\'خزنة العهدة - ليرة\'!A2:A500<>""),\'خزنة العهدة - ليرة\'!G2:G500),0)',
+      getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_TRY),
       'TRY'
     ],                                            // 24
     ['رصيد حساب البطاقة - ليرة',
-      '=IFERROR(LOOKUP(2,1/(\'حساب البطاقة - ليرة\'!A2:A500<>""),\'حساب البطاقة - ليرة\'!G2:G500),0)',
+      getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CARD_TRY),
       'TRY'
     ],                                            // 25
     ['', '', ''],                                 // 26
