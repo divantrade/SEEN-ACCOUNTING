@@ -3298,128 +3298,239 @@ function showVendorStatement() {
 function showProjectProfitability() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  
+
   const response = ui.prompt(
     '💹 تقرير ربحية مشروع',
     'أدخل كود المشروع:',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (response.getSelectedButton() !== ui.Button.OK) return;
-  
-  const projectCode = response.getResponseText().trim();
+
+  const projectCode = response.getResponseText().trim().toUpperCase();
   if (!projectCode) {
     ui.alert('⚠️ يجب إدخال كود المشروع!');
     return;
   }
-  
+
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
   const transSheet    = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  
+
   if (!projectsSheet || !transSheet) {
     ui.alert('⚠️ الشيتات المطلوبة غير موجودة!');
     return;
   }
-  
+
   const projectsData = projectsSheet.getDataRange().getValues();
   let projectInfo = null;
-  
-  // كود المشروع (A)، اسم المشروع (B)، نوع التمويل (G)، قيمة التمويل (H)، قيمة العقد (I)، مدة المشروع بالأشهر (N)
+
+  // كود المشروع (A)، اسم المشروع (B)، القناة (D)، نوع التمويل (G)، قيمة التمويل (H)، قيمة العقد (I)
   for (let i = 1; i < projectsData.length; i++) {
-    if (projectsData[i][0] === projectCode) {
+    if (String(projectsData[i][0]).trim().toUpperCase() === projectCode) {
       projectInfo = {
+        code:            projectsData[i][0],
         name:            projectsData[i][1],
+        channel:         projectsData[i][3] || '',
         fundingType:     projectsData[i][6],
         fundingValue:    Number(projectsData[i][7]) || 0,
-        contractValue:   Number(projectsData[i][8]) || 0,
-        projectDuration: projectsData[i][13] || 1
+        contractValue:   Number(projectsData[i][8]) || 0
       };
       break;
     }
   }
-  
+
   if (!projectInfo) {
     ui.alert('⚠️ لم يتم العثور على المشروع: ' + projectCode);
     return;
   }
-  
+
   const transData = transSheet.getDataRange().getValues();
-  let directExpenses    = 0;  // مصروفات مباشرة (مدين استحقاق)
-  let overheadExpenses  = 0;  // مصروفات عمومية (مدين استحقاق)
-  let revenues          = 0;  // إيرادات (تحصيل فعلي)
-  
+  let directExpenses = 0;  // مصروفات مباشرة (مدين استحقاق)
+  let revenues = 0;        // إيرادات (قيمة العقد أو التحصيل)
+
   for (let i = 1; i < transData.length; i++) {
-    if (transData[i][4] === projectCode) { // E: كود المشروع
-      const movementType   = String(transData[i][2] || '');  // C: طبيعة الحركة (قد تحتوي على إيموجي)
-      const classification = String(transData[i][3] || '');  // D: تصنيف الحركة
-      const movementKind   = String(transData[i][13] || ''); // N: نوع الحركة
-      const amountUsd      = Number(transData[i][12]) || 0; // M: القيمة بالدولار
+    const rowProjCode = String(transData[i][4] || '').trim().toUpperCase();
+    if (rowProjCode !== projectCode) continue;
 
-      // استخدام includes للتعامل مع الإيموجي
-      const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
-      const isCredit = movementKind.includes(CONFIG.MOVEMENT.CREDIT) || movementKind.includes('دائن');
+    const movementType   = String(transData[i][2] || '');  // C: طبيعة الحركة
+    const classification = String(transData[i][3] || '');  // D: تصنيف الحركة
+    const movementKind   = String(transData[i][13] || ''); // N: نوع الحركة
+    const amountUsd      = Number(transData[i][12]) || 0;  // M: القيمة بالدولار
 
-      // مصروفات مباشرة/عمومية (استحقاق فقط)
-      if (isDebit && classification.includes('مصروفات مباشرة')) {
-        directExpenses += amountUsd;
-      }
-      if (isDebit && classification.includes('مصروفات عمومية')) {
-        overheadExpenses += amountUsd;
-      }
+    const isDebit = movementKind.includes('مدين');
 
-      // إيرادات محصّلة (نقدية) = تحصيل إيراد + نوع الحركة دائن دفعة
-      if (movementType.includes('تحصيل إيراد') && isCredit) {
-        revenues += amountUsd;
-      }
+    // مصروفات مباشرة (استحقاق فقط)
+    if (isDebit && amountUsd > 0) {
+      directExpenses += amountUsd;
     }
   }
-  
-  // مصروفات عمومية محسوبة 30% للتمويل الخارجي/المشترك
-  let calculatedOverhead = 0;
-  if (projectInfo.fundingType === 'خارجي' || projectInfo.fundingType === 'مشترك') {
-    calculatedOverhead = (directExpenses * 0.30) * (Number(projectInfo.projectDuration) || 1);
-  }
-  
-  const totalOverhead  = overheadExpenses + calculatedOverhead;
-  const totalExpenses  = directExpenses + totalOverhead;
-  const netProfit      = revenues - totalExpenses;
-  const profitMargin   = revenues > 0 ? (netProfit / revenues) * 100 : 0;
-  
-  let report = `💹 تقرير ربحية - ${projectCode}\n`;
+
+  // الإيرادات = قيمة العقد مع القناة
+  revenues = projectInfo.contractValue;
+
+  // ═══════════════════════════════════════════════════════════
+  // الحسابات الجديدة
+  // ═══════════════════════════════════════════════════════════
+  const profitMargin = revenues - directExpenses;                    // هامش الربح
+  const overheadExpenses = directExpenses * 0.35;                    // مصروفات عمومية 35%
+  const netProfit = profitMargin - overheadExpenses;                 // صافي الربح
+
+  const profitMarginPercent = revenues > 0 ? (profitMargin / revenues) * 100 : 0;
+  const netProfitPercent = revenues > 0 ? (netProfit / revenues) * 100 : 0;
+
+  // ═══════════════════════════════════════════════════════════
+  // بناء التقرير
+  // ═══════════════════════════════════════════════════════════
+  let report = '═'.repeat(45) + '\n';
+  report += `💹 تقرير ربحية المشروع: ${projectCode}\n`;
   report += `${projectInfo.name}\n`;
-  report += '═'.repeat(50) + '\n\n';
-  
+  report += '═'.repeat(45) + '\n\n';
+
   report += '📊 البيانات الأساسية:\n';
-  report += `• نوع التمويل: ${projectInfo.fundingType}\n`;
+  report += `• القناة/الجهة: ${projectInfo.channel}\n`;
+  report += `• قيمة العقد: $${revenues.toLocaleString()}\n`;
+  report += `• نوع التمويل: ${projectInfo.fundingType || '-'}\n`;
   report += `• قيمة التمويل: $${projectInfo.fundingValue.toLocaleString()}\n`;
-  report += `• قيمة العقد مع القناة: $${projectInfo.contractValue.toLocaleString()}\n`;
-  report += `• مدة المشروع (أشهر): ${projectInfo.projectDuration}\n\n`;
-  
-  report += '💰 التكاليف (USD):\n';
-  report += `• مصروفات مباشرة (استحقاق): $${directExpenses.toLocaleString()}\n`;
-  report += `• مصروفات عمومية مسجلة: $${overheadExpenses.toLocaleString()}\n`;
-  
-  if (calculatedOverhead > 0) {
-    report += `• مصروفات عمومية محسوبة (30% × ${projectInfo.projectDuration} شهر): $${calculatedOverhead.toLocaleString()}\n`;
+  report += '─'.repeat(45) + '\n\n';
+
+  report += '💰 المصروفات:\n';
+  report += `• المصروفات المباشرة: $${directExpenses.toLocaleString()}\n`;
+  report += '─'.repeat(45) + '\n\n';
+
+  const marginIcon = profitMargin >= 0 ? '✅' : '❌';
+  report += `${marginIcon} هامش الربح: $${profitMargin.toLocaleString()} (${profitMarginPercent.toFixed(1)}%)\n`;
+  report += '─'.repeat(45) + '\n\n';
+
+  report += '🏢 المصروفات العمومية:\n';
+  report += `• 35% من المصروفات المباشرة: $${overheadExpenses.toLocaleString()}\n`;
+  report += '─'.repeat(45) + '\n\n';
+
+  const netIcon = netProfit >= 0 ? '✅' : '❌';
+  report += `${netIcon} صافي الربح: $${netProfit.toLocaleString()} (${netProfitPercent.toFixed(1)}%)\n`;
+  report += '═'.repeat(45) + '\n';
+
+  // ═══════════════════════════════════════════════════════════
+  // عرض النافذة مع خيار إصدار شيت
+  // ═══════════════════════════════════════════════════════════
+  const alertResponse = ui.alert(
+    report,
+    'هل تريد إصدار التقرير في شيت منفصل؟',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (alertResponse === ui.Button.YES) {
+    // إنشاء شيت التقرير
+    createProfitabilityReportSheet_(ss, projectInfo, directExpenses, revenues, profitMargin, overheadExpenses, netProfit, profitMarginPercent, netProfitPercent);
   }
-  
-  report += `• إجمالي المصروفات العمومية: $${totalOverhead.toLocaleString()}\n`;
-  report += `• إجمالي المصروفات: $${totalExpenses.toLocaleString()}\n\n`;
-  
-  report += '💵 الإيرادات (USD):\n';
-  report += `• إجمالي الإيرادات المحصّلة: $${revenues.toLocaleString()}\n\n`;
-  
-  report += '📈 الربحية:\n';
-  const profitIcon = netProfit >= 0 ? '✅' : '❌';
-  report += `${profitIcon} صافي الربح: $${netProfit.toLocaleString()}\n`;
-  report += `📊 هامش الربح: ${profitMargin.toFixed(2)}%\n\n`;
-  
-  if (projectInfo.fundingValue > 0) {
-    const roi = ((netProfit / projectInfo.fundingValue) * 100).toFixed(2);
-    report += `💹 العائد على الاستثمار (ROI): ${roi}%\n`;
+}
+
+/**
+ * إنشاء شيت تقرير الربحية
+ */
+function createProfitabilityReportSheet_(ss, projectInfo, directExpenses, revenues, profitMargin, overheadExpenses, netProfit, profitMarginPercent, netProfitPercent) {
+  const reportSheetName = 'تقرير ربحية - ' + projectInfo.code;
+  let reportSheet = ss.getSheetByName(reportSheetName);
+  if (reportSheet) {
+    ss.deleteSheet(reportSheet);
   }
-  
-  ui.alert(report);
+  reportSheet = ss.insertSheet(reportSheetName);
+  reportSheet.setRightToLeft(true);
+
+  let row = 1;
+
+  // العنوان
+  reportSheet.getRange(row, 1, 1, 4).merge()
+    .setValue('💹 تقرير ربحية المشروع: ' + projectInfo.code)
+    .setBackground('#1a237e')
+    .setFontColor('white')
+    .setFontWeight('bold')
+    .setFontSize(16)
+    .setHorizontalAlignment('center');
+  row++;
+
+  reportSheet.getRange(row, 1, 1, 4).merge()
+    .setValue(projectInfo.name)
+    .setBackground('#283593')
+    .setFontColor('white')
+    .setFontSize(14)
+    .setHorizontalAlignment('center');
+  row += 2;
+
+  // بيانات المشروع
+  reportSheet.getRange(row, 1, 1, 4).merge()
+    .setValue('📊 بيانات المشروع')
+    .setBackground('#e8eaf6')
+    .setFontWeight('bold');
+  row++;
+
+  const projectData = [
+    ['القناة/الجهة', projectInfo.channel, 'قيمة العقد', revenues],
+    ['نوع التمويل', projectInfo.fundingType || '-', 'قيمة التمويل', projectInfo.fundingValue]
+  ];
+  reportSheet.getRange(row, 1, 2, 4).setValues(projectData);
+  reportSheet.getRange(row, 4, 2, 1).setNumberFormat('$#,##0.00');
+  row += 3;
+
+  // جدول الربحية
+  reportSheet.getRange(row, 1, 1, 4).merge()
+    .setValue('📈 تحليل الربحية')
+    .setBackground('#e8eaf6')
+    .setFontWeight('bold');
+  row++;
+
+  const headers = ['البند', 'المبلغ ($)', 'النسبة %', 'الحالة'];
+  reportSheet.getRange(row, 1, 1, 4).setValues([headers])
+    .setBackground('#3949ab')
+    .setFontColor('white')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  row++;
+
+  const profitData = [
+    ['إجمالي الإيرادات (قيمة العقد)', revenues, '100%', ''],
+    ['المصروفات المباشرة', directExpenses, ((directExpenses / revenues) * 100).toFixed(1) + '%', ''],
+    ['', '', '', ''],
+    ['هامش الربح', profitMargin, profitMarginPercent.toFixed(1) + '%', profitMargin >= 0 ? '✅' : '❌'],
+    ['', '', '', ''],
+    ['مصروفات عمومية (35%)', overheadExpenses, '35%', ''],
+    ['', '', '', ''],
+    ['صافي الربح', netProfit, netProfitPercent.toFixed(1) + '%', netProfit >= 0 ? '✅' : '❌']
+  ];
+
+  reportSheet.getRange(row, 1, profitData.length, 4).setValues(profitData);
+  reportSheet.getRange(row, 2, profitData.length, 1).setNumberFormat('$#,##0.00');
+
+  // تلوين هامش الربح
+  const marginRow = row + 3;
+  reportSheet.getRange(marginRow, 1, 1, 4)
+    .setBackground(profitMargin >= 0 ? '#e8f5e9' : '#ffebee')
+    .setFontWeight('bold');
+
+  // تلوين صافي الربح
+  const netRow = row + 7;
+  reportSheet.getRange(netRow, 1, 1, 4)
+    .setBackground(netProfit >= 0 ? '#c8e6c9' : '#ffcdd2')
+    .setFontWeight('bold')
+    .setFontSize(12);
+
+  row += profitData.length + 2;
+
+  // تاريخ التقرير
+  reportSheet.getRange(row, 1, 1, 4).merge()
+    .setValue('تاريخ التقرير: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'))
+    .setFontSize(9)
+    .setFontColor('#666666')
+    .setHorizontalAlignment('center');
+
+  // تنسيقات
+  reportSheet.setColumnWidth(1, 200);
+  reportSheet.setColumnWidth(2, 150);
+  reportSheet.setColumnWidth(3, 100);
+  reportSheet.setColumnWidth(4, 80);
+  reportSheet.setFrozenRows(2);
+
+  ss.setActiveSheet(reportSheet);
+  ss.toast('✅ تم إنشاء شيت تقرير الربحية', 'نجاح', 3);
 }
 
 
