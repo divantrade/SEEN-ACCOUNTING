@@ -7838,18 +7838,22 @@ function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
   if (!transSheet || commissionAmount <= 0) return false;
 
   try {
-    // البحث عن آخر رقم في العمود A
+    // البحث عن آخر رقم في العمود A وآخر صف به بيانات فعلية
     const colA = transSheet.getRange('A:A').getValues();
+    const colB = transSheet.getRange('B:B').getValues();
     let maxNum = 0;
+    let lastDataRow = 1;
+
     for (let i = 0; i < colA.length; i++) {
       const num = parseInt(colA[i][0]);
       if (!isNaN(num) && num > maxNum) maxNum = num;
+      // البحث عن آخر صف به بيانات في عمود B (التاريخ)
+      if (colB[i][0] !== '' && colB[i][0] !== null) {
+        lastDataRow = i + 1;
+      }
     }
     const newNum = maxNum + 1;
-
-    // إيجاد آخر صف به بيانات
-    const lastRow = transSheet.getLastRow();
-    const newRow = lastRow + 1;
+    const newRow = lastDataRow + 1;
 
     // تاريخ اليوم
     const today = new Date();
