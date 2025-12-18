@@ -7897,7 +7897,7 @@ function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
  * يُستدعى من onEdit
  */
 function handleCommissionCheckbox(sheet, row, col) {
-  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // التحقق من أن العمود هو عمود الإدراج (العمود 8)
   if (col !== 8) return;
@@ -7912,7 +7912,7 @@ function handleCommissionCheckbox(sheet, row, col) {
 
   if (!projectCode || commissionAmount <= 0) {
     sheet.getRange(row, col).setValue(false);
-    ui.alert('⚠️ خطأ', 'بيانات المشروع غير صحيحة', ui.ButtonSet.OK);
+    ss.toast('⚠️ بيانات المشروع غير صحيحة', 'خطأ', 5);
     return;
   }
 
@@ -7922,7 +7922,7 @@ function handleCommissionCheckbox(sheet, row, col) {
 
   if (!managerName) {
     sheet.getRange(row, col).setValue(false);
-    ui.alert('⚠️ خطأ', 'لم يتم العثور على اسم المدير', ui.ButtonSet.OK);
+    ss.toast('⚠️ لم يتم العثور على اسم المدير', 'خطأ', 5);
     return;
   }
 
@@ -7936,47 +7936,25 @@ function handleCommissionCheckbox(sheet, row, col) {
       // السيناريو 2: موجود بنفس القيمة
       sheet.getRange(row, col).setValue(false);
       sheet.getRange(row, 7).setValue('موجود ✅');
-      ui.alert('ℹ️ تنبيه',
-        'استحقاق العمولة موجود بالفعل!\n\n' +
-        'المشروع: ' + projectCode + '\n' +
-        'القيمة: $' + existing.amount.toFixed(2),
-        ui.ButtonSet.OK);
+      ss.toast('استحقاق العمولة موجود بالفعل بقيمة $' + existing.amount.toFixed(2), 'ℹ️ تنبيه', 5);
       return;
     } else if (diff > 0) {
-      // السيناريو 3: موجود بقيمة مختلفة (أقل)
-      const response = ui.alert('⚠️ يوجد استحقاق سابق',
-        'يوجد استحقاق عمولة سابق بقيمة مختلفة:\n\n' +
-        '• المشروع: ' + projectCode + '\n' +
-        '• العمولة السابقة: $' + existing.amount.toFixed(2) + '\n' +
-        '• العمولة الجديدة: $' + commissionAmount.toFixed(2) + '\n' +
-        '• الفرق: $' + diff.toFixed(2) + '\n\n' +
-        'هل تريد إضافة الفرق؟',
-        ui.ButtonSet.YES_NO);
-
-      if (response === ui.Button.YES) {
-        // إضافة الفرق فقط
-        const success = insertCommissionAccrual(projectCode, managerName, diff);
-        if (success) {
-          sheet.getRange(row, 7).setValue('تم إضافة الفرق ✅');
-          sheet.getRange(row, col).setValue(false);
-          ui.alert('✅ تم', 'تم إدراج فرق العمولة: $' + diff.toFixed(2), ui.ButtonSet.OK);
-        } else {
-          sheet.getRange(row, col).setValue(false);
-          ui.alert('❌ خطأ', 'فشل في إدراج استحقاق العمولة', ui.ButtonSet.OK);
-        }
+      // السيناريو 3: موجود بقيمة مختلفة - إضافة الفرق تلقائياً
+      const success = insertCommissionAccrual(projectCode, managerName, diff);
+      if (success) {
+        sheet.getRange(row, 7).setValue('تم إضافة الفرق ✅');
+        sheet.getRange(row, col).setValue(false);
+        ss.toast('تم إدراج فرق العمولة: $' + diff.toFixed(2), '✅ تم', 5);
       } else {
         sheet.getRange(row, col).setValue(false);
+        ss.toast('فشل في إدراج استحقاق العمولة', '❌ خطأ', 5);
       }
       return;
     } else {
-      // العمولة الجديدة أقل من السابقة (حالة غير متوقعة)
+      // العمولة الجديدة أقل من السابقة
       sheet.getRange(row, col).setValue(false);
       sheet.getRange(row, 7).setValue('موجود (أعلى) ⚠️');
-      ui.alert('⚠️ تنبيه',
-        'يوجد استحقاق سابق بقيمة أعلى!\n\n' +
-        '• العمولة السابقة: $' + existing.amount.toFixed(2) + '\n' +
-        '• العمولة الحالية: $' + commissionAmount.toFixed(2),
-        ui.ButtonSet.OK);
+      ss.toast('يوجد استحقاق سابق بقيمة أعلى: $' + existing.amount.toFixed(2), '⚠️ تنبيه', 5);
       return;
     }
   }
@@ -7987,14 +7965,9 @@ function handleCommissionCheckbox(sheet, row, col) {
   if (success) {
     sheet.getRange(row, 7).setValue('تم ✅');
     sheet.getRange(row, col).setValue(false);
-    ui.alert('✅ تم بنجاح',
-      'تم إدراج استحقاق العمولة:\n\n' +
-      '• المشروع: ' + projectCode + '\n' +
-      '• المدير: ' + managerName + '\n' +
-      '• العمولة: $' + commissionAmount.toFixed(2),
-      ui.ButtonSet.OK);
+    ss.toast('تم إدراج استحقاق العمولة: $' + commissionAmount.toFixed(2) + ' للمشروع ' + projectCode, '✅ تم بنجاح', 5);
   } else {
     sheet.getRange(row, col).setValue(false);
-    ui.alert('❌ خطأ', 'فشل في إدراج استحقاق العمولة', ui.ButtonSet.OK);
+    ss.toast('فشل في إدراج استحقاق العمولة', '❌ خطأ', 5);
   }
 }
