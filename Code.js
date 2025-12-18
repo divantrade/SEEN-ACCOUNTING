@@ -5634,6 +5634,16 @@ function onEdit(e) {
   }
 
   // ═══════════════════════════════════════════════════════════
+  // 💰 معالجة تقرير العمولات - عمود الإدراج (H = 8)
+  // ═══════════════════════════════════════════════════════════
+  if (sheetName.indexOf('تقرير عمولة - ') === 0) {
+    if (col === 8 && value === true) {
+      handleCommissionCheckbox(sheet, row, col);
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // معالجة دفتر الحركات المالية فقط
   // ═══════════════════════════════════════════════════════════
   if (sheetName !== CONFIG.SHEETS.TRANSACTIONS) return;
@@ -7672,12 +7682,15 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
   currentRow++;
 
   // هيدر الملخص
-  reportSheet.getRange(currentRow, 1, 1, 6)
-    .setValues([['المشروع', 'المصروفات', 'النسبة', 'العمولة الإجمالية', 'التحصيل', 'العمولة المستحقة']])
+  reportSheet.getRange(currentRow, 1, 1, 8)
+    .setValues([['المشروع', 'المصروفات', 'النسبة', 'العمولة الإجمالية', 'التحصيل', 'العمولة المستحقة', 'الحالة', 'إدراج ☑️']])
     .setFontWeight('bold')
     .setBackground('#fff2cc')
     .setHorizontalAlignment('center');
   currentRow++;
+
+  // حفظ صف البداية للملخص لإضافة Checkbox
+  const summaryStartRow = currentRow;
 
   // ملخص كل مشروع
   for (const summary of projectSummaries) {
@@ -7687,6 +7700,23 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
     reportSheet.getRange(currentRow, 4).setValue(summary.commission).setNumberFormat('$#,##0.00');
     reportSheet.getRange(currentRow, 5).setValue(summary.collectedTotal).setNumberFormat('$#,##0.00');
     reportSheet.getRange(currentRow, 6).setValue(summary.dueCommission).setNumberFormat('$#,##0.00');
+
+    // التحقق من وجود استحقاق سابق
+    const existing = checkExistingCommissionAccrual(summary.code, managerName);
+    if (existing.exists) {
+      if (Math.abs(existing.amount - summary.commission) < 0.01) {
+        reportSheet.getRange(currentRow, 7).setValue('موجود ✅').setFontColor('#006400');
+      } else if (existing.amount < summary.commission) {
+        reportSheet.getRange(currentRow, 7).setValue('جزئي ⚠️').setFontColor('#b45f06');
+      } else {
+        reportSheet.getRange(currentRow, 7).setValue('موجود (أعلى) ⚠️').setFontColor('#cc0000');
+      }
+    } else {
+      reportSheet.getRange(currentRow, 7).setValue('لم يُدرج').setFontColor('#999999');
+    }
+
+    // إضافة Checkbox
+    reportSheet.getRange(currentRow, 8).insertCheckboxes();
 
     // تلوين حسب حالة التحصيل
     if (summary.collectedTotal > 0) {
@@ -7725,12 +7755,14 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
   currentRow++;
 
   // تعديل عرض الأعمدة
-  reportSheet.setColumnWidth(1, 220);
-  reportSheet.setColumnWidth(2, 150);
-  reportSheet.setColumnWidth(3, 100);
+  reportSheet.setColumnWidth(1, 200);
+  reportSheet.setColumnWidth(2, 120);
+  reportSheet.setColumnWidth(3, 80);
   reportSheet.setColumnWidth(4, 130);
-  reportSheet.setColumnWidth(5, 120);
-  reportSheet.setColumnWidth(6, 140);
+  reportSheet.setColumnWidth(5, 100);
+  reportSheet.setColumnWidth(6, 130);
+  reportSheet.setColumnWidth(7, 100);
+  reportSheet.setColumnWidth(8, 80);
 
   reportSheet.setFrozenRows(3);
 
@@ -7746,3 +7778,223 @@ function generateManagerCommissionReport(managerName, fromDateStr, toDateStr) {
 }
 
 // ==================== 🎉 نهاية الكود ====================
+
+/**
+ * التحقق من وجود استحقاق عمولة سابق لمشروع معين
+ * @param {string} projectCode - كود المشروع
+ * @param {string} managerName - اسم مدير المشروع
+ * @returns {object} - {exists: boolean, amount: number, row: number}
+ */
+function checkExistingCommissionAccrual(projectCode, managerName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) return { exists: false, amount: 0, row: -1 };
+
+  const lastRow = transSheet.getLastRow();
+  if (lastRow < 2) return { exists: false, amount: 0, row: -1 };
+
+  const data = transSheet.getRange(2, 1, lastRow - 1, 14).getValues();
+
+  let totalExistingCommission = 0;
+  let lastRow_found = -1;
+
+  for (let i = 0; i < data.length; i++) {
+    const rowProjectCode = String(data[i][4] || '');  // E - كود المشروع
+    const rowItem = String(data[i][6] || '');         // G - البند
+    const rowParty = String(data[i][8] || '');        // I - الطرف
+    const rowAmount = Number(data[i][12]) || 0;       // M - المبلغ بالدولار
+    const rowMovementType = String(data[i][13] || ''); // N - نوع الحركة
+
+    // التحقق من أنها عمولة مدير انتاج لنفس المشروع ونفس المدير
+    if (rowProjectCode === projectCode &&
+        rowItem.indexOf('عمولة مدير') !== -1 &&
+        rowParty === managerName &&
+        rowMovementType.indexOf('مدين') !== -1) {
+      totalExistingCommission += rowAmount;
+      lastRow_found = i + 2; // +2 لأن البيانات تبدأ من السطر 2
+    }
+  }
+
+  return {
+    exists: totalExistingCommission > 0,
+    amount: totalExistingCommission,
+    row: lastRow_found
+  };
+}
+
+/**
+ * إدراج سطر استحقاق عمولة في شيت الحركات
+ * @param {string} projectCode - كود المشروع
+ * @param {string} managerName - اسم مدير المشروع
+ * @param {number} commissionAmount - قيمة العمولة
+ * @returns {boolean} - نجاح أو فشل
+ */
+function insertCommissionAccrual(projectCode, managerName, commissionAmount) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet || commissionAmount <= 0) return false;
+
+  try {
+    // البحث عن آخر رقم في العمود A
+    const colA = transSheet.getRange('A:A').getValues();
+    let maxNum = 0;
+    for (let i = 0; i < colA.length; i++) {
+      const num = parseInt(colA[i][0]);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+    const newNum = maxNum + 1;
+
+    // إيجاد آخر صف به بيانات
+    const lastRow = transSheet.getLastRow();
+    const newRow = lastRow + 1;
+
+    // تاريخ اليوم
+    const today = new Date();
+
+    // إدراج البيانات
+    // A - الرقم التسلسلي
+    transSheet.getRange(newRow, 1).setValue(newNum);
+    // B - التاريخ
+    transSheet.getRange(newRow, 2).setValue(today);
+    // C - طبيعة الحركة
+    transSheet.getRange(newRow, 3).setValue('استحقاق مصروف');
+    // D - تصنيف الحركة
+    transSheet.getRange(newRow, 4).setValue('مصروفات مباشرة');
+    // E - كود المشروع
+    transSheet.getRange(newRow, 5).setValue(projectCode);
+    // G - البند
+    transSheet.getRange(newRow, 7).setValue('عمولة مدير انتاج');
+    // I - المورد/الجهة
+    transSheet.getRange(newRow, 9).setValue(managerName);
+    // K - المبلغ بالعملة الأصلية
+    transSheet.getRange(newRow, 11).setValue(commissionAmount);
+    // L - العملة
+    transSheet.getRange(newRow, 12).setValue('USD');
+    // M - المبلغ بالدولار (نفس القيمة لأن العملة USD)
+    transSheet.getRange(newRow, 13).setValue(commissionAmount);
+    // N - نوع الحركة
+    transSheet.getRange(newRow, 14).setValue('مدين استحقاق');
+    // Q - طريقة الدفع
+    transSheet.getRange(newRow, 17).setValue('نقدي');
+    // R - شرط الدفع
+    transSheet.getRange(newRow, 18).setValue('فوري');
+    // S - عدد الأسابيع
+    transSheet.getRange(newRow, 19).setValue(3);
+    // Y - كشف
+    transSheet.getRange(newRow, 25).setValue('📄');
+
+    return true;
+  } catch (e) {
+    Logger.log('خطأ في إدراج استحقاق العمولة: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * معالجة النقر على Checkbox في تقرير العمولات
+ * يُستدعى من onEdit
+ */
+function handleCommissionCheckbox(sheet, row, col) {
+  const ui = SpreadsheetApp.getUi();
+
+  // التحقق من أن العمود هو عمود الإدراج (العمود 8)
+  if (col !== 8) return;
+
+  // قراءة بيانات السطر
+  const rowData = sheet.getRange(row, 1, 1, 8).getValues()[0];
+  const projectInfo = String(rowData[0] || '');  // العمود 1 - المشروع
+  const commissionAmount = Number(rowData[3]) || 0;  // العمود 4 - العمولة الإجمالية
+
+  // استخراج كود المشروع من النص "PRJ-001 - اسم المشروع"
+  const projectCode = projectInfo.split(' - ')[0].trim();
+
+  if (!projectCode || commissionAmount <= 0) {
+    sheet.getRange(row, col).setValue(false);
+    ui.alert('⚠️ خطأ', 'بيانات المشروع غير صحيحة', ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة اسم المدير من عنوان التقرير
+  const reportTitle = sheet.getRange(1, 1).getValue();
+  const managerName = String(reportTitle).replace('📊 تقرير عمولات: ', '').trim();
+
+  if (!managerName) {
+    sheet.getRange(row, col).setValue(false);
+    ui.alert('⚠️ خطأ', 'لم يتم العثور على اسم المدير', ui.ButtonSet.OK);
+    return;
+  }
+
+  // التحقق من وجود استحقاق سابق
+  const existing = checkExistingCommissionAccrual(projectCode, managerName);
+
+  if (existing.exists) {
+    const diff = commissionAmount - existing.amount;
+
+    if (Math.abs(diff) < 0.01) {
+      // السيناريو 2: موجود بنفس القيمة
+      sheet.getRange(row, col).setValue(false);
+      sheet.getRange(row, 7).setValue('موجود ✅');
+      ui.alert('ℹ️ تنبيه',
+        'استحقاق العمولة موجود بالفعل!\n\n' +
+        'المشروع: ' + projectCode + '\n' +
+        'القيمة: $' + existing.amount.toFixed(2),
+        ui.ButtonSet.OK);
+      return;
+    } else if (diff > 0) {
+      // السيناريو 3: موجود بقيمة مختلفة (أقل)
+      const response = ui.alert('⚠️ يوجد استحقاق سابق',
+        'يوجد استحقاق عمولة سابق بقيمة مختلفة:\n\n' +
+        '• المشروع: ' + projectCode + '\n' +
+        '• العمولة السابقة: $' + existing.amount.toFixed(2) + '\n' +
+        '• العمولة الجديدة: $' + commissionAmount.toFixed(2) + '\n' +
+        '• الفرق: $' + diff.toFixed(2) + '\n\n' +
+        'هل تريد إضافة الفرق؟',
+        ui.ButtonSet.YES_NO);
+
+      if (response === ui.Button.YES) {
+        // إضافة الفرق فقط
+        const success = insertCommissionAccrual(projectCode, managerName, diff);
+        if (success) {
+          sheet.getRange(row, 7).setValue('تم إضافة الفرق ✅');
+          sheet.getRange(row, col).setValue(false);
+          ui.alert('✅ تم', 'تم إدراج فرق العمولة: $' + diff.toFixed(2), ui.ButtonSet.OK);
+        } else {
+          sheet.getRange(row, col).setValue(false);
+          ui.alert('❌ خطأ', 'فشل في إدراج استحقاق العمولة', ui.ButtonSet.OK);
+        }
+      } else {
+        sheet.getRange(row, col).setValue(false);
+      }
+      return;
+    } else {
+      // العمولة الجديدة أقل من السابقة (حالة غير متوقعة)
+      sheet.getRange(row, col).setValue(false);
+      sheet.getRange(row, 7).setValue('موجود (أعلى) ⚠️');
+      ui.alert('⚠️ تنبيه',
+        'يوجد استحقاق سابق بقيمة أعلى!\n\n' +
+        '• العمولة السابقة: $' + existing.amount.toFixed(2) + '\n' +
+        '• العمولة الحالية: $' + commissionAmount.toFixed(2),
+        ui.ButtonSet.OK);
+      return;
+    }
+  }
+
+  // السيناريو 1: لا يوجد استحقاق سابق - إدراج مباشر
+  const success = insertCommissionAccrual(projectCode, managerName, commissionAmount);
+
+  if (success) {
+    sheet.getRange(row, 7).setValue('تم ✅');
+    sheet.getRange(row, col).setValue(false);
+    ui.alert('✅ تم بنجاح',
+      'تم إدراج استحقاق العمولة:\n\n' +
+      '• المشروع: ' + projectCode + '\n' +
+      '• المدير: ' + managerName + '\n' +
+      '• العمولة: $' + commissionAmount.toFixed(2),
+      ui.ButtonSet.OK);
+  } else {
+    sheet.getRange(row, col).setValue(false);
+    ui.alert('❌ خطأ', 'فشل في إدراج استحقاق العمولة', ui.ButtonSet.OK);
+  }
+}
