@@ -450,6 +450,7 @@ function onOpen() {
     // الاستخدام اليومي العادي
     .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
     .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
+    .addItem('🔍 تفعيل/إلغاء الفلتر', 'toggleFilter')
     .addSeparator()
     .addItem('📝 إضافة ميزانية', 'addBudgetForm')
     .addItem('📊 مقارنة الميزانية', 'compareBudget')
@@ -9626,4 +9627,91 @@ function toggleSheetsVisibility_(ss, sheetNames, groupName) {
     title: icon + ' تم ' + action + ' ' + groupName,
     message: message
   };
+}
+
+// ==================== فلتر الشيتات ====================
+
+/**
+ * تفعيل أو إلغاء الفلتر على الشيت الحالي
+ * إذا كان هناك فلتر موجود، يتم إزالته
+ * إذا لم يكن هناك فلتر، يتم إنشاء فلتر جديد على صف الهيدر
+ */
+function toggleFilter() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const ui = SpreadsheetApp.getUi();
+
+  // التحقق من وجود فلتر حالي
+  const existingFilter = sheet.getFilter();
+
+  if (existingFilter) {
+    // إزالة الفلتر الموجود
+    existingFilter.remove();
+    ui.alert('🔓 تم إزالة الفلتر', 'تم إلغاء الفلتر من شيت "' + sheet.getName() + '"', ui.ButtonSet.OK);
+  } else {
+    // إنشاء فلتر جديد
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+
+    if (lastRow < 2 || lastCol < 1) {
+      ui.alert('⚠️ تنبيه', 'الشيت فارغ أو لا يحتوي على بيانات كافية لإنشاء فلتر.', ui.ButtonSet.OK);
+      return;
+    }
+
+    // إنشاء الفلتر من الصف الأول حتى آخر صف
+    const range = sheet.getRange(1, 1, lastRow, lastCol);
+    range.createFilter();
+
+    ui.alert('🔍 تم تفعيل الفلتر',
+      'تم إضافة فلتر على شيت "' + sheet.getName() + '"\n\n' +
+      '• اضغط على السهم ▼ في أي عمود للفلترة\n' +
+      '• يمكنك اختيار قيم محددة أو البحث\n' +
+      '• لإزالة الفلتر، اختر هذا الأمر مرة أخرى',
+      ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * تفعيل الفلتر على دفتر الحركات المالية مباشرة
+ */
+function toggleTransactionsFilter() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const ui = SpreadsheetApp.getUi();
+
+  if (!sheet) {
+    ui.alert('⚠️ خطأ', 'لم يتم العثور على شيت "دفتر الحركات المالية"', ui.ButtonSet.OK);
+    return;
+  }
+
+  // الانتقال للشيت أولاً
+  ss.setActiveSheet(sheet);
+
+  const existingFilter = sheet.getFilter();
+
+  if (existingFilter) {
+    existingFilter.remove();
+    ui.alert('🔓 تم إزالة الفلتر', 'تم إلغاء الفلتر من دفتر الحركات المالية', ui.ButtonSet.OK);
+  } else {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+
+    if (lastRow < 2) {
+      ui.alert('⚠️ تنبيه', 'لا توجد بيانات كافية لإنشاء فلتر.', ui.ButtonSet.OK);
+      return;
+    }
+
+    const range = sheet.getRange(1, 1, lastRow, lastCol);
+    range.createFilter();
+
+    ui.alert('🔍 تم تفعيل الفلتر',
+      'تم إضافة فلتر على دفتر الحركات المالية\n\n' +
+      'يمكنك الآن الفلترة حسب:\n' +
+      '• المشروع\n' +
+      '• المورد/العميل\n' +
+      '• نوع الحركة\n' +
+      '• التاريخ\n' +
+      '• أي عمود آخر',
+      ui.ButtonSet.OK);
+  }
 }
