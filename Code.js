@@ -19,7 +19,7 @@ const CONFIG = {
     PROJECTS: 'قاعدة بيانات المشاريع',
     PARTIES: 'قاعدة بيانات الأطراف',
     ITEMS: 'قاعدة بيانات البنود',
-    BUDGETS: 'الميزانيات المخططة',
+    BUDGETS: 'الموازنات المخططة',
     ALERTS: 'التنبيهات والاستحقاقات',
     INVOICE: 'فاتورة قناة / جهة',
 
@@ -2177,15 +2177,24 @@ function createBudgetsSheet(ss) {
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
   const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
 
-  // كود المشروع
+  // كود المشروع (A)
   if (projectsSheet) {
     const projectRange = projectsSheet.getRange('A2:A200');
     const projectValidation = SpreadsheetApp.newDataValidation()
       .requireValueInRange(projectRange, true)
       .setAllowInvalid(true)
-      .setHelpText('اختر كود المشروع من القائمة أو اكتب يدوياً')
+      .setHelpText('اختر كود المشروع من القائمة - سيتم ملء اسم المشروع تلقائياً')
       .build();
     sheet.getRange(2, 1, 100, 1).setDataValidation(projectValidation);
+
+    // 🆕 اسم المشروع (B) - dropdown مرتبط بأسماء المشاريع
+    const projectNameRange = projectsSheet.getRange('B2:B200');
+    const projectNameValidation = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(projectNameRange, true)
+      .setAllowInvalid(true)
+      .setHelpText('اختر اسم المشروع - سيتم ملء كود المشروع تلقائياً')
+      .build();
+    sheet.getRange(2, 2, 100, 1).setDataValidation(projectNameValidation);
   }
 
   // البند من قاعدة بيانات البنود
@@ -2201,20 +2210,16 @@ function createBudgetsSheet(ss) {
 
   /**
    * ⚡ تحسينات الأداء:
-   * - Batch Operations: 4 API calls بدلاً من 396 (99×4)
+   * - Batch Operations: 3 API calls بدلاً من 297 (99×3)
    * - نطاقات محددة بدل أعمدة كاملة (M2:M1000 بدل M:M)
+   * - عمود B (اسم المشروع) يُملأ عبر onEdit للمزامنة الثنائية مع A
    */
   const numRows = 99;
-  const formulasB = [];  // اسم المشروع
   const formulasE = [];  // المبلغ الفعلي
   const formulasF = [];  // الفرق
   const formulasG = [];  // نسبة التنفيذ
 
   for (let row = 2; row <= 100; row++) {
-    // اسم المشروع من كود المشروع (B)
-    formulasB.push([
-      `=IFERROR(VLOOKUP(A${row},'قاعدة بيانات المشاريع'!A2:B200,2,FALSE),"")`
-    ]);
     // المبلغ الفعلي = مجموع القيمة بالدولار من دفتر الحركات (مدين استحقاق فقط) (E)
     formulasE.push([
       `=SUMIFS('دفتر الحركات المالية'!M2:M1000,` +
@@ -2229,7 +2234,6 @@ function createBudgetsSheet(ss) {
   }
 
   // Batch apply formulas
-  sheet.getRange(2, 2, numRows, 1).setFormulas(formulasB);
   sheet.getRange(2, 5, numRows, 1).setFormulas(formulasE);
   sheet.getRange(2, 6, numRows, 1).setFormulas(formulasF);
   sheet.getRange(2, 7, numRows, 1).setFormulas(formulasG);
@@ -2458,7 +2462,7 @@ function addBudgetForm() {
   const sheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   
   if (!sheet) {
-    ui.alert('⚠️ شيت "الميزانيات المخططة" غير موجود!');
+    ui.alert('⚠️ شيت "الموازنات المخططة" غير موجود!');
     return;
   }
   
@@ -6228,6 +6232,10 @@ function createDashboardSheet(ss) {
  * 2. المزامنة الثنائية في دفتر الحركات (أعمدة E و F):
  *    - عند اختيار كود المشروع → يُملأ اسم المشروع تلقائياً
  *    - عند اختيار اسم المشروع → يُملأ كود المشروع تلقائياً
+ *
+ * 3. المزامنة الثنائية في الموازنات المخططة (أعمدة A و B):
+ *    - عند اختيار كود المشروع → يُملأ اسم المشروع تلقائياً
+ *    - عند اختيار اسم المشروع → يُملأ كود المشروع تلقائياً
  */
 function onEdit(e) {
   if (!e || !e.range || !e.source) return;
@@ -6245,12 +6253,13 @@ function onEdit(e) {
   // ═══════════════════════════════════════════════════════════
   const isTransactions = (sheetName === CONFIG.SHEETS.TRANSACTIONS);
   const isProjects = (sheetName === CONFIG.SHEETS.PROJECTS);
+  const isBudgets = (sheetName === CONFIG.SHEETS.BUDGETS);
   const isVendorsReport = (sheetName === CONFIG.SHEETS.VENDORS_REPORT);
   const isFundersReport = (sheetName === CONFIG.SHEETS.FUNDERS_REPORT);
   const isCommissionReport = sheetName.indexOf('تقرير عمولة - ') === 0;
 
   // الخروج السريع إذا لم يكن الشيت يحتاج معالجة
-  if (!isTransactions && !isProjects && !isVendorsReport && !isFundersReport && !isCommissionReport) {
+  if (!isTransactions && !isProjects && !isBudgets && !isVendorsReport && !isFundersReport && !isCommissionReport) {
     return;
   }
 
@@ -6262,6 +6271,37 @@ function onEdit(e) {
   if (isProjects) {
     if (col === 10 || col === 11) {
       if (value) normalizeDateCell_(e.range, value);
+    }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🆕 معالجة الموازنات المخططة - المزامنة الثنائية (أعمدة A و B)
+  // ═══════════════════════════════════════════════════════════
+  if (isBudgets) {
+    if ((col === 1 || col === 2) && value) {
+      const projectsSheet = e.source.getSheetByName(CONFIG.SHEETS.PROJECTS);
+      if (!projectsSheet) return;
+
+      const projectData = projectsSheet.getRange('A2:B200').getValues();
+
+      if (col === 1) {
+        // تم اختيار كود المشروع (A) → ابحث عن الاسم (B)
+        for (let i = 0; i < projectData.length; i++) {
+          if (projectData[i][0] === value) {
+            sheet.getRange(row, 2).setValue(projectData[i][1]);
+            break;
+          }
+        }
+      } else if (col === 2) {
+        // تم اختيار اسم المشروع (B) → ابحث عن الكود (A)
+        for (let i = 0; i < projectData.length; i++) {
+          if (projectData[i][1] === value) {
+            sheet.getRange(row, 1).setValue(projectData[i][0]);
+            break;
+          }
+        }
+      }
     }
     return;
   }
