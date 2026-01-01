@@ -531,6 +531,7 @@ function onOpen() {
         .addItem('⚖️ تقرير الاستحقاقات والدفعات (شيت)', 'generateAccrualPaymentReport')
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
+        .addItem('🔄 تحديث الموازنات المخططة (dropdown + تناغم)', 'applyBudgetsSheetEnhancements')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
         .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
         .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
@@ -2242,6 +2243,76 @@ function createBudgetsSheet(ss) {
   sheet.getRange(2, 4, 100, 2).setNumberFormat('$#,##0.00'); // المخطط + الفعلي
   sheet.getRange(2, 7, 100, 1).setNumberFormat('0.0%');
   sheet.setFrozenRows(1);
+}
+
+/**
+ * 🆕 تطبيق التحسينات على شيت الموازنات المخططة الموجود
+ * - إضافة dropdown لأسماء المشاريع في عمود B
+ * - تحويل المعادلات في عمود B إلى قيم فعلية
+ * - التناغم الثنائي يعمل تلقائياً عبر onEdit
+ *
+ * ⚠️ هذه الدالة لا تحذف البيانات - فقط تُحدّث الإعدادات
+ */
+function applyBudgetsSheetEnhancements() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  // البحث عن الشيت بالاسم الجديد أو القديم
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
+  if (!sheet) {
+    sheet = ss.getSheetByName('الميزانيات المخططة');
+    if (sheet) {
+      // إعادة تسمية الشيت للاسم الجديد
+      sheet.setName(CONFIG.SHEETS.BUDGETS);
+    }
+  }
+
+  if (!sheet) {
+    ui.alert('⚠️ شيت الموازنات المخططة غير موجود!');
+    return;
+  }
+
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  if (!projectsSheet) {
+    ui.alert('⚠️ شيت قاعدة بيانات المشاريع غير موجود!');
+    return;
+  }
+
+  const lastRow = Math.max(sheet.getLastRow(), 2);
+  const dataRows = lastRow - 1;
+
+  // 1. تحويل المعادلات في عمود B إلى قيم فعلية (للحفاظ على البيانات)
+  const colBRange = sheet.getRange(2, 2, dataRows, 1);
+  const colBValues = colBRange.getValues();
+  colBRange.setValues(colBValues); // هذا يحول المعادلات إلى قيم
+
+  // 2. إضافة dropdown لكود المشروع (A)
+  const projectCodeRange = projectsSheet.getRange('A2:A200');
+  const projectCodeValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInRange(projectCodeRange, true)
+    .setAllowInvalid(true)
+    .setHelpText('اختر كود المشروع - سيتم ملء اسم المشروع تلقائياً')
+    .build();
+  sheet.getRange(2, 1, 100, 1).setDataValidation(projectCodeValidation);
+
+  // 3. إضافة dropdown لاسم المشروع (B)
+  const projectNameRange = projectsSheet.getRange('B2:B200');
+  const projectNameValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInRange(projectNameRange, true)
+    .setAllowInvalid(true)
+    .setHelpText('اختر اسم المشروع - سيتم ملء كود المشروع تلقائياً')
+    .build();
+  sheet.getRange(2, 2, 100, 1).setDataValidation(projectNameValidation);
+
+  ui.alert(
+    '✅ تم تطبيق التحسينات بنجاح!',
+    '• تم إضافة قائمة منسدلة لأسماء المشاريع (عمود B)\n' +
+    '• تم تحويل المعادلات إلى قيم فعلية\n' +
+    '• التناغم الثنائي يعمل الآن:\n' +
+    '   - اختيار كود المشروع ← يملأ اسم المشروع\n' +
+    '   - اختيار اسم المشروع ← يملأ كود المشروع',
+    ui.ButtonSet.OK
+  );
 }
 
 
