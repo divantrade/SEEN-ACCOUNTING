@@ -10,7 +10,7 @@
 
     body {
       margin: 0;
-      padding: 20px;
+      padding: 15px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
     }
@@ -18,57 +18,77 @@
     .container {
       background: white;
       border-radius: 16px;
-      padding: 24px;
-      max-width: 480px;
+      padding: 20px;
+      max-width: 500px;
       margin: 0 auto;
       box-shadow: 0 10px 40px rgba(0,0,0,0.2);
     }
 
     .header {
       text-align: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
       border-bottom: 2px solid #eee;
     }
 
     .header h2 {
       margin: 0;
       color: #333;
-      font-size: 22px;
+      font-size: 20px;
     }
 
     .header .icon {
-      font-size: 36px;
-      margin-bottom: 8px;
+      font-size: 32px;
+      margin-bottom: 6px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
     }
 
     .form-group {
-      margin-bottom: 18px;
+      margin-bottom: 14px;
+      flex: 1;
+    }
+
+    .form-group.half {
+      flex: 1;
     }
 
     .form-group label {
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       font-weight: 600;
       color: #444;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .form-group label .icon {
-      margin-left: 6px;
+      margin-left: 4px;
     }
 
-    select, input[type="date"], input[type="text"], input[type="number"] {
+    .form-group label .required {
+      color: #c62828;
+    }
+
+    select, input[type="date"], input[type="text"], input[type="number"], textarea {
       width: 100%;
-      padding: 12px 14px;
+      padding: 10px 12px;
       border: 2px solid #e0e0e0;
-      border-radius: 10px;
-      font-size: 15px;
+      border-radius: 8px;
+      font-size: 14px;
       transition: all 0.3s ease;
       background: #fafafa;
     }
 
-    select:focus, input:focus {
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    select:focus, input:focus, textarea:focus {
       outline: none;
       border-color: #667eea;
       background: white;
@@ -80,32 +100,42 @@
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: left 14px center;
-      padding-left: 36px;
+      background-position: left 12px center;
+      padding-left: 30px;
+    }
+
+    .section-title {
+      background: #f5f5f5;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin: 16px 0 12px;
+      font-weight: 600;
+      color: #555;
+      font-size: 13px;
     }
 
     .date-section {
       background: #f8f9ff;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 14px;
       border: 1px solid #e8ebff;
     }
 
     .date-toggle {
       display: flex;
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 8px;
+      margin-bottom: 10px;
     }
 
     .date-toggle button {
       flex: 1;
-      padding: 10px;
+      padding: 8px;
       border: 2px solid #e0e0e0;
-      border-radius: 8px;
+      border-radius: 6px;
       background: white;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       transition: all 0.3s ease;
     }
@@ -129,12 +159,11 @@
       display: block;
     }
 
-    /* قسم شروط الدفع */
     .payment-section {
       background: #fff8e1;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 14px;
       border: 1px solid #ffe082;
     }
 
@@ -142,18 +171,10 @@
       display: none;
     }
 
-    .payment-section label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: 600;
-      color: #444;
-      font-size: 14px;
-    }
-
     .conditional-field {
       display: none;
-      margin-top: 12px;
-      padding-top: 12px;
+      margin-top: 10px;
+      padding-top: 10px;
       border-top: 1px dashed #ffe082;
     }
 
@@ -161,29 +182,18 @@
       display: block;
     }
 
-    .conditional-field label {
-      font-size: 13px;
-      color: #666;
-    }
-
-    .hint {
-      font-size: 12px;
-      color: #888;
-      margin-top: 4px;
-    }
-
     .buttons {
       display: flex;
-      gap: 12px;
-      margin-top: 24px;
+      gap: 10px;
+      margin-top: 20px;
     }
 
     .btn {
       flex: 1;
-      padding: 14px 20px;
+      padding: 12px 16px;
       border: none;
-      border-radius: 10px;
-      font-size: 16px;
+      border-radius: 8px;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s ease;
@@ -231,12 +241,12 @@
 
     .success {
       text-align: center;
-      padding: 40px;
+      padding: 30px;
     }
 
     .success .icon {
-      font-size: 60px;
-      margin-bottom: 16px;
+      font-size: 50px;
+      margin-bottom: 12px;
     }
 
     .success h3 {
@@ -247,10 +257,18 @@
     .error {
       background: #ffebee;
       color: #c62828;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 16px;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
       display: none;
+      font-size: 13px;
+    }
+
+    .amount-section {
+      background: #e8f5e9;
+      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid #a5d6a7;
     }
   </style>
 </head>
@@ -272,7 +290,7 @@
       <form id="transactionForm">
         <!-- التاريخ -->
         <div class="date-section">
-          <label><span class="icon">📅</span> التاريخ</label>
+          <label><span class="icon">📅</span> التاريخ <span class="required">*</span></label>
           <div class="date-toggle">
             <button type="button" id="btnToday" class="active" onclick="setDateMode('today')">تاريخ اليوم</button>
             <button type="button" id="btnCustom" onclick="setDateMode('custom')">تاريخ آخر</button>
@@ -283,41 +301,97 @@
           <input type="hidden" id="selectedDate" />
         </div>
 
-        <!-- طبيعة الحركة -->
+        <!-- طبيعة الحركة + تصنيف الحركة -->
+        <div class="form-row">
+          <div class="form-group half">
+            <label><span class="icon">📋</span> طبيعة الحركة <span class="required">*</span></label>
+            <select id="natureType" required onchange="onNatureTypeChange()">
+              <option value="">-- اختر --</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label><span class="icon">🏷️</span> تصنيف الحركة <span class="required">*</span></label>
+            <select id="classification" required>
+              <option value="">-- اختر --</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- المشروع -->
         <div class="form-group">
-          <label><span class="icon">📋</span> طبيعة الحركة</label>
-          <select id="natureType" required>
-            <option value="">-- اختر طبيعة الحركة --</option>
+          <label><span class="icon">📁</span> المشروع <span class="required">*</span></label>
+          <select id="projectCode" required>
+            <option value="">-- اختر المشروع --</option>
           </select>
         </div>
 
-        <!-- تصنيف الحركة -->
-        <div class="form-group">
-          <label><span class="icon">🏷️</span> تصنيف الحركة</label>
-          <select id="classification" required>
-            <option value="">-- اختر تصنيف الحركة --</option>
-          </select>
+        <!-- البند + الطرف -->
+        <div class="form-row">
+          <div class="form-group half">
+            <label><span class="icon">📄</span> البند <span class="required">*</span></label>
+            <select id="item" required>
+              <option value="">-- اختر --</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label><span class="icon">👤</span> المورد/الجهة</label>
+            <select id="partyName">
+              <option value="">-- اختر --</option>
+            </select>
+          </div>
         </div>
 
-        <!-- البند -->
+        <!-- التفاصيل -->
         <div class="form-group">
-          <label><span class="icon">📄</span> البند</label>
-          <select id="item" required>
-            <option value="">-- اختر البند --</option>
-          </select>
+          <label><span class="icon">📝</span> التفاصيل</label>
+          <input type="text" id="details" placeholder="وصف مختصر للحركة" />
         </div>
 
-        <!-- نوع الحركة -->
-        <div class="form-group">
-          <label><span class="icon">💰</span> نوع الحركة</label>
-          <select id="movementType" required onchange="onMovementTypeChange()">
-            <option value="">-- اختر نوع الحركة --</option>
-          </select>
+        <!-- قسم المبلغ -->
+        <div class="section-title">💰 تفاصيل المبلغ</div>
+        <div class="amount-section">
+          <div class="form-row">
+            <div class="form-group half">
+              <label>المبلغ <span class="required">*</span></label>
+              <input type="number" id="amount" step="0.01" min="0" required placeholder="0.00" />
+            </div>
+            <div class="form-group half">
+              <label>العملة <span class="required">*</span></label>
+              <select id="currency" required onchange="onCurrencyChange()">
+                <option value="">-- اختر --</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" id="exchangeRateRow" style="display: none;">
+            <div class="form-group half">
+              <label>سعر الصرف</label>
+              <input type="number" id="exchangeRate" step="0.0001" min="0" placeholder="1.0000" />
+            </div>
+            <div class="form-group half">
+              <label>القيمة بالدولار</label>
+              <input type="text" id="amountUsd" readonly style="background: #e0e0e0;" />
+            </div>
+          </div>
         </div>
 
-        <!-- قسم شروط الدفع (يظهر فقط للحركات المدينة) -->
+        <!-- طريقة الدفع + رقم مرجعي -->
+        <div class="section-title">💳 تفاصيل الدفع</div>
+        <div class="form-row">
+          <div class="form-group half">
+            <label><span class="icon">💳</span> طريقة الدفع <span class="required">*</span></label>
+            <select id="paymentMethod" required>
+              <option value="">-- اختر --</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label><span class="icon">🔢</span> رقم مرجعي</label>
+            <input type="text" id="refNumber" placeholder="اختياري" />
+          </div>
+        </div>
+
+        <!-- قسم شروط الدفع (للاستحقاقات) -->
         <div id="paymentSection" class="payment-section hidden">
-          <label><span class="icon">📆</span> شرط الدفع (للاستحقاقات)</label>
+          <label><span class="icon">📆</span> شرط الدفع</label>
           <select id="paymentTerm" onchange="onPaymentTermChange()">
             <option value="">-- اختياري --</option>
             <option value="فوري">فوري (تاريخ الحركة)</option>
@@ -325,22 +399,25 @@
             <option value="تاريخ مخصص">تاريخ مخصص</option>
           </select>
 
-          <!-- عدد الأسابيع (يظهر عند اختيار "بعد التسليم") -->
           <div id="weeksField" class="conditional-field">
-            <label><span class="icon">📅</span> عدد الأسابيع بعد التسليم</label>
+            <label>عدد الأسابيع بعد التسليم</label>
             <input type="number" id="weeksCount" min="0" max="52" value="0" />
-            <div class="hint">سيُضاف على تاريخ التسليم المتوقع للمشروع</div>
           </div>
 
-          <!-- تاريخ مخصص (يظهر عند اختيار "تاريخ مخصص") -->
           <div id="customDueDateField" class="conditional-field">
-            <label><span class="icon">📅</span> تاريخ الاستحقاق المخصص</label>
+            <label>تاريخ الاستحقاق المخصص</label>
             <input type="date" id="customDueDate" />
           </div>
         </div>
 
+        <!-- ملاحظات -->
+        <div class="form-group">
+          <label><span class="icon">📋</span> ملاحظات</label>
+          <textarea id="notes" placeholder="ملاحظات إضافية (اختياري)"></textarea>
+        </div>
+
         <div class="buttons">
-          <button type="submit" class="btn btn-primary">✅ إضافة</button>
+          <button type="submit" class="btn btn-primary">✅ إضافة الحركة</button>
           <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">❌ إلغاء</button>
         </div>
       </form>
@@ -350,7 +427,7 @@
       <div class="icon">✅</div>
       <h3>تمت الإضافة بنجاح!</h3>
       <p id="successMsg"></p>
-      <div class="buttons" style="margin-top: 20px;">
+      <div class="buttons" style="margin-top: 16px;">
         <button class="btn btn-primary" onclick="resetForm()">➕ إضافة حركة أخرى</button>
         <button class="btn btn-secondary" onclick="google.script.host.close()">إغلاق</button>
       </div>
@@ -377,11 +454,21 @@
       populateSelect('natureType', data.natureTypes);
       populateSelect('classification', data.classifications);
       populateSelect('item', data.items);
-      populateSelect('movementType', data.movementTypes);
+      populateSelect('currency', data.currencies);
+      populateSelect('paymentMethod', data.paymentMethods);
+
+      // تعبئة المشاريع (كود + اسم)
+      populateProjectsSelect(data.projects);
+
+      // تعبئة الأطراف
+      populatePartiesSelect(data.parties);
 
       // تعيين تاريخ اليوم
       document.getElementById('selectedDate').value = todayDate;
       document.getElementById('dateInput').value = formatDateForInput(todayDate);
+
+      // تعيين العملة الافتراضية
+      document.getElementById('currency').value = 'USD';
 
       // إظهار النموذج
       document.getElementById('loadingState').style.display = 'none';
@@ -390,10 +477,33 @@
 
     function populateSelect(selectId, options) {
       const select = document.getElementById(selectId);
+      if (!options) return;
       options.forEach(function(opt) {
         const option = document.createElement('option');
         option.value = opt;
         option.textContent = opt;
+        select.appendChild(option);
+      });
+    }
+
+    function populateProjectsSelect(projects) {
+      const select = document.getElementById('projectCode');
+      if (!projects) return;
+      projects.forEach(function(proj) {
+        const option = document.createElement('option');
+        option.value = proj.code;  // القيمة = الكود
+        option.textContent = proj.display;  // العرض = الاسم (الكود)
+        select.appendChild(option);
+      });
+    }
+
+    function populatePartiesSelect(parties) {
+      const select = document.getElementById('partyName');
+      if (!parties) return;
+      parties.forEach(function(party) {
+        const option = document.createElement('option');
+        option.value = party.name;
+        option.textContent = party.type ? `${party.name} (${party.type})` : party.name;
         select.appendChild(option);
       });
     }
@@ -431,22 +541,53 @@
       return parts[2] + '-' + parts[1] + '-' + parts[0];
     }
 
-    // عند تغيير نوع الحركة
-    function onMovementTypeChange() {
-      const movementType = document.getElementById('movementType').value;
+    // عند تغيير طبيعة الحركة
+    function onNatureTypeChange() {
+      const natureType = document.getElementById('natureType').value;
       const paymentSection = document.getElementById('paymentSection');
 
-      // إظهار قسم شروط الدفع فقط للحركات المدينة (استحقاق)
-      if (movementType === 'مدين استحقاق') {
+      // إظهار قسم شروط الدفع فقط للاستحقاقات
+      if (natureType.includes('استحقاق')) {
         paymentSection.classList.remove('hidden');
       } else {
         paymentSection.classList.add('hidden');
-        // إعادة تعيين القيم
         document.getElementById('paymentTerm').value = '';
         document.getElementById('weeksField').classList.remove('show');
         document.getElementById('customDueDateField').classList.remove('show');
       }
     }
+
+    // عند تغيير العملة
+    function onCurrencyChange() {
+      const currency = document.getElementById('currency').value;
+      const exchangeRateRow = document.getElementById('exchangeRateRow');
+
+      if (currency && currency !== 'USD') {
+        exchangeRateRow.style.display = 'flex';
+        document.getElementById('exchangeRate').value = '';
+        document.getElementById('amountUsd').value = '';
+      } else {
+        exchangeRateRow.style.display = 'none';
+      }
+      calculateAmountUsd();
+    }
+
+    // حساب القيمة بالدولار
+    function calculateAmountUsd() {
+      const amount = parseFloat(document.getElementById('amount').value) || 0;
+      const currency = document.getElementById('currency').value;
+      const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+
+      if (currency === 'USD') {
+        document.getElementById('amountUsd').value = amount.toFixed(2);
+      } else if (exchangeRate > 0) {
+        const usd = amount / exchangeRate;
+        document.getElementById('amountUsd').value = usd.toFixed(2);
+      }
+    }
+
+    document.getElementById('amount').addEventListener('input', calculateAmountUsd);
+    document.getElementById('exchangeRate').addEventListener('input', calculateAmountUsd);
 
     // عند تغيير شرط الدفع
     function onPaymentTermChange() {
@@ -454,11 +595,9 @@
       const weeksField = document.getElementById('weeksField');
       const customDueDateField = document.getElementById('customDueDateField');
 
-      // إخفاء جميع الحقول أولاً
       weeksField.classList.remove('show');
       customDueDateField.classList.remove('show');
 
-      // إظهار الحقل المناسب
       if (paymentTerm === 'بعد التسليم') {
         weeksField.classList.add('show');
       } else if (paymentTerm === 'تاريخ مخصص') {
@@ -472,31 +611,36 @@
     document.getElementById('transactionForm').addEventListener('submit', function(e) {
       e.preventDefault();
 
-      const movementType = document.getElementById('movementType').value;
-      const paymentTerm = document.getElementById('paymentTerm').value;
-
       const formData = {
         date: document.getElementById('selectedDate').value,
         natureType: document.getElementById('natureType').value,
         classification: document.getElementById('classification').value,
+        projectCode: document.getElementById('projectCode').value,
         item: document.getElementById('item').value,
-        movementType: movementType,
-        // بيانات شروط الدفع (للحركات المدينة فقط)
-        paymentTerm: movementType === 'مدين استحقاق' ? paymentTerm : '',
-        weeksCount: paymentTerm === 'بعد التسليم' ? parseInt(document.getElementById('weeksCount').value) || 0 : 0,
-        customDueDate: paymentTerm === 'تاريخ مخصص' ? formatCustomDueDate() : ''
+        partyName: document.getElementById('partyName').value,
+        details: document.getElementById('details').value,
+        amount: document.getElementById('amount').value,
+        currency: document.getElementById('currency').value,
+        exchangeRate: document.getElementById('exchangeRate').value || '1',
+        paymentMethod: document.getElementById('paymentMethod').value,
+        refNumber: document.getElementById('refNumber').value,
+        paymentTerm: document.getElementById('paymentTerm').value,
+        weeksCount: document.getElementById('weeksCount').value,
+        customDueDate: formatCustomDueDate(),
+        notes: document.getElementById('notes').value
       };
 
       // التحقق من الحقول المطلوبة
       if (!formData.date || !formData.natureType || !formData.classification ||
-          !formData.item || !formData.movementType) {
+          !formData.projectCode || !formData.item || !formData.amount ||
+          !formData.currency || !formData.paymentMethod) {
         showError('يرجى ملء جميع الحقول المطلوبة');
         return;
       }
 
-      // التحقق من تاريخ مخصص إذا تم اختياره
-      if (paymentTerm === 'تاريخ مخصص' && !formData.customDueDate) {
-        showError('يرجى إدخال تاريخ الاستحقاق المخصص');
+      // التحقق من سعر الصرف للعملات غير الدولار
+      if (formData.currency !== 'USD' && (!formData.exchangeRate || formData.exchangeRate === '1')) {
+        showError('يرجى إدخال سعر الصرف للعملة المحددة');
         return;
       }
 
@@ -524,7 +668,7 @@
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('successState').style.display = 'block';
       document.getElementById('successMsg').textContent =
-        'تم إضافة الحركة في الصف ' + result.row + '\n' + result.summary;
+        'تم إضافة الحركة رقم ' + result.transNum + '\n' + result.summary;
     }
 
     function showError(msg) {
@@ -547,7 +691,8 @@
       document.getElementById('formState').style.display = 'block';
       document.getElementById('transactionForm').reset();
       setDateMode('today');
-      // إخفاء قسم شروط الدفع
+      document.getElementById('currency').value = 'USD';
+      document.getElementById('exchangeRateRow').style.display = 'none';
       document.getElementById('paymentSection').classList.add('hidden');
       document.getElementById('weeksField').classList.remove('show');
       document.getElementById('customDueDateField').classList.remove('show');
