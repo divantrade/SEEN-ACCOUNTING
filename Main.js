@@ -52,6 +52,13 @@ function onOpen() {
         .addItem('🔄 تحديث كل التقارير الملخصة', 'rebuildAllSummaryReports')
     )
 
+    // القوائم المالية
+    .addSubMenu(
+      ui.createMenu('📊 القوائم المالية')
+        .addItem('📈 قائمة الدخل', 'rebuildIncomeStatement')
+        .addItem('📋 المركز المالي', 'rebuildBalanceSheet')
+    )
+
     // البنك وخزنة العهدة
     .addSubMenu(
       ui.createMenu('🏦 البنك وخزنة العهدة')
@@ -5231,6 +5238,396 @@ function createRevenueReportSheet(ss) {
   sheet.getRange('A1').setNote(
     'يمكنك عمل Pivot Table من دفتر الحركات (طبيعة الحركة = استحقاق إيراد / تحصيل إيراد) لملء هذا التقرير.'
   );
+}
+
+// ==================== قائمة الدخل (Income Statement) ====================
+/**
+ * إنشاء شيت قائمة الدخل
+ * قائمة الدخل = الإيرادات - المصروفات = صافي الربح
+ */
+function createIncomeStatementSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.INCOME_STATEMENT);
+
+  // تحديد عرض الأعمدة
+  sheet.setColumnWidth(1, 250);  // البيان
+  sheet.setColumnWidth(2, 150);  // المبلغ
+  sheet.setColumnWidth(3, 150);  // الإجمالي
+
+  sheet.setFrozenRows(0);
+  return sheet;
+}
+
+/**
+ * إعادة بناء قائمة الدخل من دفتر الحركات المالية
+ * @param {boolean} silent - إذا كان true لا يظهر رسالة تأكيد
+ */
+function rebuildIncomeStatement(silent) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    if (silent) return { success: false, name: 'قائمة الدخل', error: 'دفتر الحركات غير موجود' };
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
+    return;
+  }
+
+  // إنشاء أو الحصول على الشيت
+  let reportSheet = ss.getSheetByName(CONFIG.SHEETS.INCOME_STATEMENT);
+  if (!reportSheet) {
+    reportSheet = createIncomeStatementSheet(ss);
+  } else {
+    reportSheet.clear();
+    // إعادة تعيين عرض الأعمدة
+    reportSheet.setColumnWidth(1, 250);
+    reportSheet.setColumnWidth(2, 150);
+    reportSheet.setColumnWidth(3, 150);
+  }
+
+  // قراءة بيانات الحركات
+  const data = transSheet.getDataRange().getValues();
+
+  // تجميع الإيرادات والمصروفات
+  const revenues = {};      // إيرادات حسب المشروع أو العميل
+  const expenses = {};      // مصروفات حسب التصنيف
+  let totalRevenue = 0;
+  let totalExpense = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const natureType = String(row[2] || '');  // C: طبيعة الحركة
+    const classification = row[3] || 'غير مصنف';  // D: تصنيف الحركة
+    const projectCode = row[4] || '';  // E: كود المشروع
+    const clientName = row[8] || '';   // I: اسم الطرف
+    const amountUsd = Number(row[12]) || 0;  // M: القيمة بالدولار
+
+    if (!amountUsd) continue;
+
+    // الإيرادات (استحقاق إيراد)
+    if (natureType.includes('استحقاق إيراد')) {
+      const key = projectCode || clientName || 'إيرادات أخرى';
+      revenues[key] = (revenues[key] || 0) + amountUsd;
+      totalRevenue += amountUsd;
+    }
+
+    // المصروفات (استحقاق مصروف)
+    if (natureType.includes('استحقاق مصروف')) {
+      const key = classification || 'مصروفات أخرى';
+      expenses[key] = (expenses[key] || 0) + amountUsd;
+      totalExpense += amountUsd;
+    }
+  }
+
+  // صافي الربح
+  const netProfit = totalRevenue - totalExpense;
+
+  // بناء بيانات التقرير
+  const rows = [];
+  let currentRow = 1;
+
+  // ===== عنوان التقرير =====
+  rows.push(['قائمة الدخل', '', '']);
+  rows.push([Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy'), '', '']);
+  rows.push(['', '', '']);
+
+  // ===== قسم الإيرادات =====
+  rows.push(['الإيرادات', '', '']);
+
+  // تفاصيل الإيرادات
+  const revenueKeys = Object.keys(revenues).sort();
+  revenueKeys.forEach(key => {
+    rows.push(['    ' + key, revenues[key], '']);
+  });
+
+  // إجمالي الإيرادات
+  rows.push(['إجمالي الإيرادات', '', totalRevenue]);
+  rows.push(['', '', '']);
+
+  // ===== قسم المصروفات =====
+  rows.push(['المصروفات', '', '']);
+
+  // تفاصيل المصروفات
+  const expenseKeys = Object.keys(expenses).sort();
+  expenseKeys.forEach(key => {
+    rows.push(['    ' + key, expenses[key], '']);
+  });
+
+  // إجمالي المصروفات
+  rows.push(['إجمالي المصروفات', '', totalExpense]);
+  rows.push(['', '', '']);
+
+  // ===== صافي الربح =====
+  rows.push(['صافي الربح / (الخسارة)', '', netProfit]);
+
+  // كتابة البيانات
+  if (rows.length > 0) {
+    reportSheet.getRange(1, 1, rows.length, 3).setValues(rows);
+  }
+
+  // ===== التنسيق =====
+  const lastRow = rows.length;
+
+  // تنسيق العنوان
+  reportSheet.getRange(1, 1, 1, 3)
+    .setFontSize(16)
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setBackground(CONFIG.COLORS.HEADER.INCOME_STATEMENT)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE);
+  reportSheet.getRange(1, 1, 1, 3).merge();
+
+  // تنسيق التاريخ
+  reportSheet.getRange(2, 1, 1, 3)
+    .setFontSize(11)
+    .setHorizontalAlignment('center')
+    .setFontColor(CONFIG.COLORS.TEXT.DARK);
+  reportSheet.getRange(2, 1, 1, 3).merge();
+
+  // تنسيق عناوين الأقسام (الإيرادات، المصروفات)
+  const sectionRows = [4, 4 + revenueKeys.length + 3]; // صف "الإيرادات" و "المصروفات"
+  sectionRows.forEach(row => {
+    if (row <= lastRow) {
+      reportSheet.getRange(row, 1, 1, 3)
+        .setFontWeight('bold')
+        .setFontSize(12)
+        .setBackground(CONFIG.COLORS.BG.LIGHT_BLUE);
+    }
+  });
+
+  // تنسيق إجمالي الإيرادات
+  const totalRevenueRow = 4 + revenueKeys.length + 1;
+  reportSheet.getRange(totalRevenueRow, 1, 1, 3)
+    .setFontWeight('bold')
+    .setBackground(CONFIG.COLORS.BG.LIGHT_GREEN_3);
+
+  // تنسيق إجمالي المصروفات
+  const totalExpenseRow = totalRevenueRow + 3 + expenseKeys.length + 1;
+  reportSheet.getRange(totalExpenseRow, 1, 1, 3)
+    .setFontWeight('bold')
+    .setBackground(CONFIG.COLORS.BG.LIGHT_ORANGE);
+
+  // تنسيق صافي الربح
+  reportSheet.getRange(lastRow, 1, 1, 3)
+    .setFontWeight('bold')
+    .setFontSize(13)
+    .setBackground(netProfit >= 0 ? CONFIG.COLORS.BG.LIGHT_GREEN_3 : '#ffcdd2')
+    .setFontColor(netProfit >= 0 ? CONFIG.COLORS.TEXT.SUCCESS_DARK : CONFIG.COLORS.TEXT.DANGER);
+
+  // تنسيق الأرقام
+  reportSheet.getRange(1, 2, lastRow, 2).setNumberFormat('$#,##0.00');
+
+  // محاذاة
+  reportSheet.getRange(1, 2, lastRow, 2).setHorizontalAlignment('left');
+
+  if (silent) return { success: true, name: 'قائمة الدخل' };
+  SpreadsheetApp.getUi().alert('✅ تم تحديث "قائمة الدخل".\n\nإجمالي الإيرادات: $' + totalRevenue.toLocaleString() + '\nإجمالي المصروفات: $' + totalExpense.toLocaleString() + '\nصافي الربح: $' + netProfit.toLocaleString());
+}
+
+// ==================== المركز المالي (Balance Sheet) ====================
+/**
+ * إنشاء شيت المركز المالي المبسط
+ * المركز المالي = الأصول - الخصوم = حقوق الملكية
+ */
+function createBalanceSheetSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.BALANCE_SHEET);
+
+  // تحديد عرض الأعمدة
+  sheet.setColumnWidth(1, 250);  // البيان
+  sheet.setColumnWidth(2, 150);  // المبلغ
+  sheet.setColumnWidth(3, 150);  // الإجمالي
+
+  sheet.setFrozenRows(0);
+  return sheet;
+}
+
+/**
+ * إعادة بناء المركز المالي من دفتر الحركات المالية
+ * @param {boolean} silent - إذا كان true لا يظهر رسالة تأكيد
+ */
+function rebuildBalanceSheet(silent) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    if (silent) return { success: false, name: 'المركز المالي', error: 'دفتر الحركات غير موجود' };
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
+    return;
+  }
+
+  // إنشاء أو الحصول على الشيت
+  let reportSheet = ss.getSheetByName(CONFIG.SHEETS.BALANCE_SHEET);
+  if (!reportSheet) {
+    reportSheet = createBalanceSheetSheet(ss);
+  } else {
+    reportSheet.clear();
+    reportSheet.setColumnWidth(1, 250);
+    reportSheet.setColumnWidth(2, 150);
+    reportSheet.setColumnWidth(3, 150);
+  }
+
+  // قراءة بيانات الحركات
+  const data = transSheet.getDataRange().getValues();
+
+  // ===== حساب الأصول والخصوم =====
+
+  // 1. النقدية: من شيتات البنك والخزنة
+  let cashUsd = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_USD);
+  let cashTry = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_TRY);
+  let pettyUsd = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_USD);
+  let pettyTry = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_TRY);
+  let cardTry = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CARD_TRY);
+
+  // 2. الذمم المدينة (مستحق من العملاء) = استحقاق إيراد - تحصيل إيراد
+  let totalRevenueAccrual = 0;
+  let totalRevenueCollection = 0;
+
+  // 3. الذمم الدائنة (مستحق للموردين) = استحقاق مصروف - دفعة مصروف
+  let totalExpenseAccrual = 0;
+  let totalExpensePayment = 0;
+
+  // 4. التمويل (القروض) = تمويل - سداد تمويل
+  let totalFunding = 0;
+  let totalFundingRepayment = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const natureType = String(row[2] || '');  // C: طبيعة الحركة
+    const amountUsd = Number(row[12]) || 0;   // M: القيمة بالدولار
+
+    if (!amountUsd) continue;
+
+    // إيرادات
+    if (natureType.includes('استحقاق إيراد')) {
+      totalRevenueAccrual += amountUsd;
+    }
+    if (natureType.includes('تحصيل إيراد')) {
+      totalRevenueCollection += amountUsd;
+    }
+
+    // مصروفات
+    if (natureType.includes('استحقاق مصروف')) {
+      totalExpenseAccrual += amountUsd;
+    }
+    if (natureType.includes('دفعة مصروف')) {
+      totalExpensePayment += amountUsd;
+    }
+
+    // تمويل
+    if (natureType.includes('تمويل') &&
+        !natureType.includes('سداد تمويل') &&
+        !natureType.includes('استلام تمويل')) {
+      totalFunding += amountUsd;
+    }
+    if (natureType.includes('سداد تمويل')) {
+      totalFundingRepayment += amountUsd;
+    }
+  }
+
+  // ===== حساب الإجماليات =====
+  const receivables = totalRevenueAccrual - totalRevenueCollection;  // الذمم المدينة
+  const payables = totalExpenseAccrual - totalExpensePayment;        // الذمم الدائنة
+  const loansPayable = totalFunding - totalFundingRepayment;         // القروض
+
+  const totalCash = cashUsd + pettyUsd;  // إجمالي النقدية بالدولار (TRY يحتاج تحويل)
+  const totalAssets = totalCash + receivables;
+  const totalLiabilities = payables + loansPayable;
+  const equity = totalAssets - totalLiabilities;
+
+  // بناء بيانات التقرير
+  const rows = [];
+
+  // ===== عنوان التقرير =====
+  rows.push(['المركز المالي (قائمة مبسطة)', '', '']);
+  rows.push([Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy'), '', '']);
+  rows.push(['', '', '']);
+
+  // ===== قسم الأصول =====
+  rows.push(['الأصول', '', '']);
+  rows.push(['الأصول المتداولة:', '', '']);
+  rows.push(['    النقدية - البنك (دولار)', cashUsd, '']);
+  rows.push(['    النقدية - خزنة العهدة (دولار)', pettyUsd, '']);
+  if (cashTry !== 0) rows.push(['    البنك (ليرة) - للتحويل', cashTry, '']);
+  if (pettyTry !== 0) rows.push(['    خزنة العهدة (ليرة) - للتحويل', pettyTry, '']);
+  if (cardTry !== 0) rows.push(['    البطاقة (ليرة) - للتحويل', cardTry, '']);
+  rows.push(['    الذمم المدينة (مستحق من العملاء)', receivables, '']);
+  rows.push(['إجمالي الأصول', '', totalAssets]);
+  rows.push(['', '', '']);
+
+  // ===== قسم الخصوم =====
+  rows.push(['الخصوم', '', '']);
+  rows.push(['الخصوم المتداولة:', '', '']);
+  rows.push(['    الذمم الدائنة (مستحق للموردين)', payables, '']);
+  rows.push(['    القروض والتمويل', loansPayable, '']);
+  rows.push(['إجمالي الخصوم', '', totalLiabilities]);
+  rows.push(['', '', '']);
+
+  // ===== حقوق الملكية =====
+  rows.push(['حقوق الملكية', '', '']);
+  rows.push(['    صافي الأصول (الأصول - الخصوم)', '', equity]);
+
+  // كتابة البيانات
+  if (rows.length > 0) {
+    reportSheet.getRange(1, 1, rows.length, 3).setValues(rows);
+  }
+
+  // ===== التنسيق =====
+  const lastRow = rows.length;
+
+  // تنسيق العنوان
+  reportSheet.getRange(1, 1, 1, 3)
+    .setFontSize(16)
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setBackground(CONFIG.COLORS.HEADER.BALANCE_SHEET)
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE);
+  reportSheet.getRange(1, 1, 1, 3).merge();
+
+  // تنسيق التاريخ
+  reportSheet.getRange(2, 1, 1, 3)
+    .setFontSize(11)
+    .setHorizontalAlignment('center')
+    .setFontColor(CONFIG.COLORS.TEXT.DARK);
+  reportSheet.getRange(2, 1, 1, 3).merge();
+
+  // تنسيق عناوين الأقسام (الأصول، الخصوم، حقوق الملكية)
+  [4, 4 + 8 + (cashTry !== 0 ? 1 : 0) + (pettyTry !== 0 ? 1 : 0) + (cardTry !== 0 ? 1 : 0), lastRow - 1].forEach(row => {
+    if (row <= lastRow && row > 0) {
+      reportSheet.getRange(row, 1, 1, 3)
+        .setFontWeight('bold')
+        .setFontSize(12)
+        .setBackground(CONFIG.COLORS.BG.LIGHT_BLUE);
+    }
+  });
+
+  // تنسيق إجمالي الأصول والخصوم
+  for (let r = 1; r <= lastRow; r++) {
+    const cellValue = reportSheet.getRange(r, 1).getValue();
+    if (cellValue === 'إجمالي الأصول') {
+      reportSheet.getRange(r, 1, 1, 3)
+        .setFontWeight('bold')
+        .setBackground(CONFIG.COLORS.BG.LIGHT_GREEN_3);
+    }
+    if (cellValue === 'إجمالي الخصوم') {
+      reportSheet.getRange(r, 1, 1, 3)
+        .setFontWeight('bold')
+        .setBackground(CONFIG.COLORS.BG.LIGHT_ORANGE);
+    }
+  }
+
+  // تنسيق صافي الأصول
+  reportSheet.getRange(lastRow, 1, 1, 3)
+    .setFontWeight('bold')
+    .setFontSize(13)
+    .setBackground(equity >= 0 ? CONFIG.COLORS.BG.LIGHT_GREEN_3 : '#ffcdd2')
+    .setFontColor(equity >= 0 ? CONFIG.COLORS.TEXT.SUCCESS_DARK : CONFIG.COLORS.TEXT.DANGER);
+
+  // تنسيق الأرقام
+  reportSheet.getRange(1, 2, lastRow, 2).setNumberFormat('$#,##0.00');
+
+  // محاذاة
+  reportSheet.getRange(1, 2, lastRow, 2).setHorizontalAlignment('left');
+
+  if (silent) return { success: true, name: 'المركز المالي' };
+  SpreadsheetApp.getUi().alert('✅ تم تحديث "المركز المالي".\n\nإجمالي الأصول: $' + totalAssets.toLocaleString() + '\nإجمالي الخصوم: $' + totalLiabilities.toLocaleString() + '\nصافي الأصول: $' + equity.toLocaleString());
 }
 
 // ========= التدفقات النقدية (تلقائي مع ترتيب الأعمدة الجديد) =========
