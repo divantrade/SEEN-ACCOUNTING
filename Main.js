@@ -5963,6 +5963,7 @@ function rebuildGeneralLedger(silent, filterAccount) {
     const transNum = row[0];           // A: رقم الحركة
     const date = row[1];               // B: التاريخ
     const natureType = String(row[2] || '');  // C: طبيعة الحركة
+    const classification = String(row[3] || '');  // D: تصنيف الحركة
     const description = row[7] || '';  // H: الوصف
     const partyName = row[8] || '';    // I: اسم الطرف
     const amountUsd = Number(row[12]) || 0;   // M: القيمة بالدولار
@@ -5970,7 +5971,7 @@ function rebuildGeneralLedger(silent, filterAccount) {
 
     if (!amountUsd || !date) continue;
 
-    const fullDescription = partyName ? `${description} - ${partyName}` : description;
+    const fullDescription = partyName ? `${description} - ${partyName}` : (description || classification);
     const formattedDate = date instanceof Date ?
       Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy') :
       date;
@@ -6019,6 +6020,27 @@ function rebuildGeneralLedger(silent, filterAccount) {
       // استرداد تأمين: مدين النقدية، دائن التأمينات
       entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
       entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: 0, credit: amountUsd });
+    }
+    // ═══════════════════════════════════════════════════════════
+    // 🔄 التحويلات الداخلية (بين البنك والخزنة)
+    // ═══════════════════════════════════════════════════════════
+    else if (natureType.includes('تحويل داخلي')) {
+      const isTransferToCash = classification.includes('تحويل للخزنة') || classification.includes('تحويل للكاش');
+      const isTransferToBank = classification.includes('تحويل للبنك');
+
+      if (isTransferToCash) {
+        // تحويل للخزنة = من البنك إلى الخزنة
+        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
+        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      } else if (isTransferToBank) {
+        // تحويل للبنك = من الخزنة إلى البنك
+        entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: 0, credit: amountUsd });
+      } else {
+        // تحويل داخلي غير محدد - افتراض تحويل للخزنة
+        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
+        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      }
     }
 
     // إضافة القيود
@@ -6403,6 +6425,7 @@ function rebuildJournalEntries(silent) {
     const transNum = row[0];
     const date = row[1];
     const natureType = String(row[2] || '');
+    const classification = String(row[3] || '');  // D: تصنيف الحركة
     const description = row[7] || '';
     const partyName = row[8] || '';
     const amountUsd = Number(row[12]) || 0;
@@ -6410,7 +6433,7 @@ function rebuildJournalEntries(silent) {
 
     if (!amountUsd || !date) continue;
 
-    const fullDescription = partyName ? `${description} - ${partyName}` : description;
+    const fullDescription = partyName ? `${description} - ${partyName}` : (description || classification);
     const formattedDate = date instanceof Date ?
       Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy') :
       date;
@@ -6451,6 +6474,27 @@ function rebuildJournalEntries(silent) {
     else if (natureType.includes('استرداد تأمين')) {
       entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
       entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: 0, credit: amountUsd });
+    }
+    // ═══════════════════════════════════════════════════════════
+    // 🔄 التحويلات الداخلية (بين البنك والخزنة)
+    // ═══════════════════════════════════════════════════════════
+    else if (natureType.includes('تحويل داخلي')) {
+      const isTransferToCash = classification.includes('تحويل للخزنة') || classification.includes('تحويل للكاش');
+      const isTransferToBank = classification.includes('تحويل للبنك');
+
+      if (isTransferToCash) {
+        // تحويل للخزنة = من البنك إلى الخزنة
+        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
+        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      } else if (isTransferToBank) {
+        // تحويل للبنك = من الخزنة إلى البنك
+        entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: 0, credit: amountUsd });
+      } else {
+        // تحويل داخلي غير محدد - افتراض تحويل للخزنة
+        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
+        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      }
     }
 
     if (entries.length > 0) {
