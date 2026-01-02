@@ -834,12 +834,12 @@ function applyConditionalFormatting(sheet, lastRow) {
   const dataRange = sheet.getRange(2, 1, maxRows, 24); // من A إلى X
 
   // ═══════════════════════════════════════════════════════════
-  // 1. تمويل (دخول قرض) = أخضر فاتح جداً - الأولوية الأعلى
+  // 1. تمويل (دخول قرض) = أخضر مميز - الأولوية الأعلى
   // ═══════════════════════════════════════════════════════════
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=AND($C2<>"",ISNUMBER(SEARCH("تمويل",$C2)),ISERROR(SEARCH("سداد",$C2)),ISERROR(SEARCH("استلام",$C2)))')
-      .setBackground('#e6f4ea')  // أخضر فاتح جداً
+      .setBackground('#a5d6a7')  // أخضر مميز
       .setRanges([dataRange])
       .build()
   );
