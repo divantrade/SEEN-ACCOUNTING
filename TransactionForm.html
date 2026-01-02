@@ -438,12 +438,21 @@
     let dropdownData = {};
     let todayDate = '';
 
+    // البيانات الممررة من السيرفر مباشرة
+    const initialDataJson = <?!= initialData ?>;
+
     // تحميل البيانات عند فتح النافذة
     document.addEventListener('DOMContentLoaded', function() {
-      google.script.run
-        .withSuccessHandler(onDataLoaded)
-        .withFailureHandler(onError)
-        .getSmartFormData();
+      // استخدام البيانات الممررة مباشرة بدلاً من استدعاء السيرفر
+      if (initialDataJson) {
+        onDataLoaded(initialDataJson);
+      } else {
+        // fallback للطريقة القديمة
+        google.script.run
+          .withSuccessHandler(onDataLoaded)
+          .withFailureHandler(onError)
+          .getSmartFormData();
+      }
     });
 
     function onDataLoaded(data) {
