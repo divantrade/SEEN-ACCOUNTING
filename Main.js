@@ -1,3 +1,127 @@
+// ==================== دالة القائمة الرئيسية ====================
+/**
+ * دالة تُنفذ تلقائياً عند فتح ملف Google Sheets
+ * تُنشئ القائمة المخصصة لنظام المحاسبة
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+
+  ui.createMenu('💼 نظام المحاسبة')
+
+    // التقارير السريعة
+    .addItem('📊 تحديث لوحة التحكم', 'refreshDashboard')
+    .addItem('🔄 إعادة بناء كل التقارير الملخصة', 'rebuildAllSummaryReports')
+    .addSeparator()
+
+    // الاستخدام اليومي العادي
+    .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
+    .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
+    .addItem('🔍 تفعيل/إلغاء الفلتر', 'toggleFilter')
+    .addSeparator()
+    .addItem('📝 إضافة ميزانية', 'addBudgetForm')
+    .addItem('📊 مقارنة الميزانية', 'compareBudget')
+    .addSeparator()
+    .addItem('🔽 تحديث القوائم المنسدلة', 'refreshDropdowns')
+    .addItem('🧹 تنظيف الايقونات من طبيعة الحركة', 'cleanupNatureTypeEmojis')
+    .addItem('⏰ عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
+    .addItem('🔔 تحديث التنبيهات', 'updateAlerts')
+    .addItem('📊 تقرير الاستحقاقات الشامل', 'generateDueReport')
+    .addItem('📋 دفتر الأستاذ المساعد', 'generateDetailedPayablesReport')
+    .addSeparator()
+
+    // الموردون / العملاء / الممولون
+    .addSubMenu(
+      ui.createMenu('👥 الموردون / العملاء / الممولون')
+        .addItem('📄 كشف حساب مورد في شيت', 'generateVendorStatementSheet')
+        .addItem('📄 كشف حساب عميل في شيت', 'generateClientStatementSheet')
+        .addItem('📄 كشف حساب ممول في شيت', 'generateFunderStatementSheet')
+    )
+
+    // تقارير الملخص
+    .addSubMenu(
+      ui.createMenu('📈 تقارير الملخص')
+        .addItem('📋 تقرير المشروع التفصيلي', 'rebuildProjectDetailReport')
+        .addItem('🏢 تقرير الموردين الملخص', 'rebuildVendorSummaryReport')
+        .addItem('💼 تقرير الممولين الملخص', 'rebuildFunderSummaryReport')
+        .addItem('💸 تقرير المصروفات الملخص', 'rebuildExpenseSummaryReport')
+        .addItem('💰 تقرير الإيرادات الملخص', 'rebuildRevenueSummaryReport')
+        .addItem('💵 تقرير التدفقات النقدية', 'rebuildCashFlowReport')
+        .addSeparator()
+        .addItem('📊 تقرير ربحية كل المشاريع', 'generateAllProjectsProfitabilityReport')
+        .addSeparator()
+        .addItem('🔄 تحديث كل التقارير الملخصة', 'rebuildAllSummaryReports')
+    )
+
+    // البنك وخزنة العهدة
+    .addSubMenu(
+      ui.createMenu('🏦 البنك وخزنة العهدة')
+        .addItem('🔄 تحديث شيتات البنك وخزنة العهدة والبطاقة', 'rebuildBankAndCashFromTransactions')
+    )
+
+    // شيتات مطابقة البنك والكارت
+    .addSubMenu(
+      ui.createMenu('🔍 مطابقة الحساب البنكي / الكارت')
+        .addItem('📝 إنشاء شيت مطابقة دولار', 'createBankReconciliationUsdSheet')
+        .addItem('📝 إنشاء شيت مطابقة ليرة', 'createBankReconciliationTrySheet')
+        .addItem('📝 إنشاء شيت مطابقة الكارت', 'createCardReconciliationSheet')
+        .addSeparator()
+        .addItem('✅ مطابقة حساب البنك - دولار', 'reconcileBankUsd')
+        .addItem('✅ مطابقة حساب البنك - ليرة', 'reconcileBankTry')
+        .addItem('✅ مطابقة الكارت', 'reconcileCard')
+    )
+
+    // الربحية والفواتير
+    .addSubMenu(
+      ui.createMenu('💹 الربحية والفواتير')
+        .addItem('📊 تقرير ربحية مشروع (نافذة)', 'showProjectProfitability')
+        .addItem('📋 تقرير ميزانية مشروع', 'generateProjectBudgetReport')
+        .addItem('🧾 إنشاء فاتورة قناة من مشروع', 'generateChannelInvoice')
+        .addSeparator()
+        .addItem('💰 تقرير عمولات مدير مشروعات', 'showCommissionReportDialog')
+        .addItem('➕ إدراج استحقاق عمولة (من التقرير)', 'insertCommissionFromReport')
+    )
+
+    .addSeparator()
+
+    // إعدادات متقدمة
+    .addSubMenu(
+      ui.createMenu('⚙️ إعدادات متقدمة')
+        .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
+        .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
+        .addSeparator()
+        .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
+        .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
+        .addItem('🔗 مراجعة نوع الحركة (تقرير فقط)', 'reviewMovementTypesOnly')
+        .addItem('🔗 مراجعة وإصلاح نوع الحركة', 'reviewAndFixMovementTypes')
+        .addItem('⚖️ فحص الاستحقاقات والدفعات (سريع)', 'checkAccrualPaymentBalance')
+        .addItem('⚖️ تقرير الاستحقاقات والدفعات (شيت)', 'generateAccrualPaymentReport')
+        .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
+        .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
+        .addItem('🔄 تحديث الموازنات المخططة (dropdown + تناغم)', 'applyBudgetsSheetEnhancements')
+        .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
+        .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
+        .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
+        .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
+        .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
+        .addItem('💰 إضافة أعمدة العمولات للمشاريع', 'addProjectManagerColumns')
+        .addSeparator()
+        .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
+    )
+
+    .addSubMenu(
+      ui.createMenu('👁️ إخفاء/إظهار الشيتات')
+        .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
+        .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
+        .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
+    )
+
+    .addSeparator()
+    .addItem('📖 دليل الاستخدام', 'showGuide')
+    .addToUi();
+}
+
+
+// ==================== دوال ترتيب الحركات ====================
 /**
  * ترتيب الحركات في دفتر الحركات المالية حسب التاريخ
  * الأقدم في الأعلى (صف 2) والأحدث في الأسفل (آخر صف)
