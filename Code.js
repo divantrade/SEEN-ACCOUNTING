@@ -1168,6 +1168,7 @@ function sortTransactionsByDate() {
   for (let i = 0; i < validRows.length; i++) {
     const row = validRows[i];
     const dateVal = row[1];                                   // B
+    const natureType = String(row[2] || '').trim();           // C: طبيعة الحركة
     const projectCode = row[4];                               // E
     const party = String(row[8] || '').trim();                // I
     const amount = Number(row[9]) || 0;                       // J
@@ -1177,6 +1178,9 @@ function sortTransactionsByDate() {
     const paymentTermType = String(row[17] || '').trim();     // R
     const weeks = Number(row[18]) || 0;                       // S
     const customDate = row[19];                               // T
+
+    // 🆕 تحديد إذا كانت الحركة تمويل (دخول قرض) - لمعالجة خاصة
+    const isFundingIn = natureType.indexOf('تمويل') !== -1 && natureType.indexOf('سداد تمويل') === -1;
 
     // ─────────────────────────────────────────────────────────
     // M: حساب القيمة بالدولار
@@ -1196,6 +1200,7 @@ function sortTransactionsByDate() {
 
     // ─────────────────────────────────────────────────────────
     // O, V: حساب الرصيد وحالة السداد
+    // 🆕 التمويل (دخول قرض): رغم أنه دائن دفعة، يزيد رصيد الممول (دين على الشركة)
     // ─────────────────────────────────────────────────────────
     let balance = '';
     let status = '';
@@ -1208,12 +1213,17 @@ function sortTransactionsByDate() {
       if (movementKind === 'مدين استحقاق') {
         partyBalances[party] += amountUsd;
       } else if (movementKind === 'دائن دفعة') {
-        partyBalances[party] -= amountUsd;
+        // 🆕 معالجة خاصة للتمويل: يزيد الرصيد (دين على الشركة)
+        if (isFundingIn) {
+          partyBalances[party] += amountUsd; // قرض مستلم = دين على الشركة
+        } else {
+          partyBalances[party] -= amountUsd; // دفعة عادية = تسوية
+        }
       }
 
       balance = Math.round(partyBalances[party] * 100) / 100;
 
-      if (movementKind === 'دائن دفعة') {
+      if (movementKind === 'دائن دفعة' && !isFundingIn) {
         status = CONFIG.PAYMENT_STATUS.OPERATION;
       } else if (balance > 0.01) {
         status = CONFIG.PAYMENT_STATUS.PENDING;
@@ -1803,6 +1813,7 @@ function refreshValueAndBalanceFormulas() {
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
     const dateVal = row[1];                    // B: تاريخ الحركة (index 1)
+    const natureType = String(row[2] || '').trim(); // C: طبيعة الحركة (index 2)
     const projectCode = row[4];                // E: كود المشروع (index 4)
     const party = String(row[8] || '').trim(); // I: الطرف (index 8)
     const amount = Number(row[9]) || 0;        // J: المبلغ (index 9)
@@ -1812,6 +1823,9 @@ function refreshValueAndBalanceFormulas() {
     const paymentTermType = String(row[17] || '').trim(); // R: نوع شرط الدفع (index 17)
     const weeks = Number(row[18]) || 0;        // S: عدد الأسابيع (index 18)
     const customDate = row[19];                // T: تاريخ مخصص (index 19)
+
+    // 🆕 تحديد إذا كانت الحركة تمويل (دخول قرض) - لمعالجة خاصة
+    const isFundingIn = natureType.indexOf('تمويل') !== -1 && natureType.indexOf('سداد تمويل') === -1;
 
     // ═══════════════════════════════════════════════════════════
     // 1. حساب القيمة بالدولار (M)
@@ -1837,6 +1851,7 @@ function refreshValueAndBalanceFormulas() {
 
     // ═══════════════════════════════════════════════════════════
     // 2. حساب الرصيد (O) وحالة السداد (V)
+    // 🆕 التمويل (دخول قرض): رغم أنه دائن دفعة، يزيد رصيد الممول (دين على الشركة)
     // ═══════════════════════════════════════════════════════════
     let balance = '';
     let status = '';
@@ -1849,13 +1864,18 @@ function refreshValueAndBalanceFormulas() {
       if (movementKind === 'مدين استحقاق') {
         partyBalances[party] += amountUsd;
       } else if (movementKind === 'دائن دفعة') {
-        partyBalances[party] -= amountUsd;
+        // 🆕 معالجة خاصة للتمويل: يزيد الرصيد (دين على الشركة)
+        if (isFundingIn) {
+          partyBalances[party] += amountUsd; // قرض مستلم = دين على الشركة
+        } else {
+          partyBalances[party] -= amountUsd; // دفعة عادية = تسوية
+        }
       }
 
       balance = Math.round(partyBalances[party] * 100) / 100;
 
       // حساب حالة السداد (باستخدام CONFIG.PAYMENT_STATUS للتوحيد)
-      if (movementKind === 'دائن دفعة') {
+      if (movementKind === 'دائن دفعة' && !isFundingIn) {
         status = CONFIG.PAYMENT_STATUS.OPERATION; // 'عملية دفع/تحصيل'
       } else if (balance > 0.01) {
         status = CONFIG.PAYMENT_STATUS.PENDING; // 'معلق'
@@ -6429,14 +6449,15 @@ function onEdit(e) {
 
   // ═══════════════════════════════════════════════════════════
   // 🔗 الربط التلقائي: طبيعة الحركة (C=3) ← نوع الحركة (N=14)
-  // استحقاق أو تمويل (بدون سداد) = مدين استحقاق | غير ذلك = دائن دفعة
+  // استحقاق = مدين استحقاق | دفعة/تحصيل/تمويل = دائن دفعة
+  // 🆕 تمويل (دخول قرض) = دائن دفعة (نقد داخل) + يُسجل كدين ضمنياً
   // ═══════════════════════════════════════════════════════════
   if (col === 3 && value) {
     const valueStr = String(value);
-    // تمويل = استحقاق (التزام على الشركة) لكن ليس "سداد تمويل"
+    // فقط "استحقاق" يُعتبر مدين استحقاق
+    // "تمويل" (دخول قرض) = دائن دفعة (لأنه نقد داخل)
     const isAccrual = valueStr.indexOf('استحقاق') !== -1;
-    const isFunding = valueStr.indexOf('تمويل') !== -1 && valueStr.indexOf('سداد تمويل') === -1;
-    const movementType = (isAccrual || isFunding) ? 'مدين استحقاق' : 'دائن دفعة';
+    const movementType = isAccrual ? 'مدين استحقاق' : 'دائن دفعة';
     sheet.getRange(row, 14).setValue(movementType);
   }
 
@@ -7571,10 +7592,9 @@ function reviewAndFixMovementTypes() {
     if (!natureValue) continue;
 
     // تحديد النوع الصحيح
-    // تمويل = استحقاق (التزام على الشركة) لكن ليس "سداد تمويل"
+    // 🆕 تمويل (دخول قرض) = دائن دفعة (نقد داخل) - المنطق الجديد
     const isAccrual = natureValue.indexOf('استحقاق') !== -1;
-    const isFunding = natureValue.indexOf('تمويل') !== -1 && natureValue.indexOf('سداد تمويل') === -1;
-    const correctType = (isAccrual || isFunding) ? 'مدين استحقاق' : 'دائن دفعة';
+    const correctType = isAccrual ? 'مدين استحقاق' : 'دائن دفعة';
 
     // التحقق من التطابق
     if (currentType !== correctType) {
