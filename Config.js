@@ -41,6 +41,10 @@ const CONFIG = {
         INCOME_STATEMENT: 'قائمة الدخل',
         BALANCE_SHEET: 'المركز المالي',
 
+        // النظام المحاسبي
+        CHART_OF_ACCOUNTS: 'شجرة الحسابات',
+        GENERAL_LEDGER: 'دفتر الأستاذ العام',
+
         // حسابات البنك والخزنة
         BANK_USD: 'حساب البنك - دولار',
         BANK_TRY: 'حساب البنك - ليرة',
@@ -74,7 +78,9 @@ const CONFIG = {
             TOTALS: '#1b5e20',
             DETAILS: '#01579b',
             INCOME_STATEMENT: '#1565c0',
-            BALANCE_SHEET: '#00695c'
+            BALANCE_SHEET: '#00695c',
+            CHART_OF_ACCOUNTS: '#5d4037',
+            GENERAL_LEDGER: '#37474f'
         },
 
         // ألوان الخلفية

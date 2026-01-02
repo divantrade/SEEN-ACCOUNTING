@@ -57,6 +57,9 @@ function onOpen() {
       ui.createMenu('📊 القوائم المالية')
         .addItem('📈 قائمة الدخل', 'rebuildIncomeStatement')
         .addItem('📋 المركز المالي', 'rebuildBalanceSheet')
+        .addSeparator()
+        .addItem('🌳 شجرة الحسابات', 'rebuildChartOfAccounts')
+        .addItem('📒 دفتر الأستاذ العام', 'showGeneralLedger')
     )
 
     // البنك وخزنة العهدة
@@ -5628,6 +5631,482 @@ function rebuildBalanceSheet(silent) {
 
   if (silent) return { success: true, name: 'المركز المالي' };
   SpreadsheetApp.getUi().alert('✅ تم تحديث "المركز المالي".\n\nإجمالي الأصول: $' + totalAssets.toLocaleString() + '\nإجمالي الخصوم: $' + totalLiabilities.toLocaleString() + '\nصافي الأصول: $' + equity.toLocaleString());
+}
+
+// ==================== شجرة الحسابات (Chart of Accounts) ====================
+/**
+ * الحسابات الافتراضية لشجرة الحسابات المحاسبية
+ * مبنية على المعايير المحاسبية مع تخصيص لطبيعة عمل الأفلام الوثائقية
+ */
+const DEFAULT_ACCOUNTS = [
+  // الأصول (1xxx)
+  { code: '1000', name: 'الأصول', type: 'أصول', parent: '', level: 0 },
+  { code: '1100', name: 'الأصول المتداولة', type: 'أصول', parent: '1000', level: 1 },
+  { code: '1110', name: 'النقدية وما في حكمها', type: 'أصول', parent: '1100', level: 2 },
+  { code: '1111', name: 'البنك - دولار', type: 'أصول', parent: '1110', level: 3 },
+  { code: '1112', name: 'البنك - ليرة', type: 'أصول', parent: '1110', level: 3 },
+  { code: '1113', name: 'خزنة العهدة - دولار', type: 'أصول', parent: '1110', level: 3 },
+  { code: '1114', name: 'خزنة العهدة - ليرة', type: 'أصول', parent: '1110', level: 3 },
+  { code: '1115', name: 'البطاقة - ليرة', type: 'أصول', parent: '1110', level: 3 },
+  { code: '1120', name: 'الذمم المدينة', type: 'أصول', parent: '1100', level: 2 },
+  { code: '1121', name: 'ذمم العملاء', type: 'أصول', parent: '1120', level: 3 },
+  { code: '1122', name: 'التأمينات المدفوعة', type: 'أصول', parent: '1120', level: 3 },
+
+  // الخصوم (2xxx)
+  { code: '2000', name: 'الخصوم', type: 'خصوم', parent: '', level: 0 },
+  { code: '2100', name: 'الخصوم المتداولة', type: 'خصوم', parent: '2000', level: 1 },
+  { code: '2110', name: 'الذمم الدائنة', type: 'خصوم', parent: '2100', level: 2 },
+  { code: '2111', name: 'ذمم الموردين', type: 'خصوم', parent: '2110', level: 3 },
+  { code: '2120', name: 'القروض والتمويل', type: 'خصوم', parent: '2100', level: 2 },
+  { code: '2121', name: 'قروض الممولين', type: 'خصوم', parent: '2120', level: 3 },
+
+  // حقوق الملكية (3xxx)
+  { code: '3000', name: 'حقوق الملكية', type: 'حقوق ملكية', parent: '', level: 0 },
+  { code: '3100', name: 'رأس المال', type: 'حقوق ملكية', parent: '3000', level: 1 },
+  { code: '3200', name: 'الأرباح المحتجزة', type: 'حقوق ملكية', parent: '3000', level: 1 },
+
+  // الإيرادات (4xxx)
+  { code: '4000', name: 'الإيرادات', type: 'إيرادات', parent: '', level: 0 },
+  { code: '4100', name: 'إيرادات المشاريع', type: 'إيرادات', parent: '4000', level: 1 },
+  { code: '4110', name: 'إيرادات عقود الأفلام', type: 'إيرادات', parent: '4100', level: 2 },
+  { code: '4120', name: 'إيرادات حقوق البث', type: 'إيرادات', parent: '4100', level: 2 },
+  { code: '4200', name: 'إيرادات أخرى', type: 'إيرادات', parent: '4000', level: 1 },
+
+  // المصروفات (5xxx)
+  { code: '5000', name: 'المصروفات', type: 'مصروفات', parent: '', level: 0 },
+  { code: '5100', name: 'مصروفات الإنتاج', type: 'مصروفات', parent: '5000', level: 1 },
+  { code: '5110', name: 'أجور الفريق', type: 'مصروفات', parent: '5100', level: 2 },
+  { code: '5120', name: 'تكاليف التصوير', type: 'مصروفات', parent: '5100', level: 2 },
+  { code: '5130', name: 'تكاليف المونتاج', type: 'مصروفات', parent: '5100', level: 2 },
+  { code: '5140', name: 'تكاليف السفر', type: 'مصروفات', parent: '5100', level: 2 },
+  { code: '5200', name: 'مصروفات إدارية', type: 'مصروفات', parent: '5000', level: 1 },
+  { code: '5210', name: 'إيجارات', type: 'مصروفات', parent: '5200', level: 2 },
+  { code: '5220', name: 'مصروفات مكتبية', type: 'مصروفات', parent: '5200', level: 2 },
+  { code: '5300', name: 'مصروفات تمويلية', type: 'مصروفات', parent: '5000', level: 1 },
+  { code: '5310', name: 'عمولات بنكية', type: 'مصروفات', parent: '5300', level: 2 },
+  { code: '5320', name: 'فوائد قروض', type: 'مصروفات', parent: '5300', level: 2 }
+];
+
+/**
+ * إنشاء شيت شجرة الحسابات مع البيانات الافتراضية
+ */
+function createChartOfAccountsSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.CHART_OF_ACCOUNTS);
+
+  const headers = [
+    'رقم الحساب',    // A
+    'اسم الحساب',    // B
+    'نوع الحساب',    // C
+    'الحساب الأب',   // D
+    'المستوى',       // E
+    'الرصيد الحالي', // F
+    'ملاحظات'        // G
+  ];
+  const widths = [120, 200, 120, 120, 80, 150, 200];
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.CHART_OF_ACCOUNTS);
+
+  return sheet;
+}
+
+/**
+ * إعادة بناء شجرة الحسابات أو إنشائها إذا لم تكن موجودة
+ * @param {boolean} silent - إذا كان true لا يظهر رسالة تأكيد
+ */
+function rebuildChartOfAccounts(silent) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // التحقق من وجود الشيت
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.CHART_OF_ACCOUNTS);
+  const isNew = !sheet;
+
+  if (isNew) {
+    sheet = createChartOfAccountsSheet(ss);
+  }
+
+  // إذا كان الشيت جديد، نضيف الحسابات الافتراضية
+  if (isNew) {
+    const rows = DEFAULT_ACCOUNTS.map(acc => [
+      acc.code,
+      acc.name,
+      acc.type,
+      acc.parent,
+      acc.level,
+      0,  // الرصيد الحالي (سيُحسب لاحقاً)
+      ''  // ملاحظات
+    ]);
+
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+
+      // تنسيق المسافات حسب المستوى
+      for (let i = 0; i < rows.length; i++) {
+        const level = DEFAULT_ACCOUNTS[i].level;
+        const indent = '    '.repeat(level);
+        sheet.getRange(i + 2, 2).setValue(indent + DEFAULT_ACCOUNTS[i].name);
+      }
+
+      // تنسيق الأرقام
+      sheet.getRange(2, 6, rows.length, 1).setNumberFormat('$#,##0.00');
+
+      // تلوين الصفوف حسب نوع الحساب
+      for (let i = 0; i < rows.length; i++) {
+        const rowNum = i + 2;
+        const level = DEFAULT_ACCOUNTS[i].level;
+
+        if (level === 0) {
+          // الحسابات الرئيسية
+          sheet.getRange(rowNum, 1, 1, 7)
+            .setBackground(CONFIG.COLORS.BG.LIGHT_BLUE)
+            .setFontWeight('bold');
+        } else if (level === 1) {
+          // الحسابات الفرعية المستوى الأول
+          sheet.getRange(rowNum, 1, 1, 7)
+            .setBackground(CONFIG.COLORS.BG.LIGHT_GREEN_2);
+        }
+      }
+    }
+  }
+
+  // تحديث الأرصدة من دفتر الحركات
+  updateAccountBalances_(ss, sheet);
+
+  if (silent) return { success: true, name: 'شجرة الحسابات' };
+
+  const msg = isNew ?
+    '✅ تم إنشاء "شجرة الحسابات" مع الحسابات الافتراضية.' :
+    '✅ تم تحديث أرصدة "شجرة الحسابات".';
+  SpreadsheetApp.getUi().alert(msg);
+}
+
+/**
+ * تحديث أرصدة الحسابات من دفتر الحركات المالية
+ */
+function updateAccountBalances_(ss, chartSheet) {
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  if (!transSheet) return;
+
+  const transData = transSheet.getDataRange().getValues();
+  const chartData = chartSheet.getDataRange().getValues();
+
+  // حساب الأرصدة
+  const balances = {
+    '1111': 0, // البنك - دولار
+    '1112': 0, // البنك - ليرة
+    '1113': 0, // خزنة العهدة - دولار
+    '1114': 0, // خزنة العهدة - ليرة
+    '1115': 0, // البطاقة - ليرة
+    '1121': 0, // ذمم العملاء (مستحق من العملاء)
+    '1122': 0, // التأمينات المدفوعة
+    '2111': 0, // ذمم الموردين (مستحق للموردين)
+    '2121': 0, // قروض الممولين
+    '4110': 0, // إيرادات عقود الأفلام
+    '5100': 0  // مصروفات الإنتاج
+  };
+
+  // حساب الأرصدة من شيتات البنك والخزنة
+  balances['1111'] = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_USD);
+  balances['1112'] = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_TRY);
+  balances['1113'] = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_USD);
+  balances['1114'] = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_TRY);
+  balances['1115'] = getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CARD_TRY);
+
+  // حساب الذمم من دفتر الحركات
+  for (let i = 1; i < transData.length; i++) {
+    const row = transData[i];
+    const natureType = String(row[2] || '');
+    const amountUsd = Number(row[12]) || 0;
+
+    if (!amountUsd) continue;
+
+    // الإيرادات
+    if (natureType.includes('استحقاق إيراد')) {
+      balances['1121'] += amountUsd;  // ذمم العملاء (مدين)
+      balances['4110'] += amountUsd;  // إيرادات (دائن)
+    }
+    if (natureType.includes('تحصيل إيراد')) {
+      balances['1121'] -= amountUsd;  // تخفيض ذمم العملاء
+    }
+
+    // المصروفات
+    if (natureType.includes('استحقاق مصروف')) {
+      balances['2111'] += amountUsd;  // ذمم الموردين (دائن)
+      balances['5100'] += amountUsd;  // مصروفات (مدين)
+    }
+    if (natureType.includes('دفعة مصروف')) {
+      balances['2111'] -= amountUsd;  // تخفيض ذمم الموردين
+    }
+
+    // التمويل
+    if (natureType.includes('تمويل') &&
+        !natureType.includes('سداد تمويل') &&
+        !natureType.includes('استلام تمويل')) {
+      balances['2121'] += amountUsd;  // قروض الممولين (دائن)
+    }
+    if (natureType.includes('سداد تمويل')) {
+      balances['2121'] -= amountUsd;  // تخفيض القروض
+    }
+
+    // التأمينات
+    if (natureType.includes('تأمين مدفوع')) {
+      balances['1122'] += amountUsd;  // تأمينات مدفوعة (مدين)
+    }
+    if (natureType.includes('استرداد تأمين')) {
+      balances['1122'] -= amountUsd;  // تخفيض التأمينات
+    }
+  }
+
+  // تحديث الأرصدة في الشيت
+  for (let i = 1; i < chartData.length; i++) {
+    const accountCode = String(chartData[i][0]);
+    if (balances[accountCode] !== undefined) {
+      chartSheet.getRange(i + 1, 6).setValue(balances[accountCode]);
+    }
+  }
+}
+
+// ==================== دفتر الأستاذ العام (General Ledger) ====================
+/**
+ * إنشاء شيت دفتر الأستاذ العام
+ */
+function createGeneralLedgerSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.GENERAL_LEDGER);
+
+  const headers = [
+    'التاريخ',        // A
+    'رقم الحركة',     // B
+    'البيان',         // C
+    'رقم الحساب',     // D
+    'اسم الحساب',     // E
+    'مدين',           // F
+    'دائن',           // G
+    'الرصيد',         // H
+    'المرجع'          // I
+  ];
+  const widths = [100, 100, 250, 100, 180, 120, 120, 130, 120];
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.GENERAL_LEDGER);
+
+  return sheet;
+}
+
+/**
+ * عرض دفتر الأستاذ لحساب معين
+ * @param {string} accountCode - رقم الحساب (اختياري، إذا لم يُحدد يُظهر كل الحسابات)
+ */
+function showGeneralLedger(accountCode) {
+  const ui = SpreadsheetApp.getUi();
+
+  // إذا لم يُحدد رقم الحساب، نطلبه من المستخدم
+  if (!accountCode) {
+    const response = ui.prompt(
+      '📒 دفتر الأستاذ العام',
+      'أدخل رقم الحساب (مثال: 1111 للبنك دولار)\nأو اتركه فارغاً لعرض كل الحركات:',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (response.getSelectedButton() !== ui.Button.OK) return;
+    accountCode = response.getResponseText().trim();
+  }
+
+  rebuildGeneralLedger(false, accountCode);
+}
+
+/**
+ * إعادة بناء دفتر الأستاذ العام
+ * @param {boolean} silent - إذا كان true لا يظهر رسالة تأكيد
+ * @param {string} filterAccount - رقم الحساب للتصفية (اختياري)
+ */
+function rebuildGeneralLedger(silent, filterAccount) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    if (silent) return { success: false, name: 'دفتر الأستاذ العام', error: 'دفتر الحركات غير موجود' };
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
+    return;
+  }
+
+  // إنشاء أو الحصول على الشيت
+  let ledgerSheet = ss.getSheetByName(CONFIG.SHEETS.GENERAL_LEDGER);
+  if (!ledgerSheet) {
+    ledgerSheet = createGeneralLedgerSheet(ss);
+  } else {
+    // مسح المحتوى مع الاحتفاظ بالهيدر
+    if (ledgerSheet.getMaxRows() > 1) {
+      ledgerSheet.getRange(2, 1, ledgerSheet.getMaxRows() - 1, 9).clearContent();
+    }
+  }
+
+  // قراءة بيانات الحركات
+  const transData = transSheet.getDataRange().getValues();
+
+  // قراءة شجرة الحسابات للحصول على أسماء الحسابات
+  const chartSheet = ss.getSheetByName(CONFIG.SHEETS.CHART_OF_ACCOUNTS);
+  const accountNames = {};
+  if (chartSheet) {
+    const chartData = chartSheet.getDataRange().getValues();
+    for (let i = 1; i < chartData.length; i++) {
+      accountNames[chartData[i][0]] = String(chartData[i][1]).trim();
+    }
+  }
+
+  // تحويل الحركات إلى قيود محاسبية
+  const ledgerEntries = [];
+
+  for (let i = 1; i < transData.length; i++) {
+    const row = transData[i];
+    const transNum = row[0];           // A: رقم الحركة
+    const date = row[1];               // B: التاريخ
+    const natureType = String(row[2] || '');  // C: طبيعة الحركة
+    const description = row[7] || '';  // H: الوصف
+    const partyName = row[8] || '';    // I: اسم الطرف
+    const amountUsd = Number(row[12]) || 0;   // M: القيمة بالدولار
+    const refNum = row[15] || '';      // P: رقم مرجعي
+
+    if (!amountUsd || !date) continue;
+
+    const fullDescription = partyName ? `${description} - ${partyName}` : description;
+    const formattedDate = date instanceof Date ?
+      Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy') :
+      date;
+
+    // تحديد الحسابات المدينة والدائنة حسب طبيعة الحركة
+    let entries = [];
+
+    if (natureType.includes('استحقاق مصروف')) {
+      // مصروف: مدين مصروفات، دائن ذمم الموردين
+      entries.push({ account: '5100', name: 'مصروفات الإنتاج', debit: amountUsd, credit: 0 });
+      entries.push({ account: '2111', name: 'ذمم الموردين', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('دفعة مصروف')) {
+      // دفع للمورد: مدين ذمم الموردين، دائن النقدية
+      entries.push({ account: '2111', name: 'ذمم الموردين', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('استحقاق إيراد')) {
+      // إيراد: مدين ذمم العملاء، دائن الإيرادات
+      entries.push({ account: '1121', name: 'ذمم العملاء', debit: amountUsd, credit: 0 });
+      entries.push({ account: '4110', name: 'إيرادات عقود الأفلام', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('تحصيل إيراد')) {
+      // تحصيل من عميل: مدين النقدية، دائن ذمم العملاء
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1121', name: 'ذمم العملاء', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('تمويل') &&
+             !natureType.includes('سداد تمويل') &&
+             !natureType.includes('استلام تمويل')) {
+      // تمويل (قرض): مدين النقدية، دائن القروض
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: '2121', name: 'قروض الممولين', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('سداد تمويل')) {
+      // سداد قرض: مدين القروض، دائن النقدية
+      entries.push({ account: '2121', name: 'قروض الممولين', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('تأمين مدفوع')) {
+      // تأمين مدفوع: مدين التأمينات، دائن النقدية
+      entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('استرداد تأمين')) {
+      // استرداد تأمين: مدين النقدية، دائن التأمينات
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: 0, credit: amountUsd });
+    }
+
+    // إضافة القيود
+    entries.forEach(entry => {
+      // التصفية حسب الحساب إذا تم تحديده
+      if (filterAccount && entry.account !== filterAccount) return;
+
+      ledgerEntries.push({
+        date: formattedDate,
+        transNum: transNum,
+        description: fullDescription,
+        accountCode: entry.account,
+        accountName: accountNames[entry.account] || entry.name,
+        debit: entry.debit,
+        credit: entry.credit,
+        ref: refNum
+      });
+    });
+  }
+
+  // ترتيب حسب التاريخ ثم رقم الحساب
+  ledgerEntries.sort((a, b) => {
+    if (a.accountCode !== b.accountCode) {
+      return a.accountCode.localeCompare(b.accountCode);
+    }
+    return String(a.date).localeCompare(String(b.date));
+  });
+
+  // حساب الرصيد التراكمي لكل حساب
+  const accountBalances = {};
+  const rows = [];
+
+  ledgerEntries.forEach(entry => {
+    if (!accountBalances[entry.accountCode]) {
+      accountBalances[entry.accountCode] = 0;
+    }
+
+    // الحسابات المدينة بطبيعتها (أصول، مصروفات): الرصيد = مدين - دائن
+    // الحسابات الدائنة بطبيعتها (خصوم، إيرادات، حقوق ملكية): الرصيد = دائن - مدين
+    const isDebitNature = entry.accountCode.startsWith('1') || entry.accountCode.startsWith('5');
+
+    if (isDebitNature) {
+      accountBalances[entry.accountCode] += entry.debit - entry.credit;
+    } else {
+      accountBalances[entry.accountCode] += entry.credit - entry.debit;
+    }
+
+    rows.push([
+      entry.date,
+      entry.transNum,
+      entry.description,
+      entry.accountCode,
+      entry.accountName,
+      entry.debit || '',
+      entry.credit || '',
+      accountBalances[entry.accountCode],
+      entry.ref
+    ]);
+  });
+
+  // كتابة البيانات
+  if (rows.length > 0) {
+    ledgerSheet.getRange(2, 1, rows.length, 9).setValues(rows);
+
+    // تنسيق الأرقام
+    ledgerSheet.getRange(2, 6, rows.length, 3).setNumberFormat('$#,##0.00');
+
+    // تلوين بديل للصفوف
+    let currentAccount = '';
+    let colorToggle = false;
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2;
+      const accountCode = rows[i][3];
+
+      if (accountCode !== currentAccount) {
+        currentAccount = accountCode;
+        colorToggle = !colorToggle;
+        // إضافة فاصل بصري عند تغيير الحساب
+        ledgerSheet.getRange(rowNum, 1, 1, 9)
+          .setBackground(colorToggle ? CONFIG.COLORS.BG.LIGHT_BLUE : CONFIG.COLORS.BG.WHITE);
+      } else {
+        ledgerSheet.getRange(rowNum, 1, 1, 9)
+          .setBackground(colorToggle ? CONFIG.COLORS.BG.LIGHT_BLUE : CONFIG.COLORS.BG.WHITE);
+      }
+    }
+  }
+
+  if (silent) return { success: true, name: 'دفتر الأستاذ العام' };
+
+  const filterMsg = filterAccount ? ` (حساب ${filterAccount})` : '';
+  SpreadsheetApp.getUi().alert(`✅ تم تحديث "دفتر الأستاذ العام"${filterMsg}.\n\nعدد القيود: ${rows.length}`);
 }
 
 // ========= التدفقات النقدية (تلقائي مع ترتيب الأعمدة الجديد) =========
