@@ -6770,11 +6770,11 @@ function reviewAndFixMovementTypes() {
     // تخطي الصفوف الفارغة
     if (!natureValue) continue;
 
-    // تحديد النوع الصحيح
-    // ✅ تمويل = دائن دفعة (نقد داخل) مع قيد ضمني للالتزام
-    // فقط الاستحقاقات = مدين استحقاق
-    const isAccrual = natureValue.indexOf('استحقاق') !== -1;
-    const correctType = isAccrual ? 'مدين استحقاق' : 'دائن دفعة';
+    // تحديد النوع الصحيح باستخدام الدالة المركزية
+    const correctType = getMovementTypeFromNature_(natureValue);
+
+    // تخطي إذا لم يتم التعرف على طبيعة الحركة
+    if (!correctType) continue;
 
     // التحقق من التطابق
     if (currentType !== correctType) {
@@ -6861,10 +6861,14 @@ function reviewMovementTypesOnly() {
       continue;
     }
 
-    // ✅ تمويل = دائن دفعة (نقد داخل) مع قيد ضمني للالتزام
-    // فقط الاستحقاقات = مدين استحقاق
-    const isAccrual = natureValue.indexOf('استحقاق') !== -1;
-    const correctType = isAccrual ? 'مدين استحقاق' : 'دائن دفعة';
+    // تحديد النوع الصحيح باستخدام الدالة المركزية
+    const correctType = getMovementTypeFromNature_(natureValue);
+
+    // تخطي إذا لم يتم التعرف على طبيعة الحركة
+    if (!correctType) {
+      emptyCount++;
+      continue;
+    }
 
     if (currentType === correctType) {
       correctCount++;
