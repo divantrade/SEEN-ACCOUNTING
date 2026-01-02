@@ -5966,10 +5966,18 @@ function rebuildGeneralLedger(silent, filterAccount) {
     const classification = String(row[3] || '');  // D: تصنيف الحركة
     const description = row[7] || '';  // H: الوصف
     const partyName = row[8] || '';    // I: اسم الطرف
+    const currency = String(row[10] || '').trim().toUpperCase();  // K: العملة
     const amountUsd = Number(row[12]) || 0;   // M: القيمة بالدولار
     const refNum = row[15] || '';      // P: رقم مرجعي
 
     if (!amountUsd || !date) continue;
+
+    // تحديد حسابات البنك والخزنة حسب العملة
+    const isTRY = currency === 'TRY' || currency === 'ليرة' || currency === 'LIRA';
+    const bankAccount = isTRY ? '1112' : '1111';
+    const bankName = isTRY ? 'البنك - ليرة' : 'البنك - دولار';
+    const cashAccount = isTRY ? '1114' : '1113';
+    const cashName = isTRY ? 'خزنة العهدة - ليرة' : 'خزنة العهدة - دولار';
 
     const fullDescription = partyName ? `${description} - ${partyName}` : (description || classification);
     const formattedDate = date instanceof Date ?
@@ -5987,7 +5995,7 @@ function rebuildGeneralLedger(silent, filterAccount) {
     else if (natureType.includes('دفعة مصروف')) {
       // دفع للمورد: مدين ذمم الموردين، دائن النقدية
       entries.push({ account: '2111', name: 'ذمم الموردين', debit: amountUsd, credit: 0 });
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('استحقاق إيراد')) {
       // إيراد: مدين ذمم العملاء، دائن الإيرادات
@@ -5996,29 +6004,29 @@ function rebuildGeneralLedger(silent, filterAccount) {
     }
     else if (natureType.includes('تحصيل إيراد')) {
       // تحصيل من عميل: مدين النقدية، دائن ذمم العملاء
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '1121', name: 'ذمم العملاء', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تمويل') &&
              !natureType.includes('سداد تمويل') &&
              !natureType.includes('استلام تمويل')) {
       // تمويل (قرض): مدين النقدية، دائن القروض
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '2121', name: 'قروض الممولين', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('سداد تمويل')) {
       // سداد قرض: مدين القروض، دائن النقدية
       entries.push({ account: '2121', name: 'قروض الممولين', debit: amountUsd, credit: 0 });
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تأمين مدفوع')) {
       // تأمين مدفوع: مدين التأمينات، دائن النقدية
       entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: amountUsd, credit: 0 });
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('استرداد تأمين')) {
       // استرداد تأمين: مدين النقدية، دائن التأمينات
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: 0, credit: amountUsd });
     }
     // ═══════════════════════════════════════════════════════════
@@ -6030,16 +6038,16 @@ function rebuildGeneralLedger(silent, filterAccount) {
 
       if (isTransferToCash) {
         // تحويل للخزنة = من البنك إلى الخزنة
-        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
-        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+        entries.push({ account: cashAccount, name: cashName, debit: amountUsd, credit: 0 });
+        entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
       } else if (isTransferToBank) {
         // تحويل للبنك = من الخزنة إلى البنك
-        entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
-        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: 0, credit: amountUsd });
+        entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
+        entries.push({ account: cashAccount, name: cashName, debit: 0, credit: amountUsd });
       } else {
         // تحويل داخلي غير محدد - افتراض تحويل للخزنة
-        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
-        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+        entries.push({ account: cashAccount, name: cashName, debit: amountUsd, credit: 0 });
+        entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
       }
     }
 
@@ -6428,10 +6436,18 @@ function rebuildJournalEntries(silent) {
     const classification = String(row[3] || '');  // D: تصنيف الحركة
     const description = row[7] || '';
     const partyName = row[8] || '';
+    const currency = String(row[10] || '').trim().toUpperCase();  // K: العملة
     const amountUsd = Number(row[12]) || 0;
     const refNum = row[15] || '';
 
     if (!amountUsd || !date) continue;
+
+    // تحديد حسابات البنك والخزنة حسب العملة
+    const isTRY = currency === 'TRY' || currency === 'ليرة' || currency === 'LIRA';
+    const bankAccount = isTRY ? '1112' : '1111';
+    const bankName = isTRY ? 'البنك - ليرة' : 'البنك - دولار';
+    const cashAccount = isTRY ? '1114' : '1113';
+    const cashName = isTRY ? 'خزنة العهدة - ليرة' : 'خزنة العهدة - دولار';
 
     const fullDescription = partyName ? `${description} - ${partyName}` : (description || classification);
     const formattedDate = date instanceof Date ?
@@ -6447,32 +6463,32 @@ function rebuildJournalEntries(silent) {
     }
     else if (natureType.includes('دفعة مصروف')) {
       entries.push({ account: '2111', name: 'ذمم الموردين', debit: amountUsd, credit: 0 });
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('استحقاق إيراد')) {
       entries.push({ account: '1121', name: 'ذمم العملاء', debit: amountUsd, credit: 0 });
       entries.push({ account: '4110', name: 'إيرادات عقود الأفلام', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تحصيل إيراد')) {
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '1121', name: 'ذمم العملاء', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تمويل') &&
              !natureType.includes('سداد تمويل') &&
              !natureType.includes('استلام تمويل')) {
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '2121', name: 'قروض الممولين', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('سداد تمويل')) {
       entries.push({ account: '2121', name: 'قروض الممولين', debit: amountUsd, credit: 0 });
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تأمين مدفوع')) {
       entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: amountUsd, credit: 0 });
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+      entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('استرداد تأمين')) {
-      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: 0, credit: amountUsd });
     }
     // ═══════════════════════════════════════════════════════════
@@ -6484,16 +6500,16 @@ function rebuildJournalEntries(silent) {
 
       if (isTransferToCash) {
         // تحويل للخزنة = من البنك إلى الخزنة
-        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
-        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+        entries.push({ account: cashAccount, name: cashName, debit: amountUsd, credit: 0 });
+        entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
       } else if (isTransferToBank) {
         // تحويل للبنك = من الخزنة إلى البنك
-        entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
-        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: 0, credit: amountUsd });
+        entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
+        entries.push({ account: cashAccount, name: cashName, debit: 0, credit: amountUsd });
       } else {
         // تحويل داخلي غير محدد - افتراض تحويل للخزنة
-        entries.push({ account: '1113', name: 'خزنة العهدة - دولار', debit: amountUsd, credit: 0 });
-        entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+        entries.push({ account: cashAccount, name: cashName, debit: amountUsd, credit: 0 });
+        entries.push({ account: bankAccount, name: bankName, debit: 0, credit: amountUsd });
       }
     }
 
