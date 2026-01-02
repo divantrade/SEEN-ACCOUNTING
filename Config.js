@@ -44,6 +44,8 @@ const CONFIG = {
         // النظام المحاسبي
         CHART_OF_ACCOUNTS: 'شجرة الحسابات',
         GENERAL_LEDGER: 'دفتر الأستاذ العام',
+        TRIAL_BALANCE: 'ميزان المراجعة',
+        JOURNAL_ENTRIES: 'قيود اليومية',
 
         // حسابات البنك والخزنة
         BANK_USD: 'حساب البنك - دولار',
@@ -80,7 +82,9 @@ const CONFIG = {
             INCOME_STATEMENT: '#1565c0',
             BALANCE_SHEET: '#00695c',
             CHART_OF_ACCOUNTS: '#5d4037',
-            GENERAL_LEDGER: '#37474f'
+            GENERAL_LEDGER: '#37474f',
+            TRIAL_BALANCE: '#455a64',
+            JOURNAL_ENTRIES: '#546e7a'
         },
 
         // ألوان الخلفية
