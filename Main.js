@@ -6169,7 +6169,9 @@ function rebuildBankAndCashFromTransactions(silent) {
 
      // 3) تحديد هل هي تمويل (قصير/طويل/سلفة قصيرة الأجل)
      const isFinancing =
-     // أي نوع تمويل مذكور بالاسم
+     // طبيعة الحركة = تمويل (بدون سداد تمويل)
+      (typeVal.indexOf('تمويل') !== -1 && typeVal.indexOf('سداد تمويل') === -1) ||
+     // أي نوع تمويل مذكور بالاسم في التصنيف أو البند
       classVal.indexOf('تمويل')  !== -1 ||
       detailsVal.indexOf('تمويل') !== -1 ||
 
