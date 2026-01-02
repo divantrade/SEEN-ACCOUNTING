@@ -10518,6 +10518,65 @@ function toggleTransactionsFilter() {
 // ==================== نموذج إضافة حركة (Transaction Form) ====================
 
 /**
+ * دالة اختبار لتشخيص مشكلة الأذونات
+ */
+function testFormPermissions() {
+  const ui = SpreadsheetApp.getUi();
+  let results = [];
+
+  try {
+    // اختبار 1: الوصول للسبريدشيت
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    results.push('✅ الوصول للسبريدشيت: نجح');
+    results.push('   اسم الملف: ' + ss.getName());
+
+    // اختبار 2: قراءة شيت المشاريع
+    const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+    if (projectsSheet) {
+      const lastRow = projectsSheet.getLastRow();
+      results.push('✅ شيت المشاريع: موجود (' + lastRow + ' صف)');
+    } else {
+      results.push('⚠️ شيت المشاريع: غير موجود');
+    }
+
+    // اختبار 3: قراءة شيت الأطراف
+    const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+    if (partiesSheet) {
+      const lastRow = partiesSheet.getLastRow();
+      results.push('✅ شيت الأطراف: موجود (' + lastRow + ' صف)');
+    } else {
+      results.push('⚠️ شيت الأطراف: غير موجود');
+    }
+
+    // اختبار 4: قراءة شيت البنود
+    const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+    if (itemsSheet) {
+      const lastRow = itemsSheet.getLastRow();
+      results.push('✅ شيت البنود: موجود (' + lastRow + ' صف)');
+    } else {
+      results.push('⚠️ شيت البنود: غير موجود');
+    }
+
+    // اختبار 5: قراءة CONFIG
+    results.push('✅ CONFIG.NATURE_TYPES: ' + CONFIG.NATURE_TYPES.length + ' عنصر');
+    results.push('✅ CONFIG.PAYMENT_METHODS: ' + CONFIG.PAYMENT_METHODS.length + ' عنصر');
+
+    // اختبار 6: HtmlService
+    try {
+      const html = HtmlService.createHtmlOutput('<p>test</p>');
+      results.push('✅ HtmlService: يعمل');
+    } catch (e) {
+      results.push('❌ HtmlService: ' + e.message);
+    }
+
+  } catch (e) {
+    results.push('❌ خطأ عام: ' + e.message);
+  }
+
+  ui.alert('🔍 نتائج الاختبار', results.join('\n'), ui.ButtonSet.OK);
+}
+
+/**
  * عرض نموذج إضافة حركة جديدة
  */
 function showTransactionForm() {
