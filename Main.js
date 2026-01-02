@@ -100,6 +100,8 @@ function onOpen() {
     // إعدادات متقدمة
     .addSubMenu(
       ui.createMenu('⚙️ إعدادات متقدمة')
+        .addItem('💾 حفظ الحركة المعلقة', 'processPendingTransaction')
+        .addSeparator()
         .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
         .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
         .addSeparator()
@@ -10667,6 +10669,41 @@ function getSmartFormData() {
     paymentMethods: CONFIG.PAYMENT_METHODS,
     paymentTerms: CONFIG.PAYMENT_TERMS.LIST
   };
+}
+
+/**
+ * تخزين بيانات النموذج مؤقتاً (لتجاوز مشكلة الأذونات)
+ * @param {string} jsonData بيانات النموذج بصيغة JSON
+ */
+function storeFormDataTemp(jsonData) {
+  const cache = CacheService.getUserCache();
+  cache.put('pendingTransaction', jsonData, 300); // تخزين لمدة 5 دقائق
+  return { success: true };
+}
+
+/**
+ * معالجة البيانات المخزنة وحفظ الحركة
+ */
+function processPendingTransaction() {
+  const cache = CacheService.getUserCache();
+  const jsonData = cache.get('pendingTransaction');
+
+  if (!jsonData) {
+    SpreadsheetApp.getUi().alert('⚠️ لا توجد بيانات معلقة للحفظ');
+    return;
+  }
+
+  const formData = JSON.parse(jsonData);
+  const result = submitSmartFormTransaction(formData);
+
+  // حذف البيانات المؤقتة
+  cache.remove('pendingTransaction');
+
+  SpreadsheetApp.getUi().alert(
+    '✅ تمت إضافة الحركة بنجاح!',
+    'رقم الحركة: ' + result.transNum + '\n' + result.summary,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
 }
 
 /**
