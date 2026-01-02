@@ -10682,7 +10682,7 @@ function getSmartFormData() {
  * تخزين بيانات النموذج مؤقتاً باستخدام ScriptProperties
  * @param {string} jsonData بيانات النموذج بصيغة JSON
  */
-function storeFormDataTemp(jsonData) {
+function cacheTempFormData(jsonData) {
   const props = PropertiesService.getScriptProperties();
   props.setProperty('pendingTransaction', jsonData);
   props.setProperty('pendingTransactionTime', new Date().toISOString());
@@ -10702,7 +10702,7 @@ function processPendingTransaction() {
   }
 
   const formData = JSON.parse(jsonData);
-  const result = submitSmartFormTransaction(formData);
+  const result = saveTransactionData(formData);
 
   // حذف البيانات المؤقتة
   props.deleteProperty('pendingTransaction');
@@ -10740,7 +10740,7 @@ function manualTransactionEntry() {
 
   try {
     const formData = JSON.parse(jsonData);
-    const result = submitSmartFormTransaction(formData);
+    const result = saveTransactionData(formData);
 
     ui.alert(
       '✅ تمت إضافة الحركة بنجاح!',
@@ -10757,7 +10757,7 @@ function manualTransactionEntry() {
  * @param {Object} formData بيانات النموذج
  * @returns {Object} نتيجة الحفظ
  */
-function submitSmartFormTransaction(formData) {
+function saveTransactionData(formData) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
 

@@ -713,9 +713,9 @@
               document.getElementById('successState').style.display = 'block';
               showJsonFallback('فشل الحفظ: ' + (err2.message || err.message));
             })
-            .storeFormDataTemp(jsonData);
+            .cacheTempFormData(jsonData);
         })
-        .submitSmartFormTransaction(formData);
+        .saveTransactionData(formData);
     });
 
     function formatCustomDueDate() {
