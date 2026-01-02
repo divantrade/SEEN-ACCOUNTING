@@ -15,6 +15,7 @@ function onOpen() {
 
     // الاستخدام اليومي العادي
     .addItem('➕ إضافة حركة جديدة (نموذج)', 'showTransactionForm')
+    .addItem('⚡ إضافة حركة سريعة', 'quickTransactionEntry')
     .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addItem('🔍 تفعيل/إلغاء الفلتر', 'toggleFilter')
     .addSeparator()
@@ -10749,6 +10750,134 @@ function manualTransactionEntry() {
     );
   } catch (e) {
     ui.alert('❌ خطأ في تنسيق البيانات: ' + e.message);
+  }
+}
+
+/**
+ * إدخال حركة سريعة عبر نوافذ متتالية (بديل للنموذج HTML)
+ * يعمل بدون مشاكل الصلاحيات
+ */
+function quickTransactionEntry() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // جلب البيانات للقوائم
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+
+  // جمع بيانات المشاريع
+  let projectsList = '';
+  if (projectsSheet && projectsSheet.getLastRow() > 1) {
+    const projects = projectsSheet.getRange(2, 1, projectsSheet.getLastRow() - 1, 2).getValues();
+    projectsList = projects.filter(r => r[0]).map(r => `${r[0]} - ${r[1]}`).join('\n');
+  }
+
+  // 1. اختيار المشروع
+  const projectResponse = ui.prompt(
+    '📁 الخطوة 1/7: المشروع',
+    'أدخل كود المشروع:\n\nالمشاريع المتاحة:\n' + projectsList.substring(0, 500),
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (projectResponse.getSelectedButton() !== ui.Button.OK) return;
+  const projectCode = projectResponse.getResponseText().trim();
+
+  // 2. طبيعة الحركة
+  const natureResponse = ui.prompt(
+    '📋 الخطوة 2/7: طبيعة الحركة',
+    'اختر رقم طبيعة الحركة:\n\n' +
+    '1. استحقاق مصروف\n' +
+    '2. دفعة مصروف\n' +
+    '3. استحقاق إيراد\n' +
+    '4. تحصيل إيراد\n' +
+    '5. تمويل\n' +
+    '6. تحويل داخلي',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (natureResponse.getSelectedButton() !== ui.Button.OK) return;
+  const natureTypes = ['استحقاق مصروف', 'دفعة مصروف', 'استحقاق إيراد', 'تحصيل إيراد', 'تمويل', 'تحويل داخلي'];
+  const natureType = natureTypes[parseInt(natureResponse.getResponseText()) - 1] || 'استحقاق مصروف';
+
+  // 3. البند والتصنيف
+  const itemResponse = ui.prompt(
+    '📄 الخطوة 3/7: البند',
+    'أدخل اسم البند (مثال: مونتاج، تصوير، إيجار):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (itemResponse.getSelectedButton() !== ui.Button.OK) return;
+  const item = itemResponse.getResponseText().trim();
+
+  // 4. المورد/الجهة
+  const partyResponse = ui.prompt(
+    '👤 الخطوة 4/7: المورد/الجهة',
+    'أدخل اسم المورد أو الجهة (أو اتركه فارغاً):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (partyResponse.getSelectedButton() !== ui.Button.OK) return;
+  const partyName = partyResponse.getResponseText().trim();
+
+  // 5. المبلغ والعملة
+  const amountResponse = ui.prompt(
+    '💰 الخطوة 5/7: المبلغ',
+    'أدخل المبلغ والعملة (مثال: 1000 USD أو 5000 TRY):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (amountResponse.getSelectedButton() !== ui.Button.OK) return;
+  const amountParts = amountResponse.getResponseText().trim().split(/\s+/);
+  const amount = parseFloat(amountParts[0]) || 0;
+  const currency = (amountParts[1] || 'USD').toUpperCase();
+
+  // 6. سعر الصرف (إذا لزم)
+  let exchangeRate = 1;
+  if (currency !== 'USD') {
+    const rateResponse = ui.prompt(
+      '💱 الخطوة 6/7: سعر الصرف',
+      `أدخل سعر صرف ${currency} مقابل الدولار:`,
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (rateResponse.getSelectedButton() !== ui.Button.OK) return;
+    exchangeRate = parseFloat(rateResponse.getResponseText()) || 1;
+  }
+
+  // 7. التفاصيل
+  const detailsResponse = ui.prompt(
+    '📝 الخطوة 7/7: التفاصيل',
+    'أدخل تفاصيل الحركة (اختياري):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (detailsResponse.getSelectedButton() !== ui.Button.OK) return;
+  const details = detailsResponse.getResponseText().trim();
+
+  // تجميع البيانات
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  const formData = {
+    date: today,
+    natureType: natureType,
+    classification: natureType.includes('مصروف') ? 'مصروفات مباشرة' : 'إيرادات',
+    projectCode: projectCode,
+    item: item,
+    partyName: partyName,
+    details: details,
+    amount: amount.toString(),
+    currency: currency,
+    exchangeRate: exchangeRate.toString(),
+    paymentMethod: 'تحويل بنكي',
+    refNumber: '',
+    paymentTerm: '',
+    weeksCount: '',
+    customDueDate: '',
+    notes: ''
+  };
+
+  // حفظ الحركة
+  try {
+    const result = saveTransactionData(formData);
+    ui.alert(
+      '✅ تمت إضافة الحركة بنجاح!',
+      `رقم الحركة: ${result.transNum}\n${result.summary}`,
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert('❌ خطأ', e.message, ui.ButtonSet.OK);
   }
 }
 
