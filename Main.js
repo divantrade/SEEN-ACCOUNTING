@@ -10586,12 +10586,25 @@ function testFormPermissions() {
 function showTransactionForm() {
   // جلب البيانات أولاً
   const formData = getSmartFormData();
+  
+  // تحويل البيانات إلى JSON string آمن
+  const formDataJson = JSON.stringify(formData)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
 
-  // إنشاء قالب HTML مع البيانات
-  const template = HtmlService.createTemplateFromFile('TransactionForm');
-  template.initialData = JSON.stringify(formData);
+  // إنشاء HTML مع حقن البيانات مباشرة
+  let htmlContent = HtmlService.createHtmlOutputFromFile('TransactionForm').getContent();
+  
+  // حقن البيانات في window.FORM_DATA قبل تحميل DOM
+  htmlContent = htmlContent.replace(
+    '<script>',
+    '<script>\nwindow.FORM_DATA = JSON.parse("' + formDataJson + '");\n'
+  );
 
-  const html = template.evaluate()
+  const html = HtmlService.createHtmlOutput(htmlContent)
     .setWidth(520)
     .setHeight(750)
     .setTitle('إضافة حركة جديدة');

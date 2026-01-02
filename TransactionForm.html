@@ -466,23 +466,14 @@
     let todayDate = '';
     let lastFormData = null;  // لتخزين بيانات النموذج عند الفشل
 
-    // البيانات الممررة من السيرفر مباشرة
-    const initialDataJson = <?= initialData ?>;
-
     // تحميل البيانات عند فتح النافذة
     document.addEventListener('DOMContentLoaded', function () {
       try {
-        // استخدام البيانات الممررة مباشرة بدلاً من استدعاء السيرفر
-        if (initialDataJson && typeof initialDataJson === 'object') {
-          onDataLoaded(initialDataJson);
-        } else if (typeof google !== 'undefined' && google.script && google.script.run) {
-          // fallback للطريقة القديمة
-          google.script.run
-            .withSuccessHandler(onDataLoaded)
-            .withFailureHandler(onError)
-            .getSmartFormData();
+        // استخدام البيانات الممررة مباشرة من window.FORM_DATA
+        if (window.FORM_DATA && typeof window.FORM_DATA === 'object') {
+          onDataLoaded(window.FORM_DATA);
         } else {
-          throw new Error('لا يمكن تحميل البيانات - google.script غير متاح');
+          throw new Error('لم يتم تحميل البيانات من السيرفر');
         }
       } catch (e) {
         onError({ message: 'خطأ في تحميل النموذج: ' + e.message });
