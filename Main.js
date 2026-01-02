@@ -833,8 +833,20 @@ function applyConditionalFormatting(sheet, lastRow) {
   const maxRows = Math.max(lastRow, 1000);
   const dataRange = sheet.getRange(2, 1, maxRows, 24); // من A إلى X
 
-  // استحقاق = برتقالي فاتح
-  // استخدام INDIRECT للتأكد من أن الصيغة تعمل مع كل صف
+  // ═══════════════════════════════════════════════════════════
+  // 1. تمويل (دخول قرض) = أخضر فاتح جداً - الأولوية الأعلى
+  // ═══════════════════════════════════════════════════════════
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=AND($C2<>"",ISNUMBER(SEARCH("تمويل",$C2)),ISERROR(SEARCH("سداد",$C2)),ISERROR(SEARCH("استلام",$C2)))')
+      .setBackground('#e6f4ea')  // أخضر فاتح جداً
+      .setRanges([dataRange])
+      .build()
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // 2. استحقاق = برتقالي فاتح
+  // ═══════════════════════════════════════════════════════════
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=AND($N2<>"",$N2="مدين استحقاق")')
@@ -843,7 +855,9 @@ function applyConditionalFormatting(sheet, lastRow) {
       .build()
   );
 
-  // دفعة = أزرق فاتح
+  // ═══════════════════════════════════════════════════════════
+  // 3. دفعة = أزرق فاتح
+  // ═══════════════════════════════════════════════════════════
   rules.push(
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=AND($N2<>"",$N2="دائن دفعة")')
@@ -874,6 +888,7 @@ function refreshTransactionsFormatting() {
   SpreadsheetApp.getUi().alert(
     '✅ تم تحديث التلوين الشرطي',
     'تم إعادة تطبيق التلوين الشرطي على دفتر الحركات المالية.\n\n' +
+    '• 🏦 تمويل (دخول قرض) = أخضر فاتح 🟩\n' +
     '• مدين استحقاق = برتقالي فاتح 🟧\n' +
     '• دائن دفعة = أزرق فاتح 🟦\n\n' +
     'النطاق: ' + lastRow + ' صف',
