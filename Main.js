@@ -10578,9 +10578,17 @@ function testFormPermissions() {
 
 /**
  * عرض نموذج إضافة حركة جديدة
+ * يمرر البيانات مباشرة للنموذج لتجنب مشاكل الأذونات
  */
 function showTransactionForm() {
-  const html = HtmlService.createHtmlOutputFromFile('TransactionForm')
+  // جلب البيانات أولاً
+  const formData = getSmartFormData();
+
+  // إنشاء قالب HTML مع البيانات
+  const template = HtmlService.createTemplateFromFile('TransactionForm');
+  template.initialData = JSON.stringify(formData);
+
+  const html = template.evaluate()
     .setWidth(520)
     .setHeight(750)
     .setTitle('إضافة حركة جديدة');
