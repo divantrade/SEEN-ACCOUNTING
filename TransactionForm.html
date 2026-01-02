@@ -427,6 +427,16 @@
       <div class="icon">✅</div>
       <h3 id="successTitle">تمت الإضافة بنجاح!</h3>
       <p id="successMsg"></p>
+
+      <!-- قسم عرض JSON عند الفشل -->
+      <div id="jsonSection" style="display: none; text-align: right; margin: 16px 0;">
+        <p style="font-size: 12px; color: #666; margin-bottom: 8px;">
+          انسخ هذا النص واستخدم: القائمة ← إعدادات متقدمة ← إدخال حركة يدوياً
+        </p>
+        <textarea id="jsonData" readonly style="width: 100%; height: 100px; font-size: 11px; direction: ltr; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 8px;"></textarea>
+        <button type="button" class="btn btn-secondary" onclick="copyJson()" style="margin-top: 8px; width: 100%;">📋 نسخ البيانات</button>
+      </div>
+
       <div class="buttons" style="margin-top: 16px;">
         <button id="btnSavePending" class="btn btn-primary" onclick="savePendingTransaction()" style="display: none;">💾 حفظ الحركة الآن</button>
         <button class="btn btn-primary" onclick="resetForm()">➕ إضافة حركة أخرى</button>
@@ -438,6 +448,7 @@
   <script>
     let dropdownData = {};
     let todayDate = '';
+    let lastFormData = null;  // لتخزين بيانات النموذج عند الفشل
 
     // البيانات الممررة من السيرفر مباشرة
     const initialDataJson = <?!= initialData ?>;
@@ -654,33 +665,41 @@
         return;
       }
 
+      // حفظ البيانات لاستخدامها لاحقاً
+      lastFormData = formData;
+
       // إظهار حالة التحميل
       document.getElementById('formState').style.display = 'none';
       document.getElementById('loadingState').style.display = 'block';
-      document.querySelector('#loadingState p').textContent = 'جاري حفظ البيانات...';
+      document.querySelector('#loadingState p').textContent = 'جاري حفظ الحركة...';
 
-      // تخزين البيانات مؤقتاً ثم إغلاق النافذة
-      const jsonData = JSON.stringify(formData);
-
+      // محاولة الإرسال المباشر أولاً
       google.script.run
-        .withSuccessHandler(function(result) {
-          document.querySelector('#loadingState p').textContent = 'جاري إضافة الحركة...';
-          // محاولة الحفظ المباشر
+        .withSuccessHandler(onSubmitSuccess)
+        .withFailureHandler(function(err) {
+          // فشل الإرسال المباشر - نحاول التخزين المؤقت
+          document.querySelector('#loadingState p').textContent = 'جاري حفظ البيانات مؤقتاً...';
+
+          const jsonData = JSON.stringify(formData);
           google.script.run
-            .withSuccessHandler(onSubmitSuccess)
-            .withFailureHandler(function(err) {
-              // في حالة فشل الحفظ المباشر، أظهر زر الحفظ
+            .withSuccessHandler(function() {
+              // تم التخزين المؤقت - عرض رسالة
               document.getElementById('loadingState').style.display = 'none';
               document.getElementById('successState').style.display = 'block';
               document.getElementById('successTitle').textContent = '⚠️ تم حفظ البيانات مؤقتاً';
-              document.getElementById('successMsg').innerHTML =
-                'البيانات محفوظة! اضغط الزر أدناه لإتمام الحفظ:';
+              document.getElementById('successMsg').textContent =
+                'اضغط "حفظ الحركة الآن" أو من القائمة: إعدادات متقدمة ← حفظ الحركة المعلقة';
               document.getElementById('btnSavePending').style.display = 'block';
             })
-            .submitSmartFormTransaction(formData);
+            .withFailureHandler(function(err2) {
+              // فشل كل شيء - نعرض JSON
+              document.getElementById('loadingState').style.display = 'none';
+              document.getElementById('successState').style.display = 'block';
+              showJsonFallback('فشل الحفظ: ' + (err2.message || err.message));
+            })
+            .storeFormDataTemp(jsonData);
         })
-        .withFailureHandler(onError)
-        .storeFormDataTemp(jsonData);
+        .submitSmartFormTransaction(formData);
     });
 
     function formatCustomDueDate() {
@@ -724,9 +743,11 @@
       document.getElementById('paymentSection').classList.add('hidden');
       document.getElementById('weeksField').classList.remove('show');
       document.getElementById('customDueDateField').classList.remove('show');
-      // إعادة إخفاء زر الحفظ
+      // إعادة إخفاء قسم JSON وزر الحفظ
       document.getElementById('btnSavePending').style.display = 'none';
+      document.getElementById('jsonSection').style.display = 'none';
       document.getElementById('successTitle').textContent = 'تمت الإضافة بنجاح!';
+      lastFormData = null;
     }
 
     // دالة حفظ الحركة المعلقة
@@ -743,11 +764,36 @@
         .withFailureHandler(function(err) {
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('successState').style.display = 'block';
-          document.getElementById('successMsg').innerHTML =
-            '❌ فشل الحفظ: ' + err.message + '<br><br>' +
-            'جرب من القائمة: إعدادات متقدمة ← حفظ الحركة المعلقة';
+          showJsonFallback('❌ فشل الحفظ: ' + err.message);
         })
         .processPendingTransaction();
+    }
+
+    // عرض JSON كحل احتياطي
+    function showJsonFallback(errorMsg) {
+      document.getElementById('successTitle').textContent = '⚠️ فشل الحفظ التلقائي';
+      document.getElementById('successMsg').textContent = errorMsg;
+      document.getElementById('jsonSection').style.display = 'block';
+      document.getElementById('btnSavePending').style.display = 'block';
+
+      if (lastFormData) {
+        document.getElementById('jsonData').value = JSON.stringify(lastFormData, null, 2);
+      }
+    }
+
+    // نسخ JSON للحافظة
+    function copyJson() {
+      const jsonTextarea = document.getElementById('jsonData');
+      jsonTextarea.select();
+      document.execCommand('copy');
+
+      // تأكيد النسخ
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = '✅ تم النسخ!';
+      setTimeout(function() {
+        btn.textContent = originalText;
+      }, 2000);
     }
   </script>
 </body>

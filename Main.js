@@ -101,6 +101,7 @@ function onOpen() {
     .addSubMenu(
       ui.createMenu('⚙️ إعدادات متقدمة')
         .addItem('💾 حفظ الحركة المعلقة', 'processPendingTransaction')
+        .addItem('📝 إدخال حركة يدوياً (JSON)', 'manualTransactionEntry')
         .addSeparator()
         .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
         .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
@@ -10672,12 +10673,13 @@ function getSmartFormData() {
 }
 
 /**
- * تخزين بيانات النموذج مؤقتاً (لتجاوز مشكلة الأذونات)
+ * تخزين بيانات النموذج مؤقتاً باستخدام ScriptProperties
  * @param {string} jsonData بيانات النموذج بصيغة JSON
  */
 function storeFormDataTemp(jsonData) {
-  const cache = CacheService.getUserCache();
-  cache.put('pendingTransaction', jsonData, 300); // تخزين لمدة 5 دقائق
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('pendingTransaction', jsonData);
+  props.setProperty('pendingTransactionTime', new Date().toISOString());
   return { success: true };
 }
 
@@ -10685,8 +10687,8 @@ function storeFormDataTemp(jsonData) {
  * معالجة البيانات المخزنة وحفظ الحركة
  */
 function processPendingTransaction() {
-  const cache = CacheService.getUserCache();
-  const jsonData = cache.get('pendingTransaction');
+  const props = PropertiesService.getScriptProperties();
+  const jsonData = props.getProperty('pendingTransaction');
 
   if (!jsonData) {
     SpreadsheetApp.getUi().alert('⚠️ لا توجد بيانات معلقة للحفظ');
@@ -10697,13 +10699,51 @@ function processPendingTransaction() {
   const result = submitSmartFormTransaction(formData);
 
   // حذف البيانات المؤقتة
-  cache.remove('pendingTransaction');
+  props.deleteProperty('pendingTransaction');
+  props.deleteProperty('pendingTransactionTime');
 
   SpreadsheetApp.getUi().alert(
     '✅ تمت إضافة الحركة بنجاح!',
     'رقم الحركة: ' + result.transNum + '\n' + result.summary,
     SpreadsheetApp.getUi().ButtonSet.OK
   );
+}
+
+/**
+ * إدخال حركة يدوياً عبر JSON
+ * حل احتياطي في حال فشل النموذج
+ */
+function manualTransactionEntry() {
+  const ui = SpreadsheetApp.getUi();
+
+  const response = ui.prompt(
+    '📝 إدخال حركة يدوياً',
+    'الصق بيانات الحركة (JSON) هنا:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+
+  const jsonData = response.getResponseText().trim();
+  if (!jsonData) {
+    ui.alert('⚠️ لم يتم إدخال بيانات');
+    return;
+  }
+
+  try {
+    const formData = JSON.parse(jsonData);
+    const result = submitSmartFormTransaction(formData);
+
+    ui.alert(
+      '✅ تمت إضافة الحركة بنجاح!',
+      'رقم الحركة: ' + result.transNum + '\n' + result.summary,
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert('❌ خطأ في تنسيق البيانات: ' + e.message);
+  }
 }
 
 /**
