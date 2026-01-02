@@ -37,6 +37,10 @@ const CONFIG = {
         CASHFLOW: 'التدفقات النقدية',
         DASHBOARD: 'لوحة التحكم',
 
+        // القوائم المالية
+        INCOME_STATEMENT: 'قائمة الدخل',
+        BALANCE_SHEET: 'المركز المالي',
+
         // حسابات البنك والخزنة
         BANK_USD: 'حساب البنك - دولار',
         BANK_TRY: 'حساب البنك - ليرة',
@@ -68,7 +72,9 @@ const CONFIG = {
             VENDORS: '#00695c',
             SUMMARY: '#1e88e5',
             TOTALS: '#1b5e20',
-            DETAILS: '#01579b'
+            DETAILS: '#01579b',
+            INCOME_STATEMENT: '#1565c0',
+            BALANCE_SHEET: '#00695c'
         },
 
         // ألوان الخلفية
