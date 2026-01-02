@@ -425,9 +425,10 @@
 
     <div id="successState" class="success" style="display: none;">
       <div class="icon">✅</div>
-      <h3>تمت الإضافة بنجاح!</h3>
+      <h3 id="successTitle">تمت الإضافة بنجاح!</h3>
       <p id="successMsg"></p>
       <div class="buttons" style="margin-top: 16px;">
+        <button id="btnSavePending" class="btn btn-primary" onclick="savePendingTransaction()" style="display: none;">💾 حفظ الحركة الآن</button>
         <button class="btn btn-primary" onclick="resetForm()">➕ إضافة حركة أخرى</button>
         <button class="btn btn-secondary" onclick="google.script.host.close()">إغلاق</button>
       </div>
@@ -656,12 +657,30 @@
       // إظهار حالة التحميل
       document.getElementById('formState').style.display = 'none';
       document.getElementById('loadingState').style.display = 'block';
-      document.querySelector('#loadingState p').textContent = 'جاري إضافة الحركة...';
+      document.querySelector('#loadingState p').textContent = 'جاري حفظ البيانات...';
+
+      // تخزين البيانات مؤقتاً ثم إغلاق النافذة
+      const jsonData = JSON.stringify(formData);
 
       google.script.run
-        .withSuccessHandler(onSubmitSuccess)
+        .withSuccessHandler(function(result) {
+          document.querySelector('#loadingState p').textContent = 'جاري إضافة الحركة...';
+          // محاولة الحفظ المباشر
+          google.script.run
+            .withSuccessHandler(onSubmitSuccess)
+            .withFailureHandler(function(err) {
+              // في حالة فشل الحفظ المباشر، أظهر زر الحفظ
+              document.getElementById('loadingState').style.display = 'none';
+              document.getElementById('successState').style.display = 'block';
+              document.getElementById('successTitle').textContent = '⚠️ تم حفظ البيانات مؤقتاً';
+              document.getElementById('successMsg').innerHTML =
+                'البيانات محفوظة! اضغط الزر أدناه لإتمام الحفظ:';
+              document.getElementById('btnSavePending').style.display = 'block';
+            })
+            .submitSmartFormTransaction(formData);
+        })
         .withFailureHandler(onError)
-        .submitSmartFormTransaction(formData);
+        .storeFormDataTemp(jsonData);
     });
 
     function formatCustomDueDate() {
@@ -705,6 +724,30 @@
       document.getElementById('paymentSection').classList.add('hidden');
       document.getElementById('weeksField').classList.remove('show');
       document.getElementById('customDueDateField').classList.remove('show');
+      // إعادة إخفاء زر الحفظ
+      document.getElementById('btnSavePending').style.display = 'none';
+      document.getElementById('successTitle').textContent = 'تمت الإضافة بنجاح!';
+    }
+
+    // دالة حفظ الحركة المعلقة
+    function savePendingTransaction() {
+      document.getElementById('successState').style.display = 'none';
+      document.getElementById('loadingState').style.display = 'block';
+      document.querySelector('#loadingState p').textContent = 'جاري حفظ الحركة...';
+
+      google.script.run
+        .withSuccessHandler(function() {
+          // إغلاق النافذة بعد النجاح
+          google.script.host.close();
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('successState').style.display = 'block';
+          document.getElementById('successMsg').innerHTML =
+            '❌ فشل الحفظ: ' + err.message + '<br><br>' +
+            'جرب من القائمة: إعدادات متقدمة ← حفظ الحركة المعلقة';
+        })
+        .processPendingTransaction();
     }
   </script>
 </body>
