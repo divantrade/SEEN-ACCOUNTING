@@ -466,12 +466,15 @@
     let todayDate = '';
     let lastFormData = null;  // لتخزين بيانات النموذج عند الفشل
 
+    // البيانات المُمررة من السيرفر باستخدام scriptlet
+    const FORM_DATA = <?!= JSON.stringify(formData) ?>;
+
     // تحميل البيانات عند فتح النافذة
     document.addEventListener('DOMContentLoaded', function () {
       try {
-        // استخدام البيانات الممررة مباشرة من window.FORM_DATA
-        if (window.FORM_DATA && typeof window.FORM_DATA === 'object') {
-          onDataLoaded(window.FORM_DATA);
+        // استخدام البيانات المُمررة مباشرة
+        if (FORM_DATA && typeof FORM_DATA === 'object') {
+          onDataLoaded(FORM_DATA);
         } else {
           throw new Error('لم يتم تحميل البيانات من السيرفر');
         }

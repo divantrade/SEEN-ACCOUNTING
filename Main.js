@@ -191,7 +191,7 @@ function sortTransactionsByDate() {
   // ═══════════════════════════════════════════════════════════
   // 2. فلترة الصفوف الفارغة (صفوف بدون تاريخ صحيح في عمود B)
   // ═══════════════════════════════════════════════════════════
-  const validRows = allData.filter(function(row) {
+  const validRows = allData.filter(function (row) {
     const dateVal = row[1]; // B = index 1
     // تاريخ صحيح = كائن Date أو نص يمكن تحويله لتاريخ
     if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
@@ -238,7 +238,7 @@ function sortTransactionsByDate() {
     return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   }
 
-  validRows.sort(function(a, b) {
+  validRows.sort(function (a, b) {
     const dateA = getDateTimestamp(a[1]);
     const dateB = getDateTimestamp(b[1]);
     return dateA - dateB; // تصاعدي: الأقدم في الأعلى
@@ -278,7 +278,7 @@ function sortTransactionsByDate() {
   // استخراج أعمدة البيانات فقط وكتابتها
   // B-L (indexes 1-11, columns 2-12)
   // مع التأكد من أن التاريخ (B) هو Date object صحيح
-  const dataBtoL = validRows.map(function(row) {
+  const dataBtoL = validRows.map(function (row) {
     const rowData = row.slice(1, 12); // B to L
     // تحويل التاريخ (أول عنصر = B) لـ Date object
     rowData[0] = ensureDateObject(rowData[0]);
@@ -287,12 +287,12 @@ function sortTransactionsByDate() {
   sheet.getRange(2, 2, numRows, 11).setValues(dataBtoL);
 
   // N (index 13, column 14)
-  const dataN = validRows.map(function(row) { return [row[13]]; });
+  const dataN = validRows.map(function (row) { return [row[13]]; });
   sheet.getRange(2, 14, numRows, 1).setValues(dataN);
 
   // Q-T (indexes 16-19, columns 17-20)
   // T (index 19) هو تاريخ مخصص - يجب التأكد من أنه Date object
-  const dataQtoT = validRows.map(function(row) {
+  const dataQtoT = validRows.map(function (row) {
     const rowData = row.slice(16, 20); // Q to T
     // T = العنصر الرابع (index 3) - تحويله لـ Date إذا كان تاريخاً
     if (rowData[3]) {
@@ -303,7 +303,7 @@ function sortTransactionsByDate() {
   sheet.getRange(2, 17, numRows, 4).setValues(dataQtoT);
 
   // X (index 23, column 24)
-  const dataX = validRows.map(function(row) { return [row[23] || '']; });
+  const dataX = validRows.map(function (row) { return [row[23] || '']; });
   sheet.getRange(2, 24, numRows, 1).setValues(dataX);
 
   // ═══════════════════════════════════════════════════════════
@@ -508,15 +508,15 @@ function setupPart1() {
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  
+
   // نحذف كل الشيتات القديمة
   const sheets = ss.getSheets();
   sheets.forEach(sheet => {
     try {
       ss.deleteSheet(sheet);
-    } catch (e) {}
+    } catch (e) { }
   });
-  
+
   // إنشاء الشيتات الأساسية
   createTransactionsSheet(ss);   // دفتر الحركات (بنظام العملات)
   createProjectsSheet(ss);       // المشاريع
@@ -546,10 +546,10 @@ function setupPart1() {
 function createTransactionsSheet(ss) {
   let oldSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (oldSheet) ss.deleteSheet(oldSheet);
-  
+
   let sheet = ss.insertSheet(CONFIG.SHEETS.TRANSACTIONS);
   sheet.setTabColor(CONFIG.COLORS.TAB.TRANSACTIONS);   // أخضر لدفتر الحركات المالية
-  
+
   const headers = [
     'رقم الحركة',          // 1 - A
     'التاريخ',             // 2 - B
@@ -580,7 +580,7 @@ function createTransactionsSheet(ss) {
     'ملاحظات',             // 24 - X
     '📄 كشف'               // 25 - Y (عمود روابط كشف الحساب)
   ];
-  
+
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
     .setBackground(CONFIG.COLORS.HEADER.TRANSACTIONS)
@@ -589,7 +589,7 @@ function createTransactionsSheet(ss) {
     .setFontSize(11)
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
-  
+
   const widths = [
     80,   // A
     100,  // B
@@ -618,13 +618,13 @@ function createTransactionsSheet(ss) {
     60    // Y (كشف)
   ];
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
+
   const lastRow = 500;
-  
+
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
-  const partiesSheet  = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
-  const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
-  
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+
   // ✅ طبيعة الحركة من "قاعدة بيانات البنود" عمود B
   if (itemsSheet) {
     const movementRange = itemsSheet.getRange('B2:B200');
@@ -637,7 +637,7 @@ function createTransactionsSheet(ss) {
       .setDataValidation(movementValidation)
       .setHorizontalAlignment('center');
   }
-  
+
   // ✅ تصنيف الحركة من "قاعدة بيانات البنود" عمود C
   if (itemsSheet) {
     const classRange = itemsSheet.getRange('C2:C200');
@@ -650,7 +650,7 @@ function createTransactionsSheet(ss) {
       .setDataValidation(classValidation)
       .setHorizontalAlignment('center');
   }
-  
+
   // كود المشروع (E)
   if (projectsSheet) {
     const projectRange = projectsSheet.getRange('A2:A200');
@@ -672,7 +672,7 @@ function createTransactionsSheet(ss) {
     sheet.getRange(2, 6, lastRow, 1) // F
       .setDataValidation(projectNameValidation);
   }
-  
+
   // اسم المورد/الجهة (I) من قاعدة بيانات الأطراف
   if (partiesSheet) {
     const partyRange = partiesSheet.getRange('A2:A200');
@@ -684,7 +684,7 @@ function createTransactionsSheet(ss) {
     sheet.getRange(2, 9, lastRow, 1) // I
       .setDataValidation(partyValidation);
   }
-  
+
   // ✅ البند من "قاعدة بيانات البنود" عمود A (G)
   if (itemsSheet) {
     const itemsRange = itemsSheet.getRange('A2:A200');
@@ -696,7 +696,7 @@ function createTransactionsSheet(ss) {
     sheet.getRange(2, 7, lastRow, 1) // G
       .setDataValidation(itemValidation);
   }
-  
+
   // 🆕 دروب داون "نوع الحركة" (N)
   const movementTypeValidation = SpreadsheetApp.newDataValidation()
     .requireValueInList(CONFIG.MOVEMENT.TYPES, true)
@@ -706,7 +706,7 @@ function createTransactionsSheet(ss) {
   sheet.getRange(2, 14, lastRow, 1) // N
     .setDataValidation(movementTypeValidation)
     .setHorizontalAlignment('center');
-  
+
   // 🆕 دروب داون العملة (K)
   const currencyValidation = SpreadsheetApp.newDataValidation()
     .requireValueInList(CONFIG.CURRENCIES.LIST, true)
@@ -714,7 +714,7 @@ function createTransactionsSheet(ss) {
     .setHelpText('اختر العملة (USD / TRY / EGP)')
     .build();
   sheet.getRange(2, 11, lastRow, 1).setDataValidation(currencyValidation); // K
-  
+
   // طريقة الدفع (Q = 17)
   const payMethodValidation = SpreadsheetApp.newDataValidation()
     .requireValueInList(['نقدي', 'تحويل بنكي', 'شيك', 'بطاقة', 'أخرى'])
@@ -723,7 +723,7 @@ function createTransactionsSheet(ss) {
     .build();
   sheet.getRange(2, 17, lastRow, 1) // Q
     .setDataValidation(payMethodValidation);
-  
+
   // نوع شرط الدفع (R = 18)
   const termValidation = SpreadsheetApp.newDataValidation()
     .requireValueInList(CONFIG.PAYMENT_TERMS.LIST)
@@ -816,23 +816,23 @@ function createTransactionsSheet(ss) {
   sheet.getRange(2, 21, numRows, 1).setFormulas(formulasU);  // U: تاريخ الاستحقاق
   sheet.getRange(2, 22, numRows, 1).setFormulas(formulasV);  // V: حالة السداد
   sheet.getRange(2, 23, numRows, 1).setFormulas(formulasW);  // W: الشهر
-  
+
   // تنسيقات الأرقام والتواريخ
   sheet.getRange(2, 10, lastRow, 1).setNumberFormat('#,##0.00');   // J
   sheet.getRange(2, 12, lastRow, 1).setNumberFormat('#,##0.0000'); // L
   sheet.getRange(2, 13, lastRow, 1).setNumberFormat('#,##0.00');   // M
   sheet.getRange(2, 15, lastRow, 1).setNumberFormat('#,##0.00');   // O
 
-  sheet.getRange(2, 2,  lastRow, 1).setNumberFormat('dd/mm/yyyy'); // B - التاريخ
+  sheet.getRange(2, 2, lastRow, 1).setNumberFormat('dd/mm/yyyy'); // B - التاريخ
   sheet.getRange(2, 20, lastRow, 1).setNumberFormat('dd/mm/yyyy'); // T - تاريخ مخصص
   sheet.getRange(2, 21, lastRow, 1).setNumberFormat('dd/mm/yyyy'); // U - تاريخ الاستحقاق
-  
+
   // 🎨 تلوين شرطي حسب نوع الحركة فقط
   applyConditionalFormatting(sheet, lastRow);
-  
+
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(2);
-  
+
   sheet.getRange('N1').setNote(
     'نوع الحركة:\n' +
     '• مدين استحقاق = فاتورة/استحقاق على الطرف\n' +
@@ -1143,9 +1143,9 @@ function refreshValueAndBalanceFormulas() {
 function createProjectsSheet(ss) {
   let oldSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
   if (oldSheet) ss.deleteSheet(oldSheet);
-  
+
   let sheet = ss.insertSheet(CONFIG.SHEETS.PROJECTS);
-  
+
   const headers = [
     'كود المشروع', 'اسم المشروع', 'نوع المشروع', 'القناة/الجهة',
     'اسم البرنامج', 'سنة الإنتاج', 'نوع التمويل', 'قيمة التمويل',
@@ -1153,7 +1153,7 @@ function createProjectsSheet(ss) {
     'تاريخ التسليم الفعلي', 'المدة (أسابيع)', '🆕 مدة المشروع (أشهر)',
     'حالة المشروع', 'ملاحظات'
   ];
-  
+
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
     .setBackground(CONFIG.COLORS.HEADER.PROJECTS)
@@ -1161,23 +1161,23 @@ function createProjectsSheet(ss) {
     .setFontWeight('bold')
     .setFontSize(11)
     .setHorizontalAlignment('center');
-  
+
   const widths = [150, 200, 130, 150, 150, 100, 130, 130, 150, 120, 150, 150, 120, 150, 130, 250];
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
+
   // القوائم
   sheet.getRange(2, 3, 200, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireValueInList(['وثائقي قصير', 'وثائقي طويل', 'سلسلة وثائقية', 'تقرير إخباري', 'فيلم روائي', 'برومو'])
       .build()
   );
-  
+
   sheet.getRange(2, 7, 200, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireValueInList(['خارجي', 'ذاتي', 'مشترك', 'لا يوجد'])
       .build()
   );
-  
+
   const years = [];
   for (let y = 2020; y <= 2030; y++) years.push(y.toString());
   sheet.getRange(2, 6, 200, 1).setDataValidation(
@@ -1185,13 +1185,13 @@ function createProjectsSheet(ss) {
       .requireValueInList(years)
       .build()
   );
-  
+
   sheet.getRange(2, 15, 200, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireValueInList(['تخطيط', 'جاري التنفيذ', 'تصوير', 'مونتاج', 'مراجعة', 'مكتمل', 'مسلّم', 'ملغي', 'معلق'])
       .build()
   );
-  
+
   /**
    * ⚡ تحسينات الأداء:
    * - Batch Operations: 2 API calls بدلاً من 198 (99×2)
@@ -1216,14 +1216,14 @@ function createProjectsSheet(ss) {
   // Batch apply formulas
   sheet.getRange(2, 1, numRows, 1).setFormulas(formulasA);
   sheet.getRange(2, 13, numRows, 1).setFormulas(formulasM);
-  
+
   // تنسيق
   sheet.getRange(2, 8, 200, 2).setNumberFormat('$#,##0.00');
   sheet.getRange(2, 10, 200, 1).setNumberFormat('dd/mm/yyyy'); // J - تاريخ البدء
   sheet.getRange(2, 11, 200, 1).setNumberFormat('dd/mm/yyyy'); // K - تاريخ التسليم المتوقع
   sheet.getRange(2, 12, 200, 1).setNumberFormat('dd/mm/yyyy'); // L - تاريخ التسليم الفعلي
   sheet.getRange(2, 14, 200, 1).setNumberFormat('0');
-  
+
   // تلوين حالة المشروع
   const rules = [];
   rules.push(
@@ -1325,7 +1325,7 @@ function createPartiesSheet(ss) {
       .requireValueInList(['نقدي', 'تحويل بنكي', 'شيك', 'بطاقة', 'أخرى'], true)
       .build()
   );
-  
+
   sheet.getRange('A1').setNote(
     'قاعدة موحدة لكل الأطراف (موردين / عملاء / ممولين)\n' +
     'يتم الربط مع دفتر الحركات من عمود "اسم المورد/الجهة".'
@@ -1349,14 +1349,14 @@ function createItemsSheet(ss) {
 
   // البيانات التجريبية
   const sampleData = [
-    ['مونتاج',           'استحقاق مصروف', 'مصروفات مباشرة', ''],
-    ['تصوير',            'استحقاق مصروف', 'مصروفات مباشرة', ''],
-    ['صوت',              'استحقاق مصروف', 'مصروفات مباشرة', ''],
-    ['معدات',            'استحقاق مصروف', 'مصروفات مباشرة', ''],
-    ['🏢 إيجار مكتب',    'استحقاق مصروف', 'مصروفات عمومية', ''],
+    ['مونتاج', 'استحقاق مصروف', 'مصروفات مباشرة', ''],
+    ['تصوير', 'استحقاق مصروف', 'مصروفات مباشرة', ''],
+    ['صوت', 'استحقاق مصروف', 'مصروفات مباشرة', ''],
+    ['معدات', 'استحقاق مصروف', 'مصروفات مباشرة', ''],
+    ['🏢 إيجار مكتب', 'استحقاق مصروف', 'مصروفات عمومية', ''],
     ['👥 مرتبات إدارية', 'استحقاق مصروف', 'مصروفات عمومية', ''],
-    ['⚡ مرافق',          'استحقاق مصروف', 'مصروفات عمومية', ''],
-    ['🧾 أخرى',          'استحقاق مصروف', 'مصروفات أخرى',   '']
+    ['⚡ مرافق', 'استحقاق مصروف', 'مصروفات عمومية', ''],
+    ['🧾 أخرى', 'استحقاق مصروف', 'مصروفات أخرى', '']
   ];
   sheet.getRange(2, 1, sampleData.length, sampleData[0].length).setValues(sampleData);
 
@@ -1380,26 +1380,26 @@ function createItemsSheet(ss) {
 function createBudgetsSheet(ss) {
   let oldSheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   if (oldSheet) ss.deleteSheet(oldSheet);
-  
+
   let sheet = ss.insertSheet(CONFIG.SHEETS.BUDGETS);
-  
+
   const headers = [
     'كود المشروع', 'اسم المشروع', 'البند', 'المبلغ المخطط',
     'المبلغ الفعلي', 'الفرق', 'نسبة التنفيذ %', 'ملاحظات'
   ];
-  
+
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
     .setBackground(CONFIG.COLORS.HEADER.BUDGETS)
     .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
-  
+
   const widths = [120, 180, 150, 120, 120, 120, 130, 250];
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
+
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
-  const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+  const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
 
   // كود المشروع (A)
   if (projectsSheet) {
@@ -1461,7 +1461,7 @@ function createBudgetsSheet(ss) {
   sheet.getRange(2, 5, numRows, 1).setFormulas(formulasE);
   sheet.getRange(2, 6, numRows, 1).setFormulas(formulasF);
   sheet.getRange(2, 7, numRows, 1).setFormulas(formulasG);
-  
+
   // تنسيق الأرقام
   sheet.getRange(2, 4, 100, 2).setNumberFormat('$#,##0.00'); // المخطط + الفعلي
   sheet.getRange(2, 7, 100, 1).setNumberFormat('0.0%');
@@ -1546,22 +1546,22 @@ function createAlertsSheet(ss) {
     sheet = ss.insertSheet(CONFIG.SHEETS.ALERTS);
   }
   sheet.clear();
-  
+
   const headers = [
     'نوع التنبيه', 'الأولوية', 'المشروع', 'المورد', 'المبلغ',
     'تاريخ الاستحقاق', 'الأيام المتبقية', 'الحالة', 'الإجراء المطلوب'
   ];
-  
+
   sheet.getRange(1, 1, 1, headers.length)
     .setValues([headers])
     .setBackground(CONFIG.COLORS.HEADER.ALERTS)
     .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold')
     .setFontSize(11);
-  
+
   const widths = [150, 100, 180, 150, 120, 130, 120, 120, 250];
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
-  
+
   sheet.setFrozenRows(1);
 }
 
@@ -1573,14 +1573,14 @@ function addNewExpense() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  
+
   if (!sheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
     return;
   }
-  
+
   const lastRow = sheet.getLastRow() + 1;
-  
+
   ui.alert(
     '📝 تسجيل استحقاق جديد',
     'سيتم إضافة سطر جديد في الصف ' + lastRow + '\n\n' +
@@ -1599,7 +1599,7 @@ function addNewExpense() {
     'القيمة بالدولار (M) والرصيد (O) تتحسب تلقائياً.',
     ui.ButtonSet.OK
   );
-  
+
   sheet.setActiveRange(sheet.getRange(lastRow, 2));
 }
 
@@ -1608,30 +1608,30 @@ function addPayment() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  
+
   if (!sheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
     return;
   }
-  
+
   const vendorResponse = ui.prompt(
     '💵 تسجيل دفعة',
     'أدخل اسم المورد/الجهة كما هو في العمود I:',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (vendorResponse.getSelectedButton() !== ui.Button.OK) return;
   const vendorName = vendorResponse.getResponseText().trim();
-  
+
   if (!vendorName) {
     ui.alert('⚠️ يجب إدخال اسم المورد/الجهة!');
     return;
   }
-  
+
   const data = sheet.getDataRange().getValues();
   let vendorBalance = 0;
   let vendorFound = false;
-  
+
   // I = index 8, O = index 14
   for (let i = 1; i < data.length; i++) {
     if (data[i][8] === vendorName) {
@@ -1639,37 +1639,37 @@ function addPayment() {
       vendorFound = true;
     }
   }
-  
+
   if (!vendorFound) {
     ui.alert('⚠️ لم يتم العثور على أي حركة للطرف: ' + vendorName);
     return;
   }
-  
+
   if (vendorBalance <= 0) {
     ui.alert('✅ رصيد ' + vendorName + ' = صفر أو أقل\n\nلا توجد مستحقات مفتوحة!');
     return;
   }
-  
+
   const amountResponse = ui.prompt(
     '💵 تسجيل دفعة لـ ' + vendorName,
     'الرصيد الحالي (تقريبي بالدولار): $' + vendorBalance.toLocaleString() + '\n\n' +
     'أدخل مبلغ الدفعة (بالدولار):',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (amountResponse.getSelectedButton() !== ui.Button.OK) return;
   const amountUsd = parseFloat(amountResponse.getResponseText());
-  
+
   if (isNaN(amountUsd) || amountUsd <= 0) {
     ui.alert('⚠️ مبلغ غير صحيح!');
     return;
   }
-  
+
   if (amountUsd > vendorBalance) {
     ui.alert('⚠️ المبلغ المدخل أكبر من الرصيد!\n\nالرصيد: $' + vendorBalance.toLocaleString());
     return;
   }
-  
+
   const paymentResponse = ui.prompt(
     '💵 تسجيل دفعة لـ ' + vendorName,
     'المبلغ: $' + amountUsd.toLocaleString() + '\n\n' +
@@ -1679,10 +1679,10 @@ function addPayment() {
     '3 = شيك',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (paymentResponse.getSelectedButton() !== ui.Button.OK) return;
   const paymentChoice = paymentResponse.getResponseText().trim();
-  
+
   let paymentMethod;
   switch (paymentChoice) {
     case '1': paymentMethod = 'نقدي'; break;
@@ -1692,23 +1692,23 @@ function addPayment() {
       ui.alert('⚠️ اختيار غير صحيح!');
       return;
   }
-  
+
   const lastRow = sheet.getLastRow() + 1;
   const today = new Date();
-  
+
   sheet.getRange(lastRow, 2).setValue(today);             // B التاريخ
   sheet.getRange(lastRow, 3).setValue('دفعة مصروف');  // C طبيعة الحركة
   sheet.getRange(lastRow, 4).setValue('مصروفات مباشرة'); // D
   sheet.getRange(lastRow, 9).setValue(vendorName);        // I
-  
+
   sheet.getRange(lastRow, 10).setValue(amountUsd);        // J المبلغ الأصلي
   sheet.getRange(lastRow, 11).setValue('USD');            // K
   sheet.getRange(lastRow, 12).setValue(1);                // L
-  
+
   sheet.getRange(lastRow, 14).setValue('دائن دفعة');     // N
   sheet.getRange(lastRow, 17).setValue(paymentMethod);    // Q
   sheet.getRange(lastRow, 24).setValue('دفعة مسجلة تلقائياً'); // X
-  
+
   ui.alert(
     '✅ تم تسجيل الدفعة بنجاح!\n\n' +
     'الطرف: ' + vendorName + '\n' +
@@ -1723,14 +1723,14 @@ function addRevenue() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  
+
   if (!sheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
     return;
   }
-  
+
   const lastRow = sheet.getLastRow() + 1;
-  
+
   ui.alert(
     '💰 تسجيل إيراد جديد',
     'سيتم إضافة سطر جديد في الصف ' + lastRow + '\n\n' +
@@ -1745,7 +1745,7 @@ function addRevenue() {
     'القيمة بالدولار (M) والرصيد (O) تتحسب تلقائياً.',
     ui.ButtonSet.OK
   );
-  
+
   sheet.setActiveRange(sheet.getRange(lastRow, 2));
 }
 
@@ -1754,14 +1754,14 @@ function addBudgetForm() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
-  
+
   if (!sheet) {
     ui.alert('⚠️ شيت "الموازنات المخططة" غير موجود!');
     return;
   }
-  
+
   const lastRow = sheet.getLastRow() + 1;
-  
+
   ui.alert(
     '💰 إضافة ميزانية جديدة',
     'سيتم إضافة سطر جديد في الصف ' + lastRow + '\n\n' +
@@ -1772,7 +1772,7 @@ function addBudgetForm() {
     'الباقي سيُحسب تلقائياً!',
     ui.ButtonSet.OK
   );
-  
+
   sheet.setActiveRange(sheet.getRange(lastRow, 1));
 }
 
@@ -1780,33 +1780,33 @@ function addBudgetForm() {
 function compareBudget() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  
+
   const response = ui.prompt(
     '📊 مقارنة الميزانية',
     'أدخل كود المشروع:',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (response.getSelectedButton() !== ui.Button.OK) return;
-  
+
   const projectCode = response.getResponseText().trim();
   if (!projectCode) {
     ui.alert('⚠️ يجب إدخال كود المشروع!');
     return;
   }
-  
+
   const budgetSheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
   if (!budgetSheet) {
     ui.alert('⚠️ شيت الميزانيات غير موجود!');
     return;
   }
-  
+
   const data = budgetSheet.getDataRange().getValues();
   let report = '📊 مقارنة الميزانية - ' + projectCode + '\n\n';
   let found = false;
   let totalPlanned = 0;
   let totalActual = 0;
-  
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === projectCode) { // كود المشروع في A
       found = true;
@@ -1815,29 +1815,29 @@ function compareBudget() {
       const actual = Number(data[i][4]) || 0;      // E
       const diff = Number(data[i][5]) || 0;        // F
       const percent = Number(data[i][6]) || 0;     // G (0–1)
-      
+
       report += `${item}:\n`;
       report += `  المخطط: $${planned.toLocaleString()}\n`;
       report += `  الفعلي: $${actual.toLocaleString()}\n`;
       report += `  الفرق: $${diff.toLocaleString()}\n`;
       report += `  النسبة: ${(percent * 100).toFixed(1)}%\n\n`;
-      
+
       totalPlanned += planned;
       totalActual += actual;
     }
   }
-  
+
   if (!found) {
     ui.alert('⚠️ لم يتم العثور على ميزانية للمشروع: ' + projectCode);
     return;
   }
-  
+
   report += '─────────────────────\n';
   report += `الإجمالي المخطط: $${totalPlanned.toLocaleString()}\n`;
   report += `الإجمالي الفعلي: $${totalActual.toLocaleString()}\n`;
   report += `الفرق: $${(totalPlanned - totalActual).toLocaleString()}\n`;
   report += `نسبة التنفيذ: ${((totalActual / totalPlanned) * 100).toFixed(1)}%`;
-  
+
   ui.alert(report);
 }
 
@@ -1875,12 +1875,12 @@ function updateAlerts() {
 
   for (let i = 1; i < data.length; i++) {
     const movementKind = String(data[i][13] || ''); // N: نوع الحركة (مدين استحقاق / دائن دفعة)
-    const project      = data[i][5];  // F: اسم المشروع
-    const party        = data[i][8];  // I: الطرف (مورد/عميل/ممول)
-    const amountUsd    = Number(data[i][12]) || 0; // M: القيمة بالدولار
-    const dueDate      = data[i][20]; // U: تاريخ الاستحقاق
-    const status       = String(data[i][21] || ''); // V: حالة السداد
-    const natureType   = String(data[i][2] || '');  // C: طبيعة الحركة
+    const project = data[i][5];  // F: اسم المشروع
+    const party = data[i][8];  // I: الطرف (مورد/عميل/ممول)
+    const amountUsd = Number(data[i][12]) || 0; // M: القيمة بالدولار
+    const dueDate = data[i][20]; // U: تاريخ الاستحقاق
+    const status = String(data[i][21] || ''); // V: حالة السداد
+    const natureType = String(data[i][2] || '');  // C: طبيعة الحركة
 
     // استخدام includes للتعامل مع الإيموجي
     const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
@@ -1946,7 +1946,7 @@ function updateAlerts() {
 
     // إذا كان الرصيد موجب (على الطرف لنا فلوس) وطبيعة الحركة إيرادية
     if (balance > 100 && partyBalances[party].nature &&
-        (partyBalances[party].nature.includes('إيراد') || partyBalances[party].nature.includes('تحصيل'))) {
+      (partyBalances[party].nature.includes('إيراد') || partyBalances[party].nature.includes('تحصيل'))) {
       alerts.push([
         '💰 تحصيل مستحق',
         '🟣 متابعة',
@@ -2325,25 +2325,25 @@ function generateDueReport() {
 function showUpcomingPayments() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  
+
   if (!transSheet) {
     SpreadsheetApp.getUi().alert('⚠️ شيت دفتر الحركات غير موجود!');
     return;
   }
-  
+
   const today = new Date();
   const next30Days = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-  
+
   const transData = transSheet.getDataRange().getValues();
   let upcomingPayments = [];
-  
+
   for (let i = 1; i < transData.length; i++) {
     const movementKind = String(transData[i][13] || '');  // N: نوع الحركة
-    const status       = String(transData[i][21] || '');  // V: حالة السداد
-    const dueDate      = transData[i][20];  // U: تاريخ الاستحقاق
-    const balance      = Number(transData[i][14]) || 0; // O: الرصيد (بالدولار على مستوى الطرف)
-    const party        = transData[i][8];   // I: الطرف
-    const project      = transData[i][5];   // F: اسم المشروع
+    const status = String(transData[i][21] || '');  // V: حالة السداد
+    const dueDate = transData[i][20];  // U: تاريخ الاستحقاق
+    const balance = Number(transData[i][14]) || 0; // O: الرصيد (بالدولار على مستوى الطرف)
+    const party = transData[i][8];   // I: الطرف
+    const project = transData[i][5];   // F: اسم المشروع
 
     // استخدام includes للتعامل مع الإيموجي
     const isDebit = movementKind.includes(CONFIG.MOVEMENT.DEBIT) || movementKind.includes('مدين');
@@ -2363,11 +2363,11 @@ function showUpcomingPayments() {
       }
     }
   }
-  
+
   upcomingPayments.sort((a, b) => a.daysLeft - b.daysLeft);
-  
+
   let message = '🔔 الاستحقاقات خلال الـ 30 يوم القادمة:\n\n';
-  
+
   if (upcomingPayments.length === 0) {
     message += '✅ لا توجد استحقاقات خلال الفترة القادمة';
   } else {
@@ -2384,7 +2384,7 @@ function showUpcomingPayments() {
     });
     message += `\n💰 إجمالي المستحقات (تقريباً بالدولار): $${total.toLocaleString()}`;
   }
-  
+
   SpreadsheetApp.getUi().alert(message);
 }
 
@@ -2393,59 +2393,59 @@ function showUpcomingPayments() {
 function generateVendorDetailedReport() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  
+
   const response = ui.prompt(
     '👤 تقرير طرف تفصيلي',
     'أدخل اسم الطرف (مورد/عميل/ممول) بالضبط كما في دفتر الحركات:',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (response.getSelectedButton() !== ui.Button.OK) return;
-  
+
   const partyName = response.getResponseText().trim();
   if (!partyName) {
     ui.alert('⚠️ يجب إدخال اسم الطرف!');
     return;
   }
-  
+
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!transSheet) {
     ui.alert('⚠️ شيت الحركات غير موجود!');
     return;
   }
-  
+
   const data = transSheet.getDataRange().getValues();
   const rows = [];
-  
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][8] === partyName) {  // I: اسم الطرف
       rows.push({
-        date:           data[i][1],   // B: التاريخ
-        movementType:   data[i][2],   // C: طبيعة الحركة
+        date: data[i][1],   // B: التاريخ
+        movementType: data[i][2],   // C: طبيعة الحركة
         classification: data[i][3],   // D: تصنيف الحركة
-        project:        data[i][5],   // F: اسم المشروع
-        item:           data[i][6],   // G: البند
-        details:        data[i][7],   // H: التفاصيل
-        amountOriginal: Number(data[i][9])  || 0,  // J: المبلغ الأصلي
-        currency:       data[i][10] || '',        // K: العملة
-        rate:           Number(data[i][11]) || 0, // L: سعر الصرف
-        amountUsd:      Number(data[i][12]) || 0, // M: القيمة بالدولار
-        movementKind:   data[i][13],             // N: نوع الحركة
-        balance:        Number(data[i][14]) || 0, // O: الرصيد
-        refNum:         data[i][15],             // P: رقم مرجعي
-        notes:          data[i][23]              // X: ملاحظات
+        project: data[i][5],   // F: اسم المشروع
+        item: data[i][6],   // G: البند
+        details: data[i][7],   // H: التفاصيل
+        amountOriginal: Number(data[i][9]) || 0,  // J: المبلغ الأصلي
+        currency: data[i][10] || '',        // K: العملة
+        rate: Number(data[i][11]) || 0, // L: سعر الصرف
+        amountUsd: Number(data[i][12]) || 0, // M: القيمة بالدولار
+        movementKind: data[i][13],             // N: نوع الحركة
+        balance: Number(data[i][14]) || 0, // O: الرصيد
+        refNum: data[i][15],             // P: رقم مرجعي
+        notes: data[i][23]              // X: ملاحظات
       });
     }
   }
-  
+
   if (rows.length === 0) {
     ui.alert('⚠️ لم يتم العثور على حركات للطرف: ' + partyName);
     return;
   }
-  
+
   // ترتيب زمني
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
-  
+
   let totalDebitUsd = 0;
   let totalCreditUsd = 0;
   let paymentCount = 0;
@@ -2460,34 +2460,34 @@ function generateVendorDetailedReport() {
       if (row.amountUsd > 0) paymentCount++;
     }
   });
-  
+
   const currentBalanceCalc = totalDebitUsd - totalCreditUsd;
   const lastBalance = rows[rows.length - 1].balance || currentBalanceCalc;
-  
+
   let report = `📊 تقرير تفصيلي - ${partyName}\n`;
   report += '═'.repeat(50) + '\n\n';
-  
+
   report += '💰 ملخص الحساب (بالدولار):\n';
   report += `• إجمالي الاستحقاقات (مدين استحقاق): $${totalDebitUsd.toLocaleString()}\n`;
   report += `• إجمالي الدفعات (دائن دفعة): $${totalCreditUsd.toLocaleString()}\n`;
   report += `• الرصيد الحالي التقريبي: $${lastBalance.toLocaleString()}\n`;
   report += `• عدد الدفعات: ${paymentCount}\n\n`;
-  
+
   report += '📋 كشف الحساب التفصيلي:\n';
   report += '─'.repeat(50) + '\n';
-  
+
   rows.forEach(row => {
     const dateStr = row.date
       ? Utilities.formatDate(new Date(row.date), Session.getScriptTimeZone(), 'dd/MM/yyyy')
       : '';
-    
+
     report += `\n📅 ${dateStr} | ${row.movementType} (${row.classification})\n`;
     report += `   المشروع: ${row.project || '-'} - ${row.item || '-'}\n`;
-    
+
     if (row.details) {
       report += `   التفاصيل: ${row.details}\n`;
     }
-    
+
     // تنسيق مبلغ أصلي + بالدولار
     let originalPart = '';
     if (row.amountOriginal) {
@@ -2500,7 +2500,7 @@ function generateVendorDetailedReport() {
     } else if (originalPart) {
       amountText = originalPart;
     }
-    
+
     // استخدام includes للتعامل مع الإيموجي
     const kindStr2 = String(row.movementKind || '');
     if (kindStr2.includes(CONFIG.MOVEMENT.DEBIT) || kindStr2.includes('مدين')) {
@@ -2508,9 +2508,9 @@ function generateVendorDetailedReport() {
     } else if (kindStr2.includes(CONFIG.MOVEMENT.CREDIT) || kindStr2.includes('دائن')) {
       report += `   دائن (دفعة/تحصيل): ${amountText}\n`;
     }
-    
+
     report += `   الرصيد (USD): $${row.balance.toLocaleString()}\n`;
-    
+
     if (row.refNum) {
       report += `   رقم مرجعي: ${row.refNum}\n`;
     }
@@ -2518,10 +2518,10 @@ function generateVendorDetailedReport() {
       report += `   📝 ${row.notes}\n`;
     }
   });
-  
+
   report += '\n' + '═'.repeat(50) + '\n';
   report += `🔚 نهاية التقرير - الرصيد النهائي (تقريبي): $${lastBalance.toLocaleString()}`;
-  
+
   ui.alert(report);
 }
 
@@ -2530,59 +2530,59 @@ function generateVendorDetailedReport() {
 function showVendorStatement() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  
+
   const response = ui.prompt(
     '📋 كشف حساب طرف',
     'أدخل اسم الطرف (مورد/عميل/ممول):',
     ui.ButtonSet.OK_CANCEL
   );
-  
+
   if (response.getSelectedButton() !== ui.Button.OK) return;
-  
+
   const partyName = response.getResponseText().trim();
   if (!partyName) {
     ui.alert('⚠️ يجب إدخال اسم الطرف!');
     return;
   }
-  
+
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!transSheet) {
     ui.alert('⚠️ شيت الحركات غير موجود!');
     return;
   }
-  
+
   const data = transSheet.getDataRange().getValues();
   const rows = [];
-  
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][8] === partyName) { // I: الطرف
       rows.push({
-        date:         data[i][1],              // B
+        date: data[i][1],              // B
         movementType: data[i][2],              // C
         movementKind: data[i][13],             // N
-        amountUsd:    Number(data[i][12]) || 0,// M
-        balance:      Number(data[i][14]) || 0 // O
+        amountUsd: Number(data[i][12]) || 0,// M
+        balance: Number(data[i][14]) || 0 // O
       });
     }
   }
-  
+
   if (rows.length === 0) {
     ui.alert('⚠️ لم يتم العثور على حركات للطرف: ' + partyName);
     return;
   }
-  
+
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
-  
+
   let statement = `📋 كشف حساب: ${partyName}\n`;
   statement += '═'.repeat(40) + '\n\n';
-  
+
   let currentBalance = 0;
-  
+
   rows.forEach(row => {
     const dateStr = row.date
       ? Utilities.formatDate(new Date(row.date), Session.getScriptTimeZone(), 'dd/MM/yyyy')
       : '';
-    
+
     statement += `${dateStr} | ${row.movementType}\n`;
 
     // استخدام includes للتعامل مع الإيموجي
@@ -2592,14 +2592,14 @@ function showVendorStatement() {
     } else if (kindStr.includes(CONFIG.MOVEMENT.CREDIT) || kindStr.includes('دائن')) {
       statement += `         دائن (دفعة/تحصيل): $${row.amountUsd.toLocaleString()}\n`;
     }
-    
+
     currentBalance = row.balance;
     statement += `         رصيد (USD): $${row.balance.toLocaleString()}\n\n`;
   });
-  
+
   statement += '═'.repeat(40) + '\n';
   statement += `الرصيد الحالي (تقريبي بالدولار): $${currentBalance.toLocaleString()}`;
-  
+
   ui.alert(statement);
 }
 
@@ -2624,7 +2624,7 @@ function showProjectProfitability() {
   }
 
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
-  const transSheet    = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
 
   if (!projectsSheet || !transSheet) {
     ui.alert('⚠️ الشيتات المطلوبة غير موجودة!');
@@ -2638,12 +2638,12 @@ function showProjectProfitability() {
   for (let i = 1; i < projectsData.length; i++) {
     if (String(projectsData[i][0]).trim().toUpperCase() === projectCode) {
       projectInfo = {
-        code:            projectsData[i][0],
-        name:            projectsData[i][1],
-        channel:         projectsData[i][3] || '',
-        fundingType:     projectsData[i][6],
-        fundingValue:    Number(projectsData[i][7]) || 0,
-        contractValue:   Number(projectsData[i][8]) || 0
+        code: projectsData[i][0],
+        name: projectsData[i][1],
+        channel: projectsData[i][3] || '',
+        fundingType: projectsData[i][6],
+        fundingValue: Number(projectsData[i][7]) || 0,
+        contractValue: Number(projectsData[i][8]) || 0
       };
       break;
     }
@@ -2662,10 +2662,10 @@ function showProjectProfitability() {
     const rowProjCode = String(transData[i][4] || '').trim().toUpperCase();
     if (rowProjCode !== projectCode) continue;
 
-    const movementType   = String(transData[i][2] || '');  // C: طبيعة الحركة
+    const movementType = String(transData[i][2] || '');  // C: طبيعة الحركة
     const classification = String(transData[i][3] || '');  // D: تصنيف الحركة
-    const movementKind   = String(transData[i][13] || ''); // N: نوع الحركة
-    const amountUsd      = Number(transData[i][12]) || 0;  // M: القيمة بالدولار
+    const movementKind = String(transData[i][13] || ''); // N: نوع الحركة
+    const amountUsd = Number(transData[i][12]) || 0;  // M: القيمة بالدولار
 
     const isDebit = movementKind.includes('مدين');
 
@@ -3138,7 +3138,7 @@ function generateAllProjectsProfitabilityReport() {
 // ==================== دليل الاستخدام (محدث لنظام العملات + نوع الحركة) ====================
 function showGuide() {
   const ui = SpreadsheetApp.getUi();
-  
+
   ui.alert(
     '📖 دليل الاستخدام - نظام العملات + نوع الحركة',
     '1️⃣ دفتر الحركات المالية:\n' +
@@ -3170,20 +3170,20 @@ function showGuide() {
 function refreshDropdowns() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
-  
-  const transSheet    = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
-  const partiesSheet  = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
-  const itemsSheet    = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
-  const budgetSheet   = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
-  
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+  const budgetSheet = ss.getSheetByName(CONFIG.SHEETS.BUDGETS);
+
   if (!transSheet) {
     ui.alert('⚠️ شيت "دفتر الحركات المالية" غير موجود!');
     return;
   }
-  
+
   const lastRow = 500;
-  
+
   // كود المشروع في دفتر الحركات (E)
   if (projectsSheet) {
     const projectRange = projectsSheet.getRange('A2:A200');
@@ -3209,7 +3209,7 @@ function refreshDropdowns() {
       .build();
     colF.setDataValidation(projectNameValidation); // F
   }
-  
+
   // اسم الطرف (مورد/عميل/ممول) في دفتر الحركات (I)
   if (partiesSheet) {
     const partyRange = partiesSheet.getRange('A2:A500');
@@ -3220,11 +3220,11 @@ function refreshDropdowns() {
       .build();
     transSheet.getRange(2, 9, lastRow, 1).setDataValidation(partyValidation); // I
   }
-  
+
   // البنود + طبيعة الحركة + تصنيف الحركة من "قاعدة بيانات البنود"
   if (itemsSheet) {
     const lastItemsRow = Math.max(itemsSheet.getLastRow() - 1, 1);
-    
+
     // البند (G) من عمود A
     const itemsRange = itemsSheet.getRange(2, 1, lastItemsRow, 1); // A2:A
     const itemValidation = SpreadsheetApp.newDataValidation()
@@ -3233,7 +3233,7 @@ function refreshDropdowns() {
       .setHelpText('اختر البند من "قاعدة بيانات البنود" أو اكتب يدوياً')
       .build();
     transSheet.getRange(2, 7, lastRow, 1).setDataValidation(itemValidation); // G
-    
+
     // طبيعة الحركة (C) من عمود B
     const movementRange = itemsSheet.getRange(2, 2, lastItemsRow, 1); // B2:B
     const movementValidation = SpreadsheetApp.newDataValidation()
@@ -3242,7 +3242,7 @@ function refreshDropdowns() {
       .setHelpText('اختر طبيعة الحركة من "قاعدة بيانات البنود" (عمود B)')
       .build();
     transSheet.getRange(2, 3, lastRow, 1).setDataValidation(movementValidation); // C
-    
+
     // تصنيف الحركة (D) من عمود C
     const classRange = itemsSheet.getRange(2, 3, lastItemsRow, 1); // C2:C
     const classValidation = SpreadsheetApp.newDataValidation()
@@ -3252,7 +3252,7 @@ function refreshDropdowns() {
       .build();
     transSheet.getRange(2, 4, lastRow, 1).setDataValidation(classValidation); // D
   }
-  
+
   // كود المشروع في شيت الميزانيات (A) + البند (C)
   if (budgetSheet && projectsSheet) {
     const projectRange = projectsSheet.getRange('A2:A200');
@@ -3263,7 +3263,7 @@ function refreshDropdowns() {
       .build();
     budgetSheet.getRange(2, 1, 100, 1).setDataValidation(projectValidation); // A
   }
-  
+
   if (budgetSheet && itemsSheet) {
     const lastItemsRow = Math.max(itemsSheet.getLastRow() - 1, 1);
     const itemsRange = itemsSheet.getRange(2, 1, lastItemsRow, 1); // A2:A
@@ -3274,7 +3274,7 @@ function refreshDropdowns() {
       .build();
     budgetSheet.getRange(2, 3, 100, 1).setDataValidation(itemValidation); // C
   }
-  
+
   ui.alert(
     '✅ تم تحديث القوائم المنسدلة!\n\n' +
     '• كود المشروع في دفتر الحركات والميزانيات\n' +
@@ -3722,7 +3722,7 @@ function setupPart2() {
   if (!confirmReset()) return;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   createProjectReportSheet(ss);
   createVendorReportSheet(ss);
   createFunderReportSheet(ss);
@@ -3731,7 +3731,7 @@ function setupPart2() {
   createCashFlowSheet(ss);
   createDashboardSheet(ss);
   createInvoiceTemplateSheet(ss);   // 🆕 نموذج فاتورة القناة
-  
+
   SpreadsheetApp.getUi().alert(
     '✅ تم إنشاء الجزء 2 بنجاح!\n\n' +
     'التقارير المتاحة:\n' +
@@ -3917,9 +3917,9 @@ function generateChannelInvoice() {
     return;
   }
 
-  const projectName   = projectRow[1];              // اسم المشروع
-  const projectType   = projectRow[2];              // نوع المشروع
-  const channelName   = projectRow[3];              // القناة / الجهة
+  const projectName = projectRow[1];              // اسم المشروع
+  const projectType = projectRow[2];              // نوع المشروع
+  const channelName = projectRow[3];              // القناة / الجهة
   const contractValue = Number(projectRow[8]) || 0; // قيمة العقد مع القناة
 
   if (!contractValue) {
@@ -4430,31 +4430,31 @@ function generateFunderStatementSheet() {
 
 function rebuildProjectDetailReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECT_REPORT);
 
   if (!transSheet || !reportSheet) {
     return silent ? { success: false, name: 'تقرير المشروع التفصيلي', error: 'الشيتات غير موجودة' } : undefined;
   }
-  
+
   const data = transSheet.getDataRange().getValues();
   const map = {}; // key = projectCode|projectName|item|vendor
-  
+
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    
+
     const projectCode = String(row[4] || '').trim();  // E: كود المشروع
     const projectName = String(row[5] || '').trim();  // F: اسم المشروع
-    const item        = String(row[6] || '').trim();  // G: البند
-    const vendor      = String(row[8] || '').trim();  // I: المورد / الجهة
-    const type        = String(row[2] || '').trim();  // C: طبيعة الحركة
-    const amountUsd   = Number(row[12]) || 0;         // M: القيمة بالدولار الموحد
-    
+    const item = String(row[6] || '').trim();  // G: البند
+    const vendor = String(row[8] || '').trim();  // I: المورد / الجهة
+    const type = String(row[2] || '').trim();  // C: طبيعة الحركة
+    const amountUsd = Number(row[12]) || 0;         // M: القيمة بالدولار الموحد
+
     // لازم يكون في مشروع + جهة + نوع حركة + قيمة
     if (!projectCode || !vendor || !type || !amountUsd) continue;
-    
+
     const key = [projectCode, projectName, item, vendor].join('||');
-    
+
     if (!map[key]) {
       map[key] = {
         projectCode,
@@ -4466,7 +4466,7 @@ function rebuildProjectDetailReport(silent) {
         payments: 0      // عدد الدفعات / التحصيلات
       };
     }
-    
+
     // 🔹 أي "استحقاق" (مصروف أو إيراد) يروح في إجمالي المستحق
     // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
     if (type.includes('استحقاق مصروف') || type.includes('استحقاق إيراد')) {
@@ -4479,12 +4479,12 @@ function rebuildProjectDetailReport(silent) {
       if (amountUsd > 0) map[key].payments++;
     }
   }
-  
+
   const rows = [];
   Object.keys(map).forEach(k => {
     const v = map[k];
     const remaining = v.totalDue - v.totalPaid;
-    
+
     let status = 'لا يوجد استحقاق';
     if (v.totalDue > 0) {
       if (remaining === 0) {
@@ -4495,7 +4495,7 @@ function rebuildProjectDetailReport(silent) {
         status = 'معلق';
       }
     }
-    
+
     rows.push([
       v.projectCode,   // كود المشروع
       v.projectName,   // اسم المشروع
@@ -4508,13 +4508,13 @@ function rebuildProjectDetailReport(silent) {
       status           // حالة السداد (محسوبة)
     ]);
   });
-  
+
   // مسح التقرير القديم
   const lastCol = reportSheet.getLastColumn();
   if (reportSheet.getMaxRows() > 1) {
     reportSheet.getRange(2, 1, reportSheet.getMaxRows() - 1, lastCol).clearContent();
   }
-  
+
   // كتابة التقرير الجديد
   if (rows.length) {
     rows.sort((a, b) => a[0].localeCompare(b[0]));
@@ -4530,8 +4530,8 @@ function rebuildProjectDetailReport(silent) {
 
 function rebuildVendorSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.VENDORS_REPORT);
 
   if (!transSheet || !reportSheet) {
     if (silent) return { success: false, name: 'تقرير الموردين', error: 'الشيتات غير موجودة' };
@@ -4546,13 +4546,13 @@ function rebuildVendorSummaryReport(silent) {
   const map = {};
 
   for (let i = 1; i < data.length; i++) {
-    const row    = data[i];
+    const row = data[i];
     const vendor = row[8];               // I: اسم المورد/الجهة
-    const type   = row[2];               // C: طبيعة الحركة
+    const type = row[2];               // C: طبيعة الحركة
     const movementKind = row[13];        // N: نوع الحركة (مدين استحقاق / دائن دفعة)
     const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
     const project = row[4];              // E: كود المشروع
-    const date    = row[1];              // B: التاريخ
+    const date = row[1];              // B: التاريخ
 
     if (!vendor || !amountUsd) continue;
 
@@ -4597,8 +4597,8 @@ function rebuildVendorSummaryReport(silent) {
   const rows = [];
   Object.keys(map).forEach(k => {
     const v = map[k];
-    const projectsCount   = v.projects.size;
-    const currentBalance  = v.totalDebitUsd - v.totalCreditUsd;  // مدين - دائن = الرصيد
+    const projectsCount = v.projects.size;
+    const currentBalance = v.totalDebitUsd - v.totalCreditUsd;  // مدين - دائن = الرصيد
 
     let status = 'مغلق';
     if (currentBalance > 0) status = 'له رصيد مستحق';
@@ -4620,15 +4620,15 @@ function rebuildVendorSummaryReport(silent) {
 
   const lastCol = reportSheet.getLastColumn();
   if (reportSheet.getMaxRows() > 1) {
-    reportSheet.getRange(2,1,reportSheet.getMaxRows()-1,lastCol).clearContent();
+    reportSheet.getRange(2, 1, reportSheet.getMaxRows() - 1, lastCol).clearContent();
   }
 
   if (rows.length) {
-    rows.sort((a,b) => a[0].localeCompare(b[0]));
-    reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
-    reportSheet.getRange(2,4,rows.length,3).setNumberFormat('$#,##0.00');
+    rows.sort((a, b) => a[0].localeCompare(b[0]));
+    reportSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+    reportSheet.getRange(2, 4, rows.length, 3).setNumberFormat('$#,##0.00');
     // تنسيق عمود الكشف
-    reportSheet.getRange(2,10,rows.length,1).setHorizontalAlignment('center');
+    reportSheet.getRange(2, 10, rows.length, 1).setHorizontalAlignment('center');
   }
 
   if (silent) return { success: true, name: 'تقرير الموردين' };
@@ -4639,24 +4639,24 @@ function rebuildVendorSummaryReport(silent) {
 
 function rebuildExpenseSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet = ss.getSheetByName(CONFIG.SHEETS.EXPENSES_REPORT);
   if (!transSheet || !reportSheet) {
     if (silent) return { success: false, name: 'تقرير المصروفات', error: 'الشيتات غير موجودة' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير المصروفات".');
     return;
   }
-  
+
   const data = transSheet.getDataRange().getValues();
   const map = {};
-  
+
   for (let i = 1; i < data.length; i++) {
-    const row  = data[i];
+    const row = data[i];
     const type = row[2];           // C: طبيعة الحركة
     const classification = row[3]; // D: تصنيف الحركة
     const item = row[6];           // G: البند
     const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
-    
+
     if (!item || !amountUsd) continue;
     // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
     const typeStr = String(type || '');
@@ -4683,12 +4683,12 @@ function rebuildExpenseSummaryReport(silent) {
       v.paymentCount++;
     }
   }
-  
+
   const rows = [];
   Object.keys(map).forEach(k => {
     const v = map[k];
     const remaining = v.totalAccrual - v.totalPaid;
-    const percent   = v.totalAccrual ? v.totalPaid / v.totalAccrual : 0;
+    const percent = v.totalAccrual ? v.totalPaid / v.totalAccrual : 0;
     rows.push([
       v.item,
       v.classification,
@@ -4700,17 +4700,17 @@ function rebuildExpenseSummaryReport(silent) {
       v.totalAccrual ? percent : ''
     ]);
   });
-  
+
   const lastCol = reportSheet.getLastColumn();
   if (reportSheet.getMaxRows() > 1) {
-    reportSheet.getRange(2,1,reportSheet.getMaxRows()-1,lastCol).clearContent();
+    reportSheet.getRange(2, 1, reportSheet.getMaxRows() - 1, lastCol).clearContent();
   }
-  
+
   if (rows.length) {
-    rows.sort((a,b) => a[0].localeCompare(b[0]));
-    reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
-    reportSheet.getRange(2,3,rows.length,3).setNumberFormat('$#,##0.00');
-    reportSheet.getRange(2,8,rows.length,1).setNumberFormat('0.0%');
+    rows.sort((a, b) => a[0].localeCompare(b[0]));
+    reportSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+    reportSheet.getRange(2, 3, rows.length, 3).setNumberFormat('$#,##0.00');
+    reportSheet.getRange(2, 8, rows.length, 1).setNumberFormat('0.0%');
   }
 
   if (silent) return { success: true, name: 'تقرير المصروفات' };
@@ -4721,8 +4721,8 @@ function rebuildExpenseSummaryReport(silent) {
 
 function rebuildRevenueSummaryReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet   = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-  const reportSheet  = ss.getSheetByName(CONFIG.SHEETS.REVENUE_REPORT);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const reportSheet = ss.getSheetByName(CONFIG.SHEETS.REVENUE_REPORT);
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
 
   if (!transSheet || !reportSheet) {
@@ -4730,7 +4730,7 @@ function rebuildRevenueSummaryReport(silent) {
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "تقرير الإيرادات".');
     return;
   }
-  
+
   // اسم المشروع والقناة من قاعدة المشاريع
   const projectMap = {};
   if (projectsSheet) {
@@ -4739,33 +4739,33 @@ function rebuildRevenueSummaryReport(silent) {
       const code = pData[i][0];
       if (code) {
         projectMap[code] = {
-          name:    pData[i][1],
+          name: pData[i][1],
           channel: pData[i][3]
         };
       }
     }
   }
-  
+
   const data = transSheet.getDataRange().getValues();
   const map = {}; // key = projectCode
-  
+
   for (let i = 1; i < data.length; i++) {
-    const row  = data[i];
+    const row = data[i];
     const type = row[2];       // C: طبيعة الحركة
     // استخدام includes للتعامل مع القيم التي تحتوي على إيموجي
     const typeStr = String(type || '');
     if (!typeStr.includes('استحقاق إيراد') && !typeStr.includes('تحصيل إيراد')) continue;
 
     const projectCode = row[4];              // E: كود المشروع
-    const amountUsd   = Number(row[12]) || 0;// M: القيمة بالدولار
+    const amountUsd = Number(row[12]) || 0;// M: القيمة بالدولار
     if (!projectCode || !amountUsd) continue;
 
     if (!map[projectCode]) {
       const info = projectMap[projectCode] || {};
       map[projectCode] = {
         projectCode,
-        projectName: info.name    || '',
-        channel:     info.channel || row[8] || '', // I: اسم العميل/القناة لو مش موجود في المشاريع
+        projectName: info.name || '',
+        channel: info.channel || row[8] || '', // I: اسم العميل/القناة لو مش موجود في المشاريع
         expected: 0,
         received: 0,
         lastDate: null
@@ -4785,7 +4785,7 @@ function rebuildRevenueSummaryReport(silent) {
       }
     }
   }
-  
+
   const rows = [];
   Object.keys(map).forEach(k => {
     const v = map[k];
@@ -4795,7 +4795,7 @@ function rebuildRevenueSummaryReport(silent) {
     else if (v.expected > 0 && remaining === 0) status = 'مقبوض بالكامل';
     else if (v.expected > 0 && remaining > 0 && v.received > 0) status = 'مقبوض جزئياً';
     else if (v.expected > 0 && v.received === 0) status = 'لم يُقبض بعد';
-    
+
     rows.push([
       v.projectName || v.projectCode,
       v.channel,
@@ -4807,16 +4807,16 @@ function rebuildRevenueSummaryReport(silent) {
       status
     ]);
   });
-  
+
   const lastCol = reportSheet.getLastColumn();
   if (reportSheet.getMaxRows() > 1) {
-    reportSheet.getRange(2,1,reportSheet.getMaxRows()-1,lastCol).clearContent();
+    reportSheet.getRange(2, 1, reportSheet.getMaxRows() - 1, lastCol).clearContent();
   }
-  
+
   if (rows.length) {
-    rows.sort((a,b) => a[0].localeCompare(b[0]));
-    reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
-    reportSheet.getRange(2,4,rows.length,3).setNumberFormat('$#,##0.00');
+    rows.sort((a, b) => a[0].localeCompare(b[0]));
+    reportSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+    reportSheet.getRange(2, 4, rows.length, 3).setNumberFormat('$#,##0.00');
   }
 
   if (silent) return { success: true, name: 'تقرير الإيرادات' };
@@ -4827,23 +4827,23 @@ function rebuildRevenueSummaryReport(silent) {
 
 function rebuildCashFlowReport(silent) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const transSheet  = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   const reportSheet = ss.getSheetByName(CONFIG.SHEETS.CASHFLOW);
   if (!transSheet || !reportSheet) {
     if (silent) return { success: false, name: 'التدفقات النقدية', error: 'الشيتات غير موجودة' };
     SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية" و "التدفقات النقدية".');
     return;
   }
-  
+
   const data = transSheet.getDataRange().getValues();
   const map = {}; // key = YYYY-MM
-  
+
   for (let i = 1; i < data.length; i++) {
-    const row  = data[i];
+    const row = data[i];
     const date = row[1];
     if (!date) continue;
-    
-    const type      = row[2];               // C: طبيعة الحركة
+
+    const type = row[2];               // C: طبيعة الحركة
     const amountUsd = Number(row[12]) || 0; // M: القيمة بالدولار
     if (!amountUsd) continue;
 
@@ -4863,12 +4863,12 @@ function rebuildCashFlowReport(silent) {
       map[monthKey].revenues += amountUsd;
     }
   }
-  
+
   const months = Object.keys(map).sort();
   const rows = [];
   let cumulative = 0;
   months.forEach(m => {
-    const v   = map[m];
+    const v = map[m];
     const net = v.revenues - v.payments;
     cumulative += net;
     rows.push([
@@ -4880,15 +4880,15 @@ function rebuildCashFlowReport(silent) {
       cumulative
     ]);
   });
-  
+
   const lastCol = reportSheet.getLastColumn();
   if (reportSheet.getMaxRows() > 1) {
-    reportSheet.getRange(2,1,reportSheet.getMaxRows()-1,lastCol).clearContent();
+    reportSheet.getRange(2, 1, reportSheet.getMaxRows() - 1, lastCol).clearContent();
   }
-  
+
   if (rows.length) {
-    reportSheet.getRange(2,1,rows.length,rows[0].length).setValues(rows);
-    reportSheet.getRange(2,2,rows.length,5).setNumberFormat('$#,##0.00');
+    reportSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+    reportSheet.getRange(2, 2, rows.length, 5).setNumberFormat('$#,##0.00');
   }
 
   if (silent) return { success: true, name: 'التدفقات النقدية' };
@@ -5523,8 +5523,8 @@ function rebuildBalanceSheet(silent) {
 
     // تمويل
     if (natureType.includes('تمويل') &&
-        !natureType.includes('سداد تمويل') &&
-        !natureType.includes('استلام تمويل')) {
+      !natureType.includes('سداد تمويل') &&
+      !natureType.includes('استلام تمويل')) {
       totalFunding += amountUsd;
     }
     if (natureType.includes('سداد تمويل')) {
@@ -5846,8 +5846,8 @@ function updateAccountBalances_(ss, chartSheet) {
 
     // التمويل
     if (natureType.includes('تمويل') &&
-        !natureType.includes('سداد تمويل') &&
-        !natureType.includes('استلام تمويل')) {
+      !natureType.includes('سداد تمويل') &&
+      !natureType.includes('استلام تمويل')) {
       balances['2121'] += amountUsd;  // قروض الممولين (دائن)
     }
     if (natureType.includes('سداد تمويل')) {
@@ -6011,8 +6011,8 @@ function rebuildGeneralLedger(silent, filterAccount) {
       entries.push({ account: '1121', name: 'ذمم العملاء', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تمويل') &&
-             !natureType.includes('سداد تمويل') &&
-             !natureType.includes('استلام تمويل')) {
+      !natureType.includes('سداد تمويل') &&
+      !natureType.includes('استلام تمويل')) {
       // تمويل (قرض): مدين النقدية، دائن القروض
       entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '2121', name: 'قروض الممولين', debit: 0, credit: amountUsd });
@@ -6257,8 +6257,8 @@ function rebuildTrialBalance(silent) {
     }
     // تمويل: مدين النقدية، دائن القروض
     else if (natureType.includes('تمويل') &&
-             !natureType.includes('سداد تمويل') &&
-             !natureType.includes('استلام تمويل')) {
+      !natureType.includes('سداد تمويل') &&
+      !natureType.includes('استلام تمويل')) {
       accountBalances['2121'].credit += amountUsd;
     }
     // سداد تمويل: مدين القروض، دائن النقدية
@@ -6477,8 +6477,8 @@ function rebuildJournalEntries(silent) {
       entries.push({ account: '1121', name: 'ذمم العملاء', debit: 0, credit: amountUsd });
     }
     else if (natureType.includes('تمويل') &&
-             !natureType.includes('سداد تمويل') &&
-             !natureType.includes('استلام تمويل')) {
+      !natureType.includes('سداد تمويل') &&
+      !natureType.includes('استلام تمويل')) {
       entries.push({ account: bankAccount, name: bankName, debit: amountUsd, credit: 0 });
       entries.push({ account: '2121', name: 'قروض الممولين', debit: 0, credit: amountUsd });
     }
@@ -6796,12 +6796,12 @@ function createDashboardSheet(ss) {
   let sheet = ss.getSheetByName(CONFIG.SHEETS.DASHBOARD);
   if (!sheet) sheet = ss.insertSheet(CONFIG.SHEETS.DASHBOARD);
   sheet.clear();
-  
+
   // إعداد الأعمدة
   sheet.setColumnWidth(1, 280);
   sheet.setColumnWidth(2, 180);
   sheet.setColumnWidth(3, 260);
-  
+
   // العنوان الرئيسي
   sheet.getRange('A1:C1').merge();
   sheet.getRange('A1')
@@ -6811,7 +6811,7 @@ function createDashboardSheet(ss) {
     .setFontWeight('bold')
     .setFontSize(16)
     .setHorizontalAlignment('center');
-  
+
   const metrics = [
     ['', '', ''],                                  // 3
     ['💰 المؤشرات المالية', '', ''],              // 4
@@ -6933,13 +6933,13 @@ function createDashboardSheet(ss) {
 
   // كتابة الجدول ابتداءً من الصف 3
   sheet.getRange(3, 1, metrics.length, 3).setValues(metrics);
-  
+
   // تلوين عناوين الأقسام
   sheet.getRange('A4:C4')   // المؤشرات المالية
     .setBackground(CONFIG.COLORS.HEADER.REPORTS)
     .setFontColor(CONFIG.COLORS.TEXT.WHITE)
     .setFontWeight('bold');
-  
+
   sheet.getRange('A12:C12') // إحصائيات
     .setBackground(CONFIG.COLORS.HEADER.REPORTS)
     .setFontColor(CONFIG.COLORS.TEXT.WHITE)
@@ -6972,7 +6972,7 @@ function createDashboardSheet(ss) {
     .setBackground('#ffd54f')
     .setFontWeight('bold')
     .setFontSize(13);
-  
+
   sheet.setFrozenRows(2);
 }
 
@@ -7395,9 +7395,9 @@ function applyTransactionsDropdowns() {
   // نجيب العناوين علشان نشتغل بالاسم بدل رقم العمود
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  const colType   = headers.indexOf('طبيعة الحركة') + 1;
-  const colClass  = headers.indexOf('تصنيف الحركة') + 1;
-  const colItem   = headers.indexOf('البند') + 1;
+  const colType = headers.indexOf('طبيعة الحركة') + 1;
+  const colClass = headers.indexOf('تصنيف الحركة') + 1;
+  const colItem = headers.indexOf('البند') + 1;
 
   const dvBuilder = SpreadsheetApp.newDataValidation;
 
@@ -7509,9 +7509,9 @@ function createSingleAccountSheet(ss, sheetName, currency) {
 
 function createBankAndCashSheets(ss) {
   createSingleAccountSheet(ss, 'حساب البنك - دولار', 'USD');
-  createSingleAccountSheet(ss, 'حساب البنك - ليرة',  'TRY');
+  createSingleAccountSheet(ss, 'حساب البنك - ليرة', 'TRY');
   createSingleAccountSheet(ss, 'خزنة العهدة - دولار', 'USD');
-  createSingleAccountSheet(ss, 'خزنة العهدة - ليرة',  'TRY');
+  createSingleAccountSheet(ss, 'خزنة العهدة - ليرة', 'TRY');
   // 🆕 شيت خاص بحركة البطاقة (عادة ليرة)
   createSingleAccountSheet(ss, 'حساب البطاقة - ليرة', 'TRY');
 }
@@ -7519,8 +7519,8 @@ function createBankAndCashSheets(ss) {
 // ==================== بناء شيتات البنك والعهدة من دفتر الحركات (من غير أعمدة زيادة) ====================
 
 function rebuildBankAndCashFromTransactions(silent) {
-  const ss  = SpreadsheetApp.getActiveSpreadsheet();
-  const ui  = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
 
   const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
   if (!transSheet) {
@@ -7547,20 +7547,20 @@ function rebuildBankAndCashFromTransactions(silent) {
 
   // خريطة الأعمدة حسب ترتيبك الحالي
   const col = {
-    transNo:        findHeaderIndex_(headers, 'رقم الحركة'),
-    date:           findHeaderIndex_(headers, 'التاريخ'),
-    type:           findHeaderIndex_(headers, 'طبيعة الحركة'),
+    transNo: findHeaderIndex_(headers, 'رقم الحركة'),
+    date: findHeaderIndex_(headers, 'التاريخ'),
+    type: findHeaderIndex_(headers, 'طبيعة الحركة'),
     classification: findHeaderIndex_(headers, 'تصنيف الحركة'),
-    details:        findHeaderIndex_(headers, 'التفاصيل'),
-    party:          findHeaderIndex_(headers, 'اسم المورد/الجهة'),
-    amount:         findHeaderIndex_(headers, 'المبلغ بالعملة الأصلية'),
-    currency:       findHeaderIndex_(headers, ['العملة', 'العملة الأصلية']),
-    rate:           findHeaderIndex_(headers, 'سعر الصرف'),
-    amountUsd:      findHeaderIndex_(headers, 'القيمة بالدولار'),
-    refNo:          findHeaderIndex_(headers, 'رقم مرجعي'),
-    payMethod:      findHeaderIndex_(headers, 'طريقة الدفع'),
-    status:         findHeaderIndex_(headers, 'حالة السداد'),
-    notes:          findHeaderIndex_(headers, 'ملاحظات')
+    details: findHeaderIndex_(headers, 'التفاصيل'),
+    party: findHeaderIndex_(headers, 'اسم المورد/الجهة'),
+    amount: findHeaderIndex_(headers, 'المبلغ بالعملة الأصلية'),
+    currency: findHeaderIndex_(headers, ['العملة', 'العملة الأصلية']),
+    rate: findHeaderIndex_(headers, 'سعر الصرف'),
+    amountUsd: findHeaderIndex_(headers, 'القيمة بالدولار'),
+    refNo: findHeaderIndex_(headers, 'رقم مرجعي'),
+    payMethod: findHeaderIndex_(headers, 'طريقة الدفع'),
+    status: findHeaderIndex_(headers, 'حالة السداد'),
+    notes: findHeaderIndex_(headers, 'ملاحظات')
   };
 
   // لو الأعمدة الأساسية مش موجودة نوقف
@@ -7586,8 +7586,8 @@ function rebuildBankAndCashFromTransactions(silent) {
 
   // 🔍 تحديد نوع الحساب (بنك / خزنة / بطاقة + العملة)
   function detectAccountKey(payMethodVal, currencyVal) {
-    const pm  = String(payMethodVal || '').toLowerCase();
-    const cur = String(currencyVal  || '').toLowerCase();
+    const pm = String(payMethodVal || '').toLowerCase();
+    const cur = String(currencyVal || '').toLowerCase();
 
     const isCash =
       pm.indexOf('نقد') !== -1 ||
@@ -7609,21 +7609,21 @@ function rebuildBankAndCashFromTransactions(silent) {
       pm.indexOf('ماستر') !== -1;
 
     const isUsd =
-      cur.indexOf('usd')   !== -1 ||
+      cur.indexOf('usd') !== -1 ||
       cur.indexOf('دولار') !== -1 ||
-      cur.indexOf('$')     !== -1;
+      cur.indexOf('$') !== -1;
 
     const isTry =
-      cur.indexOf('try')   !== -1 ||
-      cur.indexOf('tl')    !== -1 ||
-      cur.indexOf('ليرة')  !== -1;
+      cur.indexOf('try') !== -1 ||
+      cur.indexOf('tl') !== -1 ||
+      cur.indexOf('ليرة') !== -1;
 
     const isEgp =
-      cur.indexOf('egp')   !== -1 ||
-      cur.indexOf('جنيه')  !== -1 ||
-      cur.indexOf('ج.م')   !== -1;
+      cur.indexOf('egp') !== -1 ||
+      cur.indexOf('جنيه') !== -1 ||
+      cur.indexOf('ج.م') !== -1;
 
-    if (isCard)          return 'cardTry';             // البطاقة دائمًا ليرة
+    if (isCard) return 'cardTry';             // البطاقة دائمًا ليرة
     if (isBank && isUsd) return 'bankUsd';
     if (isBank && isTry) return 'bankTry';
     if (isCash && isUsd) return 'cashUsd';
@@ -7636,13 +7636,13 @@ function rebuildBankAndCashFromTransactions(silent) {
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
 
-    const typeVal    = String(row[col.type] || '').trim();
-    const classVal   = col.classification >= 0 ? String(row[col.classification] || '').trim() : '';
-    const detailsVal = col.details        >= 0 ? String(row[col.details]        || '').trim() : '';
-    const statusVal  = col.status         >= 0 ? String(row[col.status]         || '').trim() : '';
+    const typeVal = String(row[col.type] || '').trim();
+    const classVal = col.classification >= 0 ? String(row[col.classification] || '').trim() : '';
+    const detailsVal = col.details >= 0 ? String(row[col.details] || '').trim() : '';
+    const statusVal = col.status >= 0 ? String(row[col.status] || '').trim() : '';
 
     const payMethodVal = row[col.payMethod];
-    const currencyVal  = row[col.currency];
+    const currencyVal = row[col.currency];
 
     // 1) لو مفيش طريقة دفع أو عملة ⇒ مش حركة نقدية أصلاً
     if (!payMethodVal || !currencyVal) continue;
@@ -7652,21 +7652,21 @@ function rebuildBankAndCashFromTransactions(silent) {
       typeVal.indexOf('استحقاق') !== -1 ||   // طبيعة الحركة فيها "استحقاق"
       statusVal === 'معلق';                  // أو حالة السداد "معلق"
 
-     // 3) تحديد هل هي تمويل (قصير/طويل/سلفة قصيرة الأجل)
-     const isFinancing =
-     // طبيعة الحركة = تمويل (بدون سداد تمويل)
+    // 3) تحديد هل هي تمويل (قصير/طويل/سلفة قصيرة الأجل)
+    const isFinancing =
+      // طبيعة الحركة = تمويل (بدون سداد تمويل)
       (typeVal.indexOf('تمويل') !== -1 && typeVal.indexOf('سداد تمويل') === -1) ||
-     // أي نوع تمويل مذكور بالاسم في التصنيف أو البند
-      classVal.indexOf('تمويل')  !== -1 ||
+      // أي نوع تمويل مذكور بالاسم في التصنيف أو البند
+      classVal.indexOf('تمويل') !== -1 ||
       detailsVal.indexOf('تمويل') !== -1 ||
 
-     // سلفة قصيرة الأجل (تُعامل كتمويل قصير الأجل)
+      // سلفة قصيرة الأجل (تُعامل كتمويل قصير الأجل)
       classVal.indexOf('سلفة قصيرة') !== -1 ||
       detailsVal.indexOf('سلفة قصيرة') !== -1;
     // 4) تحديد هل هي حركة مدفوعة فعليًا؟
     const isPaidMovement =
       statusVal === 'عملية دفع/تحصيل' ||
-      statusVal === CONFIG.PAYMENT_STATUS.PAID   ||
+      statusVal === CONFIG.PAYMENT_STATUS.PAID ||
       statusVal === 'مدفوع جزئياً';
 
     // 5) تحديد هل هي تحويل داخلي؟
@@ -7685,11 +7685,11 @@ function rebuildBankAndCashFromTransactions(silent) {
 
     const acc = accounts[key];
 
-    const date    = col.date    >= 0 ? row[col.date]    : '';
+    const date = col.date >= 0 ? row[col.date] : '';
     const transNo = col.transNo >= 0 ? row[col.transNo] : '';
-    const refNo   = col.refNo   >= 0 ? row[col.refNo]   : '';
-    const party   = col.party   >= 0 ? String(row[col.party] || '') : '';
-    const notes   = col.notes   >= 0 ? row[col.notes]   || '' : '';
+    const refNo = col.refNo >= 0 ? row[col.refNo] : '';
+    const party = col.party >= 0 ? String(row[col.party] || '') : '';
+    const notes = col.notes >= 0 ? row[col.notes] || '' : '';
 
     // 6) تحديد المبلغ:
     //    - USD / TRY → من "المبلغ بالعملة الأصلية"
@@ -7698,9 +7698,9 @@ function rebuildBankAndCashFromTransactions(silent) {
     let amount = 0;
 
     const isEgp =
-      cur.indexOf('egp')   !== -1 ||
-      cur.indexOf('جنيه')  !== -1 ||
-      cur.indexOf('ج.م')   !== -1;
+      cur.indexOf('egp') !== -1 ||
+      cur.indexOf('جنيه') !== -1 ||
+      cur.indexOf('ج.م') !== -1;
 
     if (isEgp && col.amountUsd !== -1) {
       amount = Number(row[col.amountUsd]) || 0;
@@ -7711,7 +7711,7 @@ function rebuildBankAndCashFromTransactions(silent) {
     if (!amount) continue;
 
     // 7) تحديد اتجاه الحركة (داخل / خارج الحساب)
-    let debitAcc  = 0;
+    let debitAcc = 0;
     let creditAcc = 0;
 
     // ═══════════════════════════════════════════════════════════
@@ -7791,9 +7791,9 @@ function rebuildBankAndCashFromTransactions(silent) {
     // 9) وصف الحركة
     let statement = '';
     if (party && detailsVal) statement = party + ' - ' + detailsVal;
-    else if (party)          statement = party;
-    else if (detailsVal)     statement = detailsVal;
-    else                     statement = typeVal;
+    else if (party) statement = party;
+    else if (detailsVal) statement = detailsVal;
+    else statement = typeVal;
 
     acc.rows.push([
       date,
@@ -7879,9 +7879,9 @@ function createBankReconciliationTrySheet() {
 // توليد مفتاح موحّد من التاريخ + المبلغ (للاستخدام الداخلي فقط)
 function makeReconcileKey_(date, amount) {
   if (!date || amount === "" || amount === null) return "";
-  const tz   = Session.getScriptTimeZone();
+  const tz = Session.getScriptTimeZone();
   const dStr = Utilities.formatDate(new Date(date), tz, "yyyy-MM-dd");
-  const amt  = Math.round((Number(amount) || 0) * 100) / 100; // تقريب لرقمين
+  const amt = Math.round((Number(amount) || 0) * 100) / 100; // تقريب لرقمين
   return dStr + "|" + amt.toFixed(2);
 }
 
@@ -7907,9 +7907,9 @@ function getSystemBankMapForCurrency_(currency) {
   const map = {}; // key -> { balance, count }
 
   values.forEach(r => {
-    const date    = r[0];
-    const debit   = Number(r[4]) || 0;
-    const credit  = Number(r[5]) || 0;
+    const date = r[0];
+    const debit = Number(r[4]) || 0;
+    const credit = Number(r[5]) || 0;
     const balance = Number(r[6]) || 0;
 
     // نستخدم القيمة المطلقة للحركة (المبلغ الإيجابي)
@@ -7948,9 +7948,9 @@ function getSystemCardMap_() {
   const map = {}; // key -> { balance, count }
 
   values.forEach(r => {
-    const date    = r[0];
-    const debit   = Number(r[4]) || 0;
-    const credit  = Number(r[5]) || 0;
+    const date = r[0];
+    const debit = Number(r[4]) || 0;
+    const credit = Number(r[5]) || 0;
     const balance = Number(r[6]) || 0;
 
     // نستخدم القيمة المطلقة للحركة (المبلغ الإيجابي)
@@ -8008,11 +8008,11 @@ function bankReconcileForCurrency_(currency) {
 
   bankData.forEach(row => {
     const date = row[0];
-    const amt  = Number(row[1]) || 0;
+    const amt = Number(row[1]) || 0;
 
     let systemBalance = "";
-    let bankAmount    = "";
-    let status        = "";
+    let bankAmount = "";
+    let status = "";
 
     if (!date || !amt) {
       // صف فاضي أو ناقص
@@ -8021,7 +8021,7 @@ function bankReconcileForCurrency_(currency) {
       return;
     }
 
-    const key  = makeReconcileKey_(date, amt);
+    const key = makeReconcileKey_(date, amt);
     const info = sysMap[key];
 
     bankAmount = amt;
@@ -8111,11 +8111,11 @@ function reconcileCard() {
 
   cardData.forEach(row => {
     const date = row[0];
-    const amt  = Number(row[1]) || 0;
+    const amt = Number(row[1]) || 0;
 
     let systemBalance = "";
-    let cardAmount    = "";
-    let status        = "";
+    let cardAmount = "";
+    let status = "";
 
     if (!date || !amt) {
       // صف فاضي أو ناقص
@@ -8124,7 +8124,7 @@ function reconcileCard() {
       return;
     }
 
-    const key  = makeReconcileKey_(date, amt);
+    const key = makeReconcileKey_(date, amt);
     const info = sysMap[key];
 
     cardAmount = amt;
@@ -9602,9 +9602,9 @@ function checkExistingCommissionAccrual(projectCode, managerName) {
 
     // التحقق من أنها عمولة مدير انتاج لنفس المشروع ونفس المدير
     if (rowProjectCode === projectCode &&
-        rowItem.indexOf('عمولة مدير') !== -1 &&
-        rowParty === managerName &&
-        rowMovementType.indexOf('مدين') !== -1) {
+      rowItem.indexOf('عمولة مدير') !== -1 &&
+      rowParty === managerName &&
+      rowMovementType.indexOf('مدين') !== -1) {
       totalExistingCommission += rowAmount;
       lastRow_found = i + 2; // +2 لأن البيانات تبدأ من السطر 2
     }
@@ -10584,32 +10584,25 @@ function testFormPermissions() {
  * يمرر البيانات مباشرة للنموذج لتجنب مشاكل الأذونات
  */
 function showTransactionForm() {
-  // جلب البيانات أولاً
-  const formData = getSmartFormData();
-  
-  // تحويل البيانات إلى JSON string آمن
-  const formDataJson = JSON.stringify(formData)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
+  try {
+    // جلب البيانات أولاً
+    const formData = getSmartFormData();
 
-  // إنشاء HTML مع حقن البيانات مباشرة
-  let htmlContent = HtmlService.createHtmlOutputFromFile('TransactionForm').getContent();
-  
-  // حقن البيانات في window.FORM_DATA قبل تحميل DOM
-  htmlContent = htmlContent.replace(
-    '<script>',
-    '<script>\nwindow.FORM_DATA = JSON.parse("' + formDataJson + '");\n'
-  );
+    // إنشاء قالب HTML مع البيانات
+    const template = HtmlService.createTemplateFromFile('TransactionForm');
+    template.formData = formData;
 
-  const html = HtmlService.createHtmlOutput(htmlContent)
-    .setWidth(520)
-    .setHeight(750)
-    .setTitle('إضافة حركة جديدة');
+    const html = template.evaluate()
+      .setWidth(520)
+      .setHeight(750);
 
-  SpreadsheetApp.getUi().showModalDialog(html, '➕ إضافة حركة جديدة');
+    SpreadsheetApp.getUi().showModalDialog(html, '➕ إضافة حركة جديدة');
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('❌ خطأ في فتح النموذج',
+      'حدث خطأ: ' + e.message + '\n\n' +
+      'الرجاء المحاولة مرة أخرى أو الاتصال بالدعم الفني.',
+      SpreadsheetApp.getUi().ButtonSet.OK);
+  }
 }
 
 /**
@@ -10791,7 +10784,7 @@ function submitSmartFormTransaction(formData) {
   if (formData.natureType.includes('استحقاق')) {
     movementType = 'مدين استحقاق';
   } else if (formData.natureType.includes('دفعة') || formData.natureType.includes('تحصيل') ||
-             formData.natureType.includes('سداد') || formData.natureType.includes('استرداد')) {
+    formData.natureType.includes('سداد') || formData.natureType.includes('استرداد')) {
     movementType = 'دائن دفعة';
   }
 
