@@ -60,6 +60,10 @@ function onOpen() {
         .addSeparator()
         .addItem('🌳 شجرة الحسابات', 'rebuildChartOfAccounts')
         .addItem('📒 دفتر الأستاذ العام', 'showGeneralLedger')
+        .addItem('⚖️ ميزان المراجعة', 'rebuildTrialBalance')
+        .addItem('📝 قيود اليومية', 'rebuildJournalEntries')
+        .addSeparator()
+        .addItem('🔒 الإقفال السنوي', 'performYearEndClosing')
     )
 
     // البنك وخزنة العهدة
@@ -6107,6 +6111,533 @@ function rebuildGeneralLedger(silent, filterAccount) {
 
   const filterMsg = filterAccount ? ` (حساب ${filterAccount})` : '';
   SpreadsheetApp.getUi().alert(`✅ تم تحديث "دفتر الأستاذ العام"${filterMsg}.\n\nعدد القيود: ${rows.length}`);
+}
+
+// ==================== ميزان المراجعة (Trial Balance) ====================
+/**
+ * إنشاء شيت ميزان المراجعة
+ */
+function createTrialBalanceSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.TRIAL_BALANCE);
+
+  const headers = [
+    'رقم الحساب',    // A
+    'اسم الحساب',    // B
+    'نوع الحساب',    // C
+    'مدين',          // D
+    'دائن',          // E
+    'الرصيد'         // F
+  ];
+  const widths = [120, 220, 120, 140, 140, 140];
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.TRIAL_BALANCE);
+
+  return sheet;
+}
+
+/**
+ * إعادة بناء ميزان المراجعة
+ * ميزان المراجعة يعرض أرصدة جميع الحسابات للتحقق من توازن المدين والدائن
+ * @param {boolean} silent - إذا كان true لا يظهر رسالة تأكيد
+ */
+function rebuildTrialBalance(silent) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    if (silent) return { success: false, name: 'ميزان المراجعة', error: 'دفتر الحركات غير موجود' };
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
+    return;
+  }
+
+  // إنشاء أو الحصول على الشيت
+  let trialSheet = ss.getSheetByName(CONFIG.SHEETS.TRIAL_BALANCE);
+  if (!trialSheet) {
+    trialSheet = createTrialBalanceSheet(ss);
+  } else {
+    trialSheet.clear();
+    // إعادة إنشاء الهيدر
+    const headers = ['رقم الحساب', 'اسم الحساب', 'نوع الحساب', 'مدين', 'دائن', 'الرصيد'];
+    const widths = [120, 220, 120, 140, 140, 140];
+    setupSheet_(trialSheet, headers, widths, CONFIG.COLORS.HEADER.TRIAL_BALANCE);
+  }
+
+  // قراءة بيانات الحركات
+  const transData = transSheet.getDataRange().getValues();
+
+  // تجميع الأرصدة لكل حساب
+  const accountBalances = {};
+
+  // تهيئة الحسابات من شجرة الحسابات
+  DEFAULT_ACCOUNTS.forEach(acc => {
+    accountBalances[acc.code] = {
+      code: acc.code,
+      name: acc.name,
+      type: acc.type,
+      debit: 0,
+      credit: 0
+    };
+  });
+
+  // إضافة أرصدة النقدية من شيتات البنك والخزنة
+  const cashBalances = {
+    '1111': getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_USD),
+    '1112': getLastBalanceFromSheet_(ss, CONFIG.SHEETS.BANK_TRY),
+    '1113': getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_USD),
+    '1114': getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CASH_TRY),
+    '1115': getLastBalanceFromSheet_(ss, CONFIG.SHEETS.CARD_TRY)
+  };
+
+  // إضافة أرصدة النقدية كمدين (لأنها أصول)
+  Object.keys(cashBalances).forEach(code => {
+    if (accountBalances[code] && cashBalances[code] > 0) {
+      accountBalances[code].debit = cashBalances[code];
+    }
+  });
+
+  // حساب الأرصدة من دفتر الحركات
+  for (let i = 1; i < transData.length; i++) {
+    const row = transData[i];
+    const natureType = String(row[2] || '');
+    const amountUsd = Number(row[12]) || 0;
+
+    if (!amountUsd) continue;
+
+    // استحقاق مصروف: مدين مصروفات، دائن ذمم الموردين
+    if (natureType.includes('استحقاق مصروف')) {
+      accountBalances['5100'].debit += amountUsd;
+      accountBalances['2111'].credit += amountUsd;
+    }
+    // دفعة مصروف: مدين ذمم الموردين، دائن النقدية
+    else if (natureType.includes('دفعة مصروف')) {
+      accountBalances['2111'].debit += amountUsd;
+      // النقدية تُخصم (لكن أرصدتها من شيتات البنك)
+    }
+    // استحقاق إيراد: مدين ذمم العملاء، دائن الإيرادات
+    else if (natureType.includes('استحقاق إيراد')) {
+      accountBalances['1121'].debit += amountUsd;
+      accountBalances['4110'].credit += amountUsd;
+    }
+    // تحصيل إيراد: مدين النقدية، دائن ذمم العملاء
+    else if (natureType.includes('تحصيل إيراد')) {
+      accountBalances['1121'].credit += amountUsd;
+    }
+    // تمويل: مدين النقدية، دائن القروض
+    else if (natureType.includes('تمويل') &&
+             !natureType.includes('سداد تمويل') &&
+             !natureType.includes('استلام تمويل')) {
+      accountBalances['2121'].credit += amountUsd;
+    }
+    // سداد تمويل: مدين القروض، دائن النقدية
+    else if (natureType.includes('سداد تمويل')) {
+      accountBalances['2121'].debit += amountUsd;
+    }
+    // تأمين مدفوع
+    else if (natureType.includes('تأمين مدفوع')) {
+      accountBalances['1122'].debit += amountUsd;
+    }
+    // استرداد تأمين
+    else if (natureType.includes('استرداد تأمين')) {
+      accountBalances['1122'].credit += amountUsd;
+    }
+  }
+
+  // بناء صفوف ميزان المراجعة
+  const rows = [];
+  let totalDebit = 0;
+  let totalCredit = 0;
+
+  // فقط الحسابات التي لها أرصدة
+  Object.keys(accountBalances).sort().forEach(code => {
+    const acc = accountBalances[code];
+    const netDebit = acc.debit - acc.credit;
+    const netCredit = acc.credit - acc.debit;
+
+    // تخطي الحسابات بدون أرصدة
+    if (acc.debit === 0 && acc.credit === 0) return;
+
+    // تحديد الجانب الصحيح حسب طبيعة الحساب
+    let displayDebit = 0;
+    let displayCredit = 0;
+    let balance = 0;
+
+    // الأصول والمصروفات: طبيعتها مدينة
+    if (code.startsWith('1') || code.startsWith('5')) {
+      if (netDebit > 0) {
+        displayDebit = netDebit;
+        balance = netDebit;
+      } else if (netCredit > 0) {
+        displayCredit = netCredit;
+        balance = -netCredit;
+      }
+    }
+    // الخصوم والإيرادات وحقوق الملكية: طبيعتها دائنة
+    else {
+      if (netCredit > 0) {
+        displayCredit = netCredit;
+        balance = netCredit;
+      } else if (netDebit > 0) {
+        displayDebit = netDebit;
+        balance = -netDebit;
+      }
+    }
+
+    if (displayDebit > 0 || displayCredit > 0) {
+      rows.push([
+        acc.code,
+        acc.name,
+        acc.type,
+        displayDebit || '',
+        displayCredit || '',
+        balance
+      ]);
+
+      totalDebit += displayDebit;
+      totalCredit += displayCredit;
+    }
+  });
+
+  // إضافة صف الإجماليات
+  rows.push(['', '', '', '', '', '']);
+  rows.push(['', 'الإجمالي', '', totalDebit, totalCredit, totalDebit - totalCredit]);
+
+  // كتابة البيانات
+  if (rows.length > 0) {
+    trialSheet.getRange(2, 1, rows.length, 6).setValues(rows);
+
+    // تنسيق الأرقام
+    trialSheet.getRange(2, 4, rows.length, 3).setNumberFormat('$#,##0.00');
+
+    // تنسيق صف الإجماليات
+    const totalRow = rows.length + 1;
+    trialSheet.getRange(totalRow, 1, 1, 6)
+      .setFontWeight('bold')
+      .setBackground(CONFIG.COLORS.BG.LIGHT_YELLOW);
+
+    // التحقق من التوازن
+    const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+    trialSheet.getRange(totalRow, 6)
+      .setBackground(isBalanced ? CONFIG.COLORS.BG.LIGHT_GREEN_3 : '#ffcdd2')
+      .setFontColor(isBalanced ? CONFIG.COLORS.TEXT.SUCCESS_DARK : CONFIG.COLORS.TEXT.DANGER);
+  }
+
+  if (silent) return { success: true, name: 'ميزان المراجعة' };
+
+  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const balanceStatus = isBalanced ? '✅ متوازن' : '⚠️ غير متوازن';
+  SpreadsheetApp.getUi().alert(
+    `✅ تم تحديث "ميزان المراجعة".\n\n` +
+    `إجمالي المدين: $${totalDebit.toLocaleString()}\n` +
+    `إجمالي الدائن: $${totalCredit.toLocaleString()}\n` +
+    `الفرق: $${(totalDebit - totalCredit).toLocaleString()}\n\n` +
+    `الحالة: ${balanceStatus}`
+  );
+}
+
+// ==================== قيود اليومية (Journal Entries) ====================
+/**
+ * إنشاء شيت قيود اليومية
+ */
+function createJournalEntriesSheet(ss) {
+  const sheet = getOrCreateSheet_(ss, CONFIG.SHEETS.JOURNAL_ENTRIES);
+
+  const headers = [
+    'رقم القيد',      // A
+    'التاريخ',        // B
+    'البيان',         // C
+    'رقم الحساب',     // D
+    'اسم الحساب',     // E
+    'مدين',           // F
+    'دائن',           // G
+    'المرجع'          // H
+  ];
+  const widths = [80, 100, 250, 100, 180, 120, 120, 100];
+
+  setupSheet_(sheet, headers, widths, CONFIG.COLORS.HEADER.JOURNAL_ENTRIES);
+
+  return sheet;
+}
+
+/**
+ * إعادة بناء قيود اليومية
+ * يعرض كل الحركات كقيود محاسبية مزدوجة مرتبة بالتاريخ
+ * @param {boolean} silent - إذا كان true لا يظهر رسالة تأكيد
+ */
+function rebuildJournalEntries(silent) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!transSheet) {
+    if (silent) return { success: false, name: 'قيود اليومية', error: 'دفتر الحركات غير موجود' };
+    SpreadsheetApp.getUi().alert('⚠️ تأكد من وجود "دفتر الحركات المالية".');
+    return;
+  }
+
+  // إنشاء أو الحصول على الشيت
+  let journalSheet = ss.getSheetByName(CONFIG.SHEETS.JOURNAL_ENTRIES);
+  if (!journalSheet) {
+    journalSheet = createJournalEntriesSheet(ss);
+  } else {
+    if (journalSheet.getMaxRows() > 1) {
+      journalSheet.getRange(2, 1, journalSheet.getMaxRows() - 1, 8).clearContent();
+    }
+  }
+
+  // قراءة شجرة الحسابات
+  const chartSheet = ss.getSheetByName(CONFIG.SHEETS.CHART_OF_ACCOUNTS);
+  const accountNames = {};
+  if (chartSheet) {
+    const chartData = chartSheet.getDataRange().getValues();
+    for (let i = 1; i < chartData.length; i++) {
+      accountNames[chartData[i][0]] = String(chartData[i][1]).trim();
+    }
+  }
+
+  // قراءة بيانات الحركات
+  const transData = transSheet.getDataRange().getValues();
+  const journalEntries = [];
+  let entryNumber = 1;
+
+  for (let i = 1; i < transData.length; i++) {
+    const row = transData[i];
+    const transNum = row[0];
+    const date = row[1];
+    const natureType = String(row[2] || '');
+    const description = row[7] || '';
+    const partyName = row[8] || '';
+    const amountUsd = Number(row[12]) || 0;
+    const refNum = row[15] || '';
+
+    if (!amountUsd || !date) continue;
+
+    const fullDescription = partyName ? `${description} - ${partyName}` : description;
+    const formattedDate = date instanceof Date ?
+      Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy') :
+      date;
+
+    // تحديد القيد حسب طبيعة الحركة
+    let entries = [];
+
+    if (natureType.includes('استحقاق مصروف')) {
+      entries.push({ account: '5100', name: 'مصروفات الإنتاج', debit: amountUsd, credit: 0 });
+      entries.push({ account: '2111', name: 'ذمم الموردين', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('دفعة مصروف')) {
+      entries.push({ account: '2111', name: 'ذمم الموردين', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('استحقاق إيراد')) {
+      entries.push({ account: '1121', name: 'ذمم العملاء', debit: amountUsd, credit: 0 });
+      entries.push({ account: '4110', name: 'إيرادات عقود الأفلام', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('تحصيل إيراد')) {
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1121', name: 'ذمم العملاء', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('تمويل') &&
+             !natureType.includes('سداد تمويل') &&
+             !natureType.includes('استلام تمويل')) {
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: '2121', name: 'قروض الممولين', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('سداد تمويل')) {
+      entries.push({ account: '2121', name: 'قروض الممولين', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('تأمين مدفوع')) {
+      entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: 0, credit: amountUsd });
+    }
+    else if (natureType.includes('استرداد تأمين')) {
+      entries.push({ account: '1111', name: 'البنك - دولار', debit: amountUsd, credit: 0 });
+      entries.push({ account: '1122', name: 'التأمينات المدفوعة', debit: 0, credit: amountUsd });
+    }
+
+    if (entries.length > 0) {
+      entries.forEach((entry, idx) => {
+        journalEntries.push({
+          entryNum: idx === 0 ? entryNumber : '',
+          date: idx === 0 ? formattedDate : '',
+          description: idx === 0 ? fullDescription : '',
+          accountCode: entry.account,
+          accountName: accountNames[entry.account] || entry.name,
+          debit: entry.debit,
+          credit: entry.credit,
+          ref: idx === 0 ? refNum : ''
+        });
+      });
+      // إضافة صف فاصل بين القيود
+      journalEntries.push({
+        entryNum: '', date: '', description: '',
+        accountCode: '', accountName: '', debit: '', credit: '', ref: ''
+      });
+      entryNumber++;
+    }
+  }
+
+  // بناء الصفوف
+  const rows = journalEntries.map(e => [
+    e.entryNum,
+    e.date,
+    e.description,
+    e.accountCode,
+    e.accountName,
+    e.debit || '',
+    e.credit || '',
+    e.ref
+  ]);
+
+  // كتابة البيانات
+  if (rows.length > 0) {
+    journalSheet.getRange(2, 1, rows.length, 8).setValues(rows);
+
+    // تنسيق الأرقام
+    journalSheet.getRange(2, 6, rows.length, 2).setNumberFormat('$#,##0.00');
+
+    // تلوين صفوف القيود
+    let colorToggle = false;
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2;
+      if (rows[i][0] !== '') {
+        colorToggle = !colorToggle;
+      }
+      if (rows[i][3] !== '') {
+        journalSheet.getRange(rowNum, 1, 1, 8)
+          .setBackground(colorToggle ? CONFIG.COLORS.BG.LIGHT_BLUE : CONFIG.COLORS.BG.WHITE);
+      }
+    }
+  }
+
+  if (silent) return { success: true, name: 'قيود اليومية' };
+
+  SpreadsheetApp.getUi().alert(`✅ تم تحديث "قيود اليومية".\n\nعدد القيود: ${entryNumber - 1}`);
+}
+
+// ==================== الإقفال السنوي (Year-End Closing) ====================
+/**
+ * تنفيذ الإقفال السنوي
+ * - إقفال حسابات الإيرادات والمصروفات
+ * - ترحيل صافي الربح/الخسارة لحساب الأرباح المحتجزة
+ */
+function performYearEndClosing() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // تأكيد من المستخدم
+  const response = ui.alert(
+    '🔒 الإقفال السنوي',
+    '⚠️ تحذير: الإقفال السنوي عملية مهمة!\n\n' +
+    'سيتم:\n' +
+    '1. حساب صافي الربح/الخسارة من الإيرادات والمصروفات\n' +
+    '2. إنشاء قيد إقفال لترحيل النتيجة للأرباح المحتجزة\n' +
+    '3. عرض تقرير بالنتائج\n\n' +
+    'هل تريد المتابعة؟',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) return;
+
+  // طلب السنة المراد إقفالها
+  const yearResponse = ui.prompt(
+    '📅 سنة الإقفال',
+    'أدخل السنة المراد إقفالها (مثال: 2025):',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (yearResponse.getSelectedButton() !== ui.Button.OK) return;
+
+  const closingYear = parseInt(yearResponse.getResponseText().trim());
+  if (isNaN(closingYear) || closingYear < 2000 || closingYear > 2100) {
+    ui.alert('⚠️ خطأ', 'الرجاء إدخال سنة صحيحة (مثال: 2025)', ui.ButtonSet.OK);
+    return;
+  }
+
+  // قراءة بيانات الحركات
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  if (!transSheet) {
+    ui.alert('⚠️ خطأ', 'دفتر الحركات المالية غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  const transData = transSheet.getDataRange().getValues();
+
+  // حساب الإيرادات والمصروفات للسنة المحددة
+  let totalRevenue = 0;
+  let totalExpenses = 0;
+
+  for (let i = 1; i < transData.length; i++) {
+    const row = transData[i];
+    const date = row[1];
+    const natureType = String(row[2] || '');
+    const amountUsd = Number(row[12]) || 0;
+
+    if (!date || !amountUsd) continue;
+
+    // التحقق من السنة
+    const transDate = new Date(date);
+    if (transDate.getFullYear() !== closingYear) continue;
+
+    if (natureType.includes('استحقاق إيراد')) {
+      totalRevenue += amountUsd;
+    }
+    if (natureType.includes('استحقاق مصروف')) {
+      totalExpenses += amountUsd;
+    }
+  }
+
+  const netProfit = totalRevenue - totalExpenses;
+  const profitOrLoss = netProfit >= 0 ? 'ربح' : 'خسارة';
+
+  // عرض النتائج
+  const closingReport =
+    `📊 تقرير الإقفال السنوي ${closingYear}\n` +
+    `${'═'.repeat(35)}\n\n` +
+    `إجمالي الإيرادات: $${totalRevenue.toLocaleString()}\n` +
+    `إجمالي المصروفات: $${totalExpenses.toLocaleString()}\n` +
+    `${'─'.repeat(35)}\n` +
+    `صافي ال${profitOrLoss}: $${Math.abs(netProfit).toLocaleString()}\n\n` +
+    `${'═'.repeat(35)}\n` +
+    `قيد الإقفال المقترح:\n` +
+    `${'─'.repeat(35)}\n`;
+
+  let closingEntry = '';
+  if (netProfit >= 0) {
+    closingEntry =
+      `من حـ/ ملخص الدخل    $${netProfit.toLocaleString()}\n` +
+      `    إلى حـ/ الأرباح المحتجزة    $${netProfit.toLocaleString()}\n`;
+  } else {
+    closingEntry =
+      `من حـ/ الأرباح المحتجزة    $${Math.abs(netProfit).toLocaleString()}\n` +
+      `    إلى حـ/ ملخص الدخل    $${Math.abs(netProfit).toLocaleString()}\n`;
+  }
+
+  ui.alert('📋 نتائج الإقفال السنوي', closingReport + closingEntry, ui.ButtonSet.OK);
+
+  // سؤال عن تحديث الأرباح المحتجزة في شجرة الحسابات
+  const updateResponse = ui.alert(
+    '💾 تحديث شجرة الحسابات',
+    `هل تريد تحديث رصيد "الأرباح المحتجزة" في شجرة الحسابات؟\n\n` +
+    `سيتم إضافة صافي ال${profitOrLoss} ($${Math.abs(netProfit).toLocaleString()}) للرصيد الحالي.`,
+    ui.ButtonSet.YES_NO
+  );
+
+  if (updateResponse === ui.Button.YES) {
+    // تحديث رصيد الأرباح المحتجزة
+    const chartSheet = ss.getSheetByName(CONFIG.SHEETS.CHART_OF_ACCOUNTS);
+    if (chartSheet) {
+      const chartData = chartSheet.getDataRange().getValues();
+      for (let i = 1; i < chartData.length; i++) {
+        if (chartData[i][0] === '3200') { // حساب الأرباح المحتجزة
+          const currentBalance = Number(chartData[i][5]) || 0;
+          const newBalance = currentBalance + netProfit;
+          chartSheet.getRange(i + 1, 6).setValue(newBalance);
+          chartSheet.getRange(i + 1, 7).setValue(`إقفال سنة ${closingYear}`);
+          break;
+        }
+      }
+      ui.alert('✅ تم', `تم تحديث رصيد الأرباح المحتجزة.\n\nالرصيد الجديد: $${(netProfit).toLocaleString()}`, ui.ButtonSet.OK);
+    }
+  }
 }
 
 // ========= التدفقات النقدية (تلقائي مع ترتيب الأعمدة الجديد) =========
