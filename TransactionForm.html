@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html dir="rtl">
+
 <head>
   <base target="_top">
   <style>
@@ -21,7 +22,7 @@
       padding: 20px;
       max-width: 500px;
       margin: 0 auto;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     }
 
     .header {
@@ -73,7 +74,11 @@
       color: #c62828;
     }
 
-    select, input[type="date"], input[type="text"], input[type="number"], textarea {
+    select,
+    input[type="date"],
+    input[type="text"],
+    input[type="number"],
+    textarea {
       width: 100%;
       padding: 10px 12px;
       border: 2px solid #e0e0e0;
@@ -88,7 +93,9 @@
       min-height: 60px;
     }
 
-    select:focus, input:focus, textarea:focus {
+    select:focus,
+    input:focus,
+    textarea:focus {
       outline: none;
       border-color: #667eea;
       background: white;
@@ -235,8 +242,13 @@
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     .success {
@@ -272,6 +284,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div id="loadingState" class="loading">
@@ -433,12 +446,15 @@
         <p style="font-size: 12px; color: #666; margin-bottom: 8px;">
           انسخ هذا النص واستخدم: القائمة ← إعدادات متقدمة ← إدخال حركة يدوياً
         </p>
-        <textarea id="jsonData" readonly style="width: 100%; height: 100px; font-size: 11px; direction: ltr; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 8px;"></textarea>
-        <button type="button" class="btn btn-secondary" onclick="copyJson()" style="margin-top: 8px; width: 100%;">📋 نسخ البيانات</button>
+        <textarea id="jsonData" readonly
+          style="width: 100%; height: 100px; font-size: 11px; direction: ltr; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 8px;"></textarea>
+        <button type="button" class="btn btn-secondary" onclick="copyJson()" style="margin-top: 8px; width: 100%;">📋
+          نسخ البيانات</button>
       </div>
 
       <div class="buttons" style="margin-top: 16px;">
-        <button id="btnSavePending" class="btn btn-primary" onclick="savePendingTransaction()" style="display: none;">💾 حفظ الحركة الآن</button>
+        <button id="btnSavePending" class="btn btn-primary" onclick="savePendingTransaction()" style="display: none;">💾
+          حفظ الحركة الآن</button>
         <button class="btn btn-primary" onclick="resetForm()">➕ إضافة حركة أخرى</button>
         <button class="btn btn-secondary" onclick="google.script.host.close()">إغلاق</button>
       </div>
@@ -451,19 +467,25 @@
     let lastFormData = null;  // لتخزين بيانات النموذج عند الفشل
 
     // البيانات الممررة من السيرفر مباشرة
-    const initialDataJson = <?!= initialData ?>;
+    const initialDataJson = <?= initialData ?>;
 
     // تحميل البيانات عند فتح النافذة
-    document.addEventListener('DOMContentLoaded', function() {
-      // استخدام البيانات الممررة مباشرة بدلاً من استدعاء السيرفر
-      if (initialDataJson) {
-        onDataLoaded(initialDataJson);
-      } else {
-        // fallback للطريقة القديمة
-        google.script.run
-          .withSuccessHandler(onDataLoaded)
-          .withFailureHandler(onError)
-          .getSmartFormData();
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        // استخدام البيانات الممررة مباشرة بدلاً من استدعاء السيرفر
+        if (initialDataJson && typeof initialDataJson === 'object') {
+          onDataLoaded(initialDataJson);
+        } else if (typeof google !== 'undefined' && google.script && google.script.run) {
+          // fallback للطريقة القديمة
+          google.script.run
+            .withSuccessHandler(onDataLoaded)
+            .withFailureHandler(onError)
+            .getSmartFormData();
+        } else {
+          throw new Error('لا يمكن تحميل البيانات - google.script غير متاح');
+        }
+      } catch (e) {
+        onError({ message: 'خطأ في تحميل النموذج: ' + e.message });
       }
     });
 
@@ -499,7 +521,7 @@
     function populateSelect(selectId, options) {
       const select = document.getElementById(selectId);
       if (!options) return;
-      options.forEach(function(opt) {
+      options.forEach(function (opt) {
         const option = document.createElement('option');
         option.value = opt;
         option.textContent = opt;
@@ -510,7 +532,7 @@
     function populateProjectsSelect(projects) {
       const select = document.getElementById('projectCode');
       if (!projects) return;
-      projects.forEach(function(proj) {
+      projects.forEach(function (proj) {
         const option = document.createElement('option');
         option.value = proj.code;  // القيمة = الكود
         option.textContent = proj.display;  // العرض = الاسم (الكود)
@@ -521,7 +543,7 @@
     function populatePartiesSelect(parties) {
       const select = document.getElementById('partyName');
       if (!parties) return;
-      parties.forEach(function(party) {
+      parties.forEach(function (party) {
         const option = document.createElement('option');
         option.value = party.name;
         option.textContent = party.type ? `${party.name} (${party.type})` : party.name;
@@ -629,7 +651,7 @@
     document.getElementById('dateInput').addEventListener('change', updateSelectedDate);
 
     // إرسال النموذج
-    document.getElementById('transactionForm').addEventListener('submit', function(e) {
+    document.getElementById('transactionForm').addEventListener('submit', function (e) {
       e.preventDefault();
 
       const formData = {
@@ -653,8 +675,8 @@
 
       // التحقق من الحقول المطلوبة
       if (!formData.date || !formData.natureType || !formData.classification ||
-          !formData.projectCode || !formData.item || !formData.amount ||
-          !formData.currency || !formData.paymentMethod) {
+        !formData.projectCode || !formData.item || !formData.amount ||
+        !formData.currency || !formData.paymentMethod) {
         showError('يرجى ملء جميع الحقول المطلوبة');
         return;
       }
@@ -676,13 +698,13 @@
       // محاولة الإرسال المباشر أولاً
       google.script.run
         .withSuccessHandler(onSubmitSuccess)
-        .withFailureHandler(function(err) {
+        .withFailureHandler(function (err) {
           // فشل الإرسال المباشر - نحاول التخزين المؤقت
           document.querySelector('#loadingState p').textContent = 'جاري حفظ البيانات مؤقتاً...';
 
           const jsonData = JSON.stringify(formData);
           google.script.run
-            .withSuccessHandler(function() {
+            .withSuccessHandler(function () {
               // تم التخزين المؤقت - عرض رسالة
               document.getElementById('loadingState').style.display = 'none';
               document.getElementById('successState').style.display = 'block';
@@ -691,7 +713,7 @@
                 'اضغط "حفظ الحركة الآن" أو من القائمة: إعدادات متقدمة ← حفظ الحركة المعلقة';
               document.getElementById('btnSavePending').style.display = 'block';
             })
-            .withFailureHandler(function(err2) {
+            .withFailureHandler(function (err2) {
               // فشل كل شيء - نعرض JSON
               document.getElementById('loadingState').style.display = 'none';
               document.getElementById('successState').style.display = 'block';
@@ -722,7 +744,7 @@
       const errorDiv = document.getElementById('errorMsg');
       errorDiv.textContent = msg;
       errorDiv.style.display = 'block';
-      setTimeout(function() {
+      setTimeout(function () {
         errorDiv.style.display = 'none';
       }, 5000);
     }
@@ -757,11 +779,11 @@
       document.querySelector('#loadingState p').textContent = 'جاري حفظ الحركة...';
 
       google.script.run
-        .withSuccessHandler(function() {
+        .withSuccessHandler(function () {
           // إغلاق النافذة بعد النجاح
           google.script.host.close();
         })
-        .withFailureHandler(function(err) {
+        .withFailureHandler(function (err) {
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('successState').style.display = 'block';
           showJsonFallback('❌ فشل الحفظ: ' + err.message);
@@ -791,10 +813,11 @@
       const btn = event.target;
       const originalText = btn.textContent;
       btn.textContent = '✅ تم النسخ!';
-      setTimeout(function() {
+      setTimeout(function () {
         btn.textContent = originalText;
       }, 2000);
     }
   </script>
 </body>
+
 </html>
