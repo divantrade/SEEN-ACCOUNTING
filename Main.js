@@ -14,7 +14,7 @@ function onOpen() {
     .addSeparator()
 
     // الاستخدام اليومي العادي
-    .addItem('➕ إضافة حركة جديدة', 'addTransactionWithDate')
+    .addItem('➕ إضافة حركة جديدة (نموذج)', 'showTransactionForm')
     .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addItem('🔍 تفعيل/إلغاء الفلتر', 'toggleFilter')
     .addSeparator()
@@ -10513,4 +10513,208 @@ function toggleTransactionsFilter() {
       '• أي عمود آخر',
       ui.ButtonSet.OK);
   }
+}
+
+// ==================== نموذج إضافة حركة (Transaction Form) ====================
+
+/**
+ * عرض نموذج إضافة حركة جديدة
+ */
+function showTransactionForm() {
+  const html = HtmlService.createHtmlOutputFromFile('TransactionForm')
+    .setWidth(520)
+    .setHeight(750)
+    .setTitle('إضافة حركة جديدة');
+
+  SpreadsheetApp.getUi().showModalDialog(html, '➕ إضافة حركة جديدة');
+}
+
+/**
+ * جلب بيانات القوائم المنسدلة للنموذج
+ * @returns {Object} بيانات القوائم
+ */
+function getSmartFormData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // تاريخ اليوم
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+
+  // جلب المشاريع (كود + اسم)
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const projects = [];
+  if (projectsSheet && projectsSheet.getLastRow() > 1) {
+    const projectData = projectsSheet.getRange(2, 1, projectsSheet.getLastRow() - 1, 2).getValues();
+    projectData.forEach(row => {
+      if (row[0]) {
+        projects.push({
+          code: String(row[0]).trim(),
+          name: String(row[1] || '').trim(),
+          display: `${row[1]} (${row[0]})`  // اسم المشروع (الكود)
+        });
+      }
+    });
+  }
+
+  // جلب الأطراف (موردين/عملاء/ممولين)
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+  const parties = [];
+  if (partiesSheet && partiesSheet.getLastRow() > 1) {
+    const partyData = partiesSheet.getRange(2, 1, partiesSheet.getLastRow() - 1, 2).getValues();
+    partyData.forEach(row => {
+      if (row[0]) {
+        parties.push({
+          name: String(row[0]).trim(),
+          type: String(row[1] || '').trim()
+        });
+      }
+    });
+  }
+
+  // جلب البنود والتصنيفات
+  const itemsSheet = ss.getSheetByName(CONFIG.SHEETS.ITEMS);
+  const items = [];
+  const classifications = [];
+  if (itemsSheet && itemsSheet.getLastRow() > 1) {
+    const itemData = itemsSheet.getRange(2, 1, itemsSheet.getLastRow() - 1, 3).getValues();
+    const classSet = new Set();
+    itemData.forEach(row => {
+      if (row[0]) {
+        items.push(String(row[0]).trim());
+      }
+      if (row[2] && !classSet.has(row[2])) {
+        classSet.add(row[2]);
+        classifications.push(String(row[2]).trim());
+      }
+    });
+  }
+
+  return {
+    today: today,
+    projects: projects,
+    parties: parties,
+    items: items,
+    classifications: classifications,
+    natureTypes: CONFIG.NATURE_TYPES,
+    movementTypes: CONFIG.MOVEMENT.TYPES,
+    currencies: CONFIG.CURRENCIES.LIST.slice(0, 3),  // USD, TRY, EGP
+    paymentMethods: CONFIG.PAYMENT_METHODS,
+    paymentTerms: CONFIG.PAYMENT_TERMS.LIST
+  };
+}
+
+/**
+ * حفظ الحركة من النموذج
+ * @param {Object} formData بيانات النموذج
+ * @returns {Object} نتيجة الحفظ
+ */
+function submitSmartFormTransaction(formData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+
+  if (!sheet) {
+    throw new Error('شيت دفتر الحركات المالية غير موجود');
+  }
+
+  // حساب رقم الحركة الجديد
+  const lastRow = sheet.getLastRow();
+  const newTransNum = lastRow > 1 ?
+    (Number(sheet.getRange(lastRow, 1).getValue()) || 0) + 1 : 1;
+
+  // تحويل التاريخ
+  const dateParts = formData.date.split('/');
+  const transDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+
+  // حساب القيمة بالدولار
+  const amount = Number(formData.amount) || 0;
+  const exchangeRate = Number(formData.exchangeRate) || 1;
+  const amountUsd = formData.currency === 'USD' ? amount : amount / exchangeRate;
+
+  // تحديد نوع الحركة
+  let movementType = '';
+  if (formData.natureType.includes('استحقاق')) {
+    movementType = 'مدين استحقاق';
+  } else if (formData.natureType.includes('دفعة') || formData.natureType.includes('تحصيل') ||
+             formData.natureType.includes('سداد') || formData.natureType.includes('استرداد')) {
+    movementType = 'دائن دفعة';
+  }
+
+  // جلب اسم المشروع من الكود
+  let projectName = '';
+  if (formData.projectCode) {
+    const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+    if (projectsSheet && projectsSheet.getLastRow() > 1) {
+      const projectData = projectsSheet.getRange(2, 1, projectsSheet.getLastRow() - 1, 2).getValues();
+      const found = projectData.find(row => String(row[0]).trim() === formData.projectCode);
+      if (found) projectName = found[1];
+    }
+  }
+
+  // حساب الشهر
+  const monthStr = Utilities.formatDate(transDate, Session.getScriptTimeZone(), 'yyyy-MM');
+
+  // تحديد تاريخ الاستحقاق
+  let dueDate = '';
+  if (formData.paymentTerm === 'فوري') {
+    dueDate = transDate;
+  } else if (formData.paymentTerm === 'تاريخ مخصص' && formData.customDueDate) {
+    const dueParts = formData.customDueDate.split('/');
+    dueDate = new Date(dueParts[2], dueParts[1] - 1, dueParts[0]);
+  }
+
+  // تحديد حالة السداد
+  let paymentStatus = '';
+  if (movementType === 'مدين استحقاق') {
+    paymentStatus = 'معلق';
+  } else if (movementType === 'دائن دفعة') {
+    paymentStatus = 'عملية دفع/تحصيل';
+  }
+
+  // بناء صف البيانات (25 عمود من A إلى Y)
+  const rowData = [
+    newTransNum,                          // A: رقم الحركة
+    transDate,                            // B: التاريخ
+    formData.natureType,                  // C: طبيعة الحركة
+    formData.classification,              // D: تصنيف الحركة
+    formData.projectCode,                 // E: كود المشروع
+    projectName,                          // F: اسم المشروع
+    formData.item,                        // G: البند
+    formData.details,                     // H: التفاصيل
+    formData.partyName,                   // I: اسم المورد/الجهة
+    amount,                               // J: المبلغ بالعملة الأصلية
+    formData.currency,                    // K: العملة
+    exchangeRate,                         // L: سعر الصرف
+    amountUsd,                            // M: القيمة بالدولار
+    movementType,                         // N: نوع الحركة
+    '',                                   // O: الرصيد (يُحسب لاحقاً)
+    formData.refNumber || '',             // P: رقم مرجعي
+    formData.paymentMethod,               // Q: طريقة الدفع
+    formData.paymentTerm || '',           // R: نوع شرط الدفع
+    formData.weeksCount || '',            // S: عدد الأسابيع
+    formData.customDueDate || '',         // T: تاريخ مخصص
+    dueDate,                              // U: تاريخ الاستحقاق
+    paymentStatus,                        // V: حالة السداد
+    monthStr,                             // W: الشهر
+    formData.notes || '',                 // X: ملاحظات
+    ''                                    // Y: كشف (رابط)
+  ];
+
+  // إضافة الصف
+  sheet.appendRow(rowData);
+  const newRow = sheet.getLastRow();
+
+  // تنسيق الصف الجديد
+  sheet.getRange(newRow, 2).setNumberFormat('dd/mm/yyyy');  // التاريخ
+  sheet.getRange(newRow, 10).setNumberFormat('#,##0.00');   // المبلغ
+  sheet.getRange(newRow, 12).setNumberFormat('#,##0.0000'); // سعر الصرف
+  sheet.getRange(newRow, 13).setNumberFormat('#,##0.00');   // القيمة بالدولار
+  if (dueDate) {
+    sheet.getRange(newRow, 21).setNumberFormat('dd/mm/yyyy'); // تاريخ الاستحقاق
+  }
+
+  return {
+    success: true,
+    row: newRow,
+    transNum: newTransNum,
+    summary: `${formData.natureType} - ${formData.partyName || formData.item} - ${amount} ${formData.currency}`
+  };
 }
