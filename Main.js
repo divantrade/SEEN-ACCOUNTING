@@ -2032,13 +2032,15 @@ function generateDueReport() {
   const overdue = [];      // متأخرة
   const thisWeek = [];     // هذا الأسبوع
   const thisMonth = [];    // هذا الشهر
-  const later = [];        // لاحقاً
+  const later = [];        // لاحقاً (لها تاريخ بعد 30 يوم)
+  const noDate = [];       // بدون تاريخ استحقاق
   const receivables = [];  // إيرادات مستحقة
 
   let totalOverdue = 0;
   let totalThisWeek = 0;
   let totalThisMonth = 0;
   let totalLater = 0;
+  let totalNoDate = 0;
   let totalReceivables = 0;
 
   for (const party in partyData) {
@@ -2057,25 +2059,29 @@ function generateDueReport() {
       totalReceivables += balance;
     } else {
       // مستحقات علينا - تصنيف حسب تاريخ الاستحقاق
-      let daysLeft = 999;
-      if (pd.earliestDueDate) {
-        daysLeft = Math.ceil((pd.earliestDueDate - today) / (1000 * 60 * 60 * 24));
-      }
+      const item = { party, project: pd.project, amount: balance, dueDate: pd.earliestDueDate, daysLeft: null };
 
-      const item = { party, project: pd.project, amount: balance, dueDate: pd.earliestDueDate, daysLeft };
-
-      if (daysLeft < 0) {
-        overdue.push(item);
-        totalOverdue += balance;
-      } else if (daysLeft <= 7) {
-        thisWeek.push(item);
-        totalThisWeek += balance;
-      } else if (daysLeft <= 30) {
-        thisMonth.push(item);
-        totalThisMonth += balance;
+      if (!pd.earliestDueDate) {
+        // بدون تاريخ استحقاق
+        noDate.push(item);
+        totalNoDate += balance;
       } else {
-        later.push(item);
-        totalLater += balance;
+        const daysLeft = Math.ceil((pd.earliestDueDate - today) / (1000 * 60 * 60 * 24));
+        item.daysLeft = daysLeft;
+
+        if (daysLeft < 0) {
+          overdue.push(item);
+          totalOverdue += balance;
+        } else if (daysLeft <= 7) {
+          thisWeek.push(item);
+          totalThisWeek += balance;
+        } else if (daysLeft <= 30) {
+          thisMonth.push(item);
+          totalThisMonth += balance;
+        } else {
+          later.push(item);
+          totalLater += balance;
+        }
       }
     }
   }
@@ -2191,10 +2197,13 @@ function generateDueReport() {
   // 3. استحقاقات هذا الشهر
   addSection('🟡 استحقاقات هذا الشهر', thisMonth, totalThisMonth, '#fff9c4', '#f57f17', true);
 
-  // 4. استحقاقات لاحقة
+  // 4. استحقاقات لاحقة (لها تاريخ بعد 30 يوم)
   addSection('🟢 استحقاقات لاحقة', later, totalLater, '#c8e6c9', '#2e7d32', true);
 
-  // 5. الإيرادات المستحقة
+  // 5. استحقاقات بدون تاريخ
+  addSection('⚪ بدون تاريخ استحقاق', noDate, totalNoDate, '#e0e0e0', '#424242', false);
+
+  // 6. الإيرادات المستحقة
   addSection('💰 إيرادات مستحقة التحصيل', receivables, totalReceivables, '#bbdefb', '#0d47a1', false);
 
   // === الملخص المالي ===
@@ -2209,7 +2218,7 @@ function generateDueReport() {
     .setHorizontalAlignment('center');
   currentRow++;
 
-  const totalPayables = totalOverdue + totalThisWeek + totalThisMonth + totalLater;
+  const totalPayables = totalOverdue + totalThisWeek + totalThisMonth + totalLater + totalNoDate;
   const netPosition = totalReceivables - totalPayables;
 
   // إجمالي الاستحقاقات
