@@ -1846,7 +1846,15 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details) 
     // جلب البريد الإلكتروني للمستخدم الحالي
     let userEmail = '';
     try {
-      userEmail = Session.getActiveUser().getEmail() || 'غير معروف';
+      // نجرب أولاً getEffectiveUser (يعمل من HtmlService)
+      userEmail = Session.getEffectiveUser().getEmail();
+      if (!userEmail) {
+        // إذا فشل، نجرب getActiveUser
+        userEmail = Session.getActiveUser().getEmail();
+      }
+      if (!userEmail) {
+        userEmail = 'غير معروف';
+      }
     } catch (e) {
       userEmail = 'غير متاح';
     }
