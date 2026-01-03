@@ -125,6 +125,8 @@ function onOpen() {
         .addSeparator()
         .addItem('📋 عرض سجل النشاط', 'showActivityLog')
         .addItem('🗑️ مسح سجل النشاط', 'clearActivityLog')
+        .addItem('🔔 تفعيل التسجيل التلقائي', 'installActivityTriggers')
+        .addItem('🔕 إيقاف التسجيل التلقائي', 'uninstallActivityTriggers')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
@@ -143,11 +145,83 @@ function onOpen() {
 
 
 // ==================== تسجيل التعديلات التلقائي ====================
+
 /**
- * دالة تُنفذ تلقائياً عند أي تعديل في الشيت
+ * تثبيت الـ Triggers للتسجيل التلقائي
+ * يجب تشغيل هذه الدالة مرة واحدة فقط
+ */
+function installActivityTriggers() {
+  const ui = SpreadsheetApp.getUi();
+
+  // حذف الـ triggers القديمة أولاً
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    const funcName = trigger.getHandlerFunction();
+    if (funcName === 'onEditHandler' || funcName === 'onChangeHandler') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+
+  // إنشاء trigger للتعديلات
+  ScriptApp.newTrigger('onEditHandler')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onEdit()
+    .create();
+
+  // إنشاء trigger للتغييرات الهيكلية
+  ScriptApp.newTrigger('onChangeHandler')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onChange()
+    .create();
+
+  ui.alert(
+    '✅ تم تثبيت التسجيل التلقائي',
+    'سيتم الآن تسجيل جميع التعديلات تلقائياً:\n\n' +
+    '• تعديل القيم\n' +
+    '• إضافة صفوف\n' +
+    '• حذف صفوف\n' +
+    '• الإدخال اليدوي\n\n' +
+    'يمكنك مراجعة السجل من:\n' +
+    'نظام المحاسبة ← إعدادات متقدمة ← عرض سجل النشاط',
+    ui.ButtonSet.OK
+  );
+}
+
+
+/**
+ * إزالة الـ Triggers للتسجيل التلقائي
+ */
+function uninstallActivityTriggers() {
+  const ui = SpreadsheetApp.getUi();
+
+  const response = ui.alert(
+    '⚠️ إزالة التسجيل التلقائي',
+    'هل تريد إيقاف التسجيل التلقائي للتعديلات؟',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) return;
+
+  const triggers = ScriptApp.getProjectTriggers();
+  let removed = 0;
+
+  triggers.forEach(trigger => {
+    const funcName = trigger.getHandlerFunction();
+    if (funcName === 'onEditHandler' || funcName === 'onChangeHandler') {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+
+  ui.alert('✅ تم', `تم إزالة ${removed} trigger(s).`, ui.ButtonSet.OK);
+}
+
+
+/**
+ * دالة تُنفذ تلقائياً عند أي تعديل في الشيت (Installable Trigger)
  * تسجل التعديلات اليدوية في سجل النشاط
  */
-function onEdit(e) {
+function onEditHandler(e) {
   try {
     // التحقق من وجود الحدث
     if (!e || !e.range) return;
@@ -220,14 +294,16 @@ function onEdit(e) {
 /**
  * دالة تُنفذ عند تغيير هيكل الشيت (إضافة/حذف صفوف أو أعمدة)
  */
-function onChange(e) {
+function onChangeHandler(e) {
   try {
     if (!e) return;
 
     const changeType = e.changeType;
 
-    // تسجيل إضافة أو حذف الصفوف فقط
-    if (changeType === 'INSERT_ROW' || changeType === 'REMOVE_ROW') {
+    // تسجيل إضافة أو حذف الصفوف والأعمدة
+    if (changeType === 'INSERT_ROW' || changeType === 'REMOVE_ROW' ||
+        changeType === 'INSERT_COLUMN' || changeType === 'REMOVE_COLUMN') {
+
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const activeSheet = ss.getActiveSheet();
       const sheetName = activeSheet.getName();
@@ -242,7 +318,14 @@ function onChange(e) {
 
       if (!trackedSheets.includes(sheetName)) return;
 
-      const actionType = changeType === 'INSERT_ROW' ? 'إضافة صف' : 'حذف صف';
+      const actionTypes = {
+        'INSERT_ROW': 'إضافة صف',
+        'REMOVE_ROW': 'حذف صف',
+        'INSERT_COLUMN': 'إضافة عمود',
+        'REMOVE_COLUMN': 'حذف عمود'
+      };
+
+      const actionType = actionTypes[changeType] || changeType;
 
       logActivity(
         actionType,
@@ -252,6 +335,11 @@ function onChange(e) {
         `تم ${actionType} في ${sheetName}`,
         { changeType: changeType }
       );
+    }
+
+    // تسجيل التعديلات العامة (EDIT)
+    if (changeType === 'EDIT') {
+      // يتم معالجتها في onEditHandler
     }
 
   } catch (err) {
