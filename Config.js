@@ -46,6 +46,7 @@ const CONFIG = {
         GENERAL_LEDGER: 'دفتر الأستاذ العام',
         TRIAL_BALANCE: 'ميزان المراجعة',
         JOURNAL_ENTRIES: 'قيود اليومية',
+        ACTIVITY_LOG: 'سجل النشاط',
 
         // حسابات البنك والخزنة
         BANK_USD: 'حساب البنك - دولار',
