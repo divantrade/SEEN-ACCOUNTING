@@ -123,6 +123,9 @@ function onOpen() {
         .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
         .addItem('💰 إضافة أعمدة العمولات للمشاريع', 'addProjectManagerColumns')
         .addSeparator()
+        .addItem('📋 عرض سجل النشاط', 'showActivityLog')
+        .addItem('🗑️ مسح سجل النشاط', 'clearActivityLog')
+        .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
     )
 
@@ -525,6 +528,7 @@ function setupPart1() {
   createItemsSheet(ss);          // 🆕 قاعدة بيانات البنود (مبسطة)
   createBudgetsSheet(ss);        // الميزانيات
   createAlertsSheet(ss);         // التنبيهات
+  createActivityLogSheet(ss);    // 🆕 سجل النشاط
 
   // 🆕 شيتات البنك وخزنة العهدة (دولار / ليرة)
   createBankAndCashSheets(ss);
@@ -536,6 +540,7 @@ function setupPart1() {
     '• قاعدة بيانات أطراف موحدة (مورد / عميل / ممول)\n' +
     '• قاعدة بيانات البنود\n' +
     '• شيتات البنك وخزنة العهدة بالدولار والليرة\n' +
+    '• سجل النشاط (تتبع العمليات)\n' +
     '• التلوين حسب نوع الحركة فقط (استحقاق / دفعة)\n' +
     '• العملة الأساسية: USD\n\n' +
     'الآن اختر: 🔧 إنشاء النظام - الجزء 2 (لو موجود عندك في ملف آخر).'
@@ -1564,6 +1569,174 @@ function createAlertsSheet(ss) {
   widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
 
   sheet.setFrozenRows(1);
+}
+
+
+// ==================== 6.5. شيت سجل النشاط ====================
+/**
+ * إنشاء شيت سجل النشاط لتتبع جميع العمليات
+ */
+function createActivityLogSheet(ss) {
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEETS.ACTIVITY_LOG);
+  }
+  sheet.clear();
+
+  const headers = [
+    'الوقت',              // A: تاريخ ووقت العملية
+    'المستخدم',           // B: البريد الإلكتروني
+    'نوع العملية',        // C: إضافة / تعديل / حذف
+    'الشيت',              // D: اسم الشيت المتأثر
+    'رقم الصف',           // E: رقم الصف المتأثر
+    'رقم الحركة',         // F: رقم الحركة (إن وجد)
+    'ملخص العملية',       // G: وصف مختصر
+    'التفاصيل'            // H: تفاصيل إضافية (JSON)
+  ];
+
+  sheet.getRange(1, 1, 1, headers.length)
+    .setValues([headers])
+    .setBackground('#37474f')
+    .setFontColor(CONFIG.COLORS.TEXT.WHITE)
+    .setFontWeight('bold')
+    .setFontSize(11);
+
+  const widths = [160, 200, 120, 180, 80, 100, 300, 400];
+  widths.forEach((width, i) => sheet.setColumnWidth(i + 1, width));
+
+  sheet.setFrozenRows(1);
+
+  // تنسيق عمود الوقت
+  sheet.getRange('A:A').setNumberFormat('yyyy-mm-dd hh:mm:ss');
+}
+
+
+/**
+ * تسجيل نشاط في سجل النشاط
+ * @param {string} actionType - نوع العملية (إضافة حركة، تعديل، حذف، إلخ)
+ * @param {string} sheetName - اسم الشيت المتأثر
+ * @param {number} rowNum - رقم الصف المتأثر
+ * @param {string|number} transNum - رقم الحركة (اختياري)
+ * @param {string} summary - ملخص العملية
+ * @param {Object} details - تفاصيل إضافية (اختياري)
+ */
+function logActivity(actionType, sheetName, rowNum, transNum, summary, details) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+
+    // إنشاء الشيت إذا لم يكن موجوداً
+    if (!logSheet) {
+      createActivityLogSheet(ss);
+      logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+    }
+
+    // جلب البريد الإلكتروني للمستخدم الحالي
+    let userEmail = '';
+    try {
+      userEmail = Session.getActiveUser().getEmail() || 'غير معروف';
+    } catch (e) {
+      userEmail = 'غير متاح';
+    }
+
+    // تحويل التفاصيل لـ JSON إذا كانت كائن
+    let detailsStr = '';
+    if (details) {
+      try {
+        detailsStr = typeof details === 'string' ? details : JSON.stringify(details, null, 0);
+      } catch (e) {
+        detailsStr = String(details);
+      }
+    }
+
+    // إضافة السجل الجديد
+    const newRow = logSheet.getLastRow() + 1;
+    const timestamp = new Date();
+
+    logSheet.getRange(newRow, 1, 1, 8).setValues([[
+      timestamp,
+      userEmail,
+      actionType,
+      sheetName,
+      rowNum || '',
+      transNum || '',
+      summary,
+      detailsStr
+    ]]);
+
+    // تطبيق تنسيق zebra للصفوف
+    if (newRow % 2 === 0) {
+      logSheet.getRange(newRow, 1, 1, 8).setBackground(CONFIG.COLORS.BG.ZEBRA_ODD);
+    }
+
+  } catch (e) {
+    // في حالة فشل التسجيل، لا نوقف العملية الأصلية
+    console.error('فشل تسجيل النشاط:', e.message);
+  }
+}
+
+
+/**
+ * عرض شيت سجل النشاط (إنشاؤه إذا لم يكن موجوداً)
+ */
+function showActivityLog() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+
+  if (!logSheet) {
+    createActivityLogSheet(ss);
+    logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+  }
+
+  ss.setActiveSheet(logSheet);
+  SpreadsheetApp.getUi().alert(
+    '📋 سجل النشاط',
+    'تم فتح شيت سجل النشاط.\n\n' +
+    'يتم تسجيل جميع العمليات تلقائياً:\n' +
+    '• إضافة الحركات\n' +
+    '• التعديلات\n' +
+    '• العمليات الأخرى\n\n' +
+    'عدد السجلات الحالي: ' + Math.max(0, logSheet.getLastRow() - 1),
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}
+
+
+/**
+ * مسح سجل النشاط (مع الاحتفاظ بالهيدر)
+ */
+function clearActivityLog() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+
+  if (!logSheet) {
+    ui.alert('⚠️ تنبيه', 'شيت سجل النشاط غير موجود!', ui.ButtonSet.OK);
+    return;
+  }
+
+  const lastRow = logSheet.getLastRow();
+  if (lastRow <= 1) {
+    ui.alert('ℹ️ معلومة', 'سجل النشاط فارغ بالفعل.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const response = ui.alert(
+    '🗑️ مسح سجل النشاط',
+    `هل تريد مسح جميع السجلات (${lastRow - 1} سجل)?\n\n` +
+    'سيتم حذف جميع السجلات نهائياً ولا يمكن استعادتها.',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response === ui.Button.YES) {
+    logSheet.deleteRows(2, lastRow - 1);
+    ui.alert('✅ تم', 'تم مسح سجل النشاط بنجاح.', ui.ButtonSet.OK);
+
+    // تسجيل عملية المسح نفسها
+    logActivity('مسح السجل', CONFIG.SHEETS.ACTIVITY_LOG, null, null, 'تم مسح جميع السجلات', {
+      deletedCount: lastRow - 1
+    });
+  }
 }
 
 
@@ -11095,10 +11268,32 @@ function saveTransactionData(formData) {
   // ═══════════════════════════════════════════════════════════════
   SpreadsheetApp.flush();
 
+  // ═══════════════════════════════════════════════════════════════
+  // تسجيل النشاط
+  // ═══════════════════════════════════════════════════════════════
+  const summaryText = `${formData.natureType} - ${formData.partyName || formData.item} - ${amount} ${formData.currency}`;
+  logActivity(
+    'إضافة حركة',
+    CONFIG.SHEETS.TRANSACTIONS,
+    newRow,
+    newTransNum,
+    summaryText,
+    {
+      projectCode: formData.projectCode,
+      projectName: projectName,
+      item: formData.item,
+      partyName: formData.partyName,
+      amount: amount,
+      currency: formData.currency,
+      amountUsd: amountUsd,
+      movementType: movementType
+    }
+  );
+
   return {
     success: true,
     row: newRow,
     transNum: newTransNum,
-    summary: `${formData.natureType} - ${formData.partyName || formData.item} - ${amount} ${formData.currency}`
+    summary: summaryText
   };
 }
