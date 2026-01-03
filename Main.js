@@ -10904,11 +10904,11 @@ function saveTransactionData(formData) {
   const dateParts = formData.date.split('/');
   const transDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
 
-  // حساب القيمة بالدولار (للعرض فقط - المعادلة ستحسبها)
+  // البيانات الأساسية
   const amount = Number(formData.amount) || 0;
   const exchangeRate = Number(formData.exchangeRate) || 1;
 
-  // تحديد نوع الحركة
+  // تحديد نوع الحركة (N)
   let movementType = '';
   if (formData.natureType.includes('استحقاق')) {
     movementType = 'مدين استحقاق';
@@ -10917,20 +10917,95 @@ function saveTransactionData(formData) {
     movementType = 'دائن دفعة';
   }
 
-  // جلب اسم المشروع من الكود
+  // جلب اسم المشروع من الكود (F)
   let projectName = '';
-  if (formData.projectCode) {
-    const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
-    if (projectsSheet && projectsSheet.getLastRow() > 1) {
-      const projectData = projectsSheet.getRange(2, 1, projectsSheet.getLastRow() - 1, 2).getValues();
-      const found = projectData.find(row => String(row[0]).trim() === formData.projectCode);
-      if (found) projectName = found[1];
+  let projectDeliveryDate = null;
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  if (formData.projectCode && projectsSheet && projectsSheet.getLastRow() > 1) {
+    const projectData = projectsSheet.getRange(2, 1, projectsSheet.getLastRow() - 1, 11).getValues();
+    const found = projectData.find(row => String(row[0]).trim() === formData.projectCode);
+    if (found) {
+      projectName = found[1];
+      // العمود K (index 10) = تاريخ التسليم المتوقع
+      if (found[10] instanceof Date) {
+        projectDeliveryDate = found[10];
+      }
     }
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // الكتابة على الأعمدة غير المحسوبة فقط (تجنب مسح المعادلات)
-  // الأعمدة المحسوبة: M (القيمة بالدولار), O (الرصيد), U (تاريخ الاستحقاق), V (حالة السداد), W (الشهر)
+  // حساب القيم المحسوبة (بدلاً من الاعتماد على معادلات الشيت)
+  // ═══════════════════════════════════════════════════════════════
+
+  // M: القيمة بالدولار
+  let amountUsd = 0;
+  if (amount > 0) {
+    if (formData.currency === 'USD' || formData.currency === 'دولار' || !formData.currency) {
+      amountUsd = amount;
+    } else if (exchangeRate > 0) {
+      amountUsd = amount / exchangeRate;
+    }
+  }
+
+  // O: الرصيد (مجموع استحقاقات - مجموع دفعات لنفس الطرف)
+  let balance = 0;
+  if (formData.partyName && amountUsd > 0) {
+    // جلب كل الحركات السابقة لنفس الطرف
+    if (lastRow > 1) {
+      const allData = sheet.getRange(2, 9, lastRow - 1, 6).getValues(); // I, J, K, L, M, N (columns 9-14)
+      for (let i = 0; i < allData.length; i++) {
+        const partyInRow = String(allData[i][0]).trim(); // I
+        const amountUsdInRow = Number(allData[i][4]) || 0; // M
+        const movementTypeInRow = String(allData[i][5]).trim(); // N
+
+        if (partyInRow === formData.partyName) {
+          if (movementTypeInRow === 'مدين استحقاق') {
+            balance += amountUsdInRow;
+          } else if (movementTypeInRow === 'دائن دفعة') {
+            balance -= amountUsdInRow;
+          }
+        }
+      }
+    }
+    // إضافة الحركة الحالية للرصيد
+    if (movementType === 'مدين استحقاق') {
+      balance += amountUsd;
+    } else if (movementType === 'دائن دفعة') {
+      balance -= amountUsd;
+    }
+  }
+
+  // U: تاريخ الاستحقاق
+  let dueDate = '';
+  if (movementType === 'مدين استحقاق' && formData.paymentTerm) {
+    if (formData.paymentTerm === 'فوري') {
+      dueDate = transDate;
+    } else if (formData.paymentTerm === 'بعد التسليم') {
+      // تاريخ التسليم + (عدد الأسابيع × 7 أيام)
+      if (projectDeliveryDate) {
+        const weeksToAdd = Number(formData.weeksCount) || 0;
+        dueDate = new Date(projectDeliveryDate);
+        dueDate.setDate(dueDate.getDate() + (weeksToAdd * 7));
+      }
+    } else if (formData.paymentTerm === 'تاريخ مخصص' && formData.customDueDate) {
+      const dueParts = formData.customDueDate.split('/');
+      dueDate = new Date(dueParts[2], dueParts[1] - 1, dueParts[0]);
+    }
+  }
+
+  // V: حالة السداد
+  let paymentStatus = '';
+  if (movementType === 'مدين استحقاق') {
+    paymentStatus = balance <= 0 ? 'مدفوع بالكامل' : 'معلق';
+  } else if (movementType === 'دائن دفعة') {
+    paymentStatus = 'عملية دفع/تحصيل';
+  }
+
+  // W: الشهر (YYYY-MM)
+  const monthStr = Utilities.formatDate(transDate, Session.getScriptTimeZone(), 'yyyy-MM');
+
+  // ═══════════════════════════════════════════════════════════════
+  // كتابة جميع القيم للصف الجديد
   // ═══════════════════════════════════════════════════════════════
 
   // A: رقم الحركة
@@ -10969,11 +11044,16 @@ function saveTransactionData(formData) {
   // L: سعر الصرف
   sheet.getRange(newRow, 12).setValue(exchangeRate).setNumberFormat('#,##0.0000');
 
-  // M: القيمة بالدولار - ⚠️ لا نكتب! المعادلة موجودة
-  // O: الرصيد - ⚠️ لا نكتب! المعادلة موجودة
+  // M: القيمة بالدولار (محسوبة)
+  sheet.getRange(newRow, 13).setValue(amountUsd).setNumberFormat('#,##0.00');
 
   // N: نوع الحركة
   sheet.getRange(newRow, 14).setValue(movementType);
+
+  // O: الرصيد (محسوب)
+  if (formData.partyName) {
+    sheet.getRange(newRow, 15).setValue(balance).setNumberFormat('#,##0.00');
+  }
 
   // P: رقم مرجعي
   sheet.getRange(newRow, 16).setValue(formData.refNumber || '');
@@ -10989,14 +11069,21 @@ function saveTransactionData(formData) {
 
   // T: تاريخ مخصص
   if (formData.customDueDate) {
-    const dueParts = formData.customDueDate.split('/');
-    const customDate = new Date(dueParts[2], dueParts[1] - 1, dueParts[0]);
+    const customParts = formData.customDueDate.split('/');
+    const customDate = new Date(customParts[2], customParts[1] - 1, customParts[0]);
     sheet.getRange(newRow, 20).setValue(customDate).setNumberFormat('dd/mm/yyyy');
   }
 
-  // U: تاريخ الاستحقاق - ⚠️ لا نكتب! المعادلة موجودة
-  // V: حالة السداد - ⚠️ لا نكتب! المعادلة موجودة
-  // W: الشهر - ⚠️ لا نكتب! المعادلة موجودة
+  // U: تاريخ الاستحقاق (محسوب)
+  if (dueDate) {
+    sheet.getRange(newRow, 21).setValue(dueDate).setNumberFormat('dd/mm/yyyy');
+  }
+
+  // V: حالة السداد (محسوبة)
+  sheet.getRange(newRow, 22).setValue(paymentStatus);
+
+  // W: الشهر (محسوب)
+  sheet.getRange(newRow, 23).setValue(monthStr);
 
   // X: ملاحظات
   sheet.getRange(newRow, 24).setValue(formData.notes || '');
@@ -11004,12 +11091,9 @@ function saveTransactionData(formData) {
   // Y: كشف (رابط) - نتركه فارغاً
 
   // ═══════════════════════════════════════════════════════════════
-  // إجبار Google Sheets على إعادة حساب المعادلات فوراً
+  // تأكيد الكتابة
   // ═══════════════════════════════════════════════════════════════
   SpreadsheetApp.flush();
-
-  // حساب القيمة بالدولار للعرض في الرسالة
-  const amountUsd = formData.currency === 'USD' ? amount : amount / exchangeRate;
 
   return {
     success: true,
