@@ -98,16 +98,22 @@ function onOpen() {
 
     .addSeparator()
 
+    // إخفاء/إظهار الشيتات (مع سجل النشاط)
+    .addSubMenu(
+      ui.createMenu('👁️ إخفاء/إظهار الشيتات')
+        .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
+        .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
+        .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
+        .addItem('📋 إخفاء/إظهار سجل النشاط', 'toggleActivityLogVisibility')
+    )
+
     // ═══════════════════════════════════════════════════════════
-    // إعدادات متقدمة وإخفاء/إظهار (في الأسفل لتفتح القائمة لأعلى)
+    // إعدادات متقدمة (مقسمة لقوائم أصغر)
     // ═══════════════════════════════════════════════════════════
     .addSubMenu(
       ui.createMenu('⚙️ إعدادات متقدمة')
         .addItem('💾 حفظ الحركة المعلقة', 'processPendingTransaction')
         .addItem('📝 إدخال حركة يدوياً (JSON)', 'manualTransactionEntry')
-        .addSeparator()
-        .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
-        .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
         .addSeparator()
         .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
         .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
@@ -115,29 +121,25 @@ function onOpen() {
         .addItem('🔗 مراجعة وإصلاح نوع الحركة', 'reviewAndFixMovementTypes')
         .addItem('⚖️ فحص الاستحقاقات والدفعات (سريع)', 'checkAccrualPaymentBalance')
         .addItem('⚖️ تقرير الاستحقاقات والدفعات (شيت)', 'generateAccrualPaymentReport')
+        .addSeparator()
         .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
         .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
         .addItem('🔄 تحديث الموازنات المخططة (dropdown + تناغم)', 'applyBudgetsSheetEnhancements')
         .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
         .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
+        .addSeparator()
         .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
         .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
         .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
         .addItem('💰 إضافة أعمدة العمولات للمشاريع', 'addProjectManagerColumns')
         .addSeparator()
-        .addItem('📋 عرض سجل النشاط', 'showActivityLog')
-        .addItem('🗑️ مسح سجل النشاط', 'clearActivityLog')
         .addItem('🔔 تفعيل التسجيل التلقائي', 'installActivityTriggers')
         .addItem('🔕 إيقاف التسجيل التلقائي', 'uninstallActivityTriggers')
         .addSeparator()
         .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
-    )
-
-    .addSubMenu(
-      ui.createMenu('👁️ إخفاء/إظهار الشيتات')
-        .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
-        .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
-        .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
+        .addSeparator()
+        .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
+        .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
     )
 
     .addSeparator()
@@ -1913,39 +1915,28 @@ function showActivityLog() {
 
 
 /**
- * مسح سجل النشاط (مع الاحتفاظ بالهيدر)
+ * إخفاء/إظهار شيت سجل النشاط
  */
-function clearActivityLog() {
-  const ui = SpreadsheetApp.getUi();
+function toggleActivityLogVisibility() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+  let logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
 
+  // إنشاء الشيت إذا لم يكن موجوداً
   if (!logSheet) {
-    ui.alert('⚠️ تنبيه', 'شيت سجل النشاط غير موجود!', ui.ButtonSet.OK);
+    createActivityLogSheet(ss);
+    logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
+    SpreadsheetApp.getUi().alert('✅ تم', 'تم إنشاء شيت سجل النشاط وهو مرئي الآن.', SpreadsheetApp.getUi().ButtonSet.OK);
     return;
   }
 
-  const lastRow = logSheet.getLastRow();
-  if (lastRow <= 1) {
-    ui.alert('ℹ️ معلومة', 'سجل النشاط فارغ بالفعل.', ui.ButtonSet.OK);
-    return;
-  }
-
-  const response = ui.alert(
-    '🗑️ مسح سجل النشاط',
-    `هل تريد مسح جميع السجلات (${lastRow - 1} سجل)?\n\n` +
-    'سيتم حذف جميع السجلات نهائياً ولا يمكن استعادتها.',
-    ui.ButtonSet.YES_NO
-  );
-
-  if (response === ui.Button.YES) {
-    logSheet.deleteRows(2, lastRow - 1);
-    ui.alert('✅ تم', 'تم مسح سجل النشاط بنجاح.', ui.ButtonSet.OK);
-
-    // تسجيل عملية المسح نفسها
-    logActivity('مسح السجل', CONFIG.SHEETS.ACTIVITY_LOG, null, null, 'تم مسح جميع السجلات', {
-      deletedCount: lastRow - 1
-    });
+  // تبديل الإظهار/الإخفاء
+  if (logSheet.isSheetHidden()) {
+    logSheet.showSheet();
+    ss.setActiveSheet(logSheet);
+    SpreadsheetApp.getUi().alert('👁️ تم', 'تم إظهار شيت سجل النشاط.', SpreadsheetApp.getUi().ButtonSet.OK);
+  } else {
+    logSheet.hideSheet();
+    SpreadsheetApp.getUi().alert('🙈 تم', 'تم إخفاء شيت سجل النشاط.', SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }
 
