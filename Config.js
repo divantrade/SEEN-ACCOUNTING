@@ -29,7 +29,7 @@ const CONFIG = {
         FUNDER_STATEMENT: 'كشف حساب ممول',
 
         // التقارير
-        PROJECT_REPORT: 'تقرير المشروع التفصيلي',
+        PROJECT_REPORT: 'تقرير المشروعات التفصيلي',
         VENDORS_REPORT: 'تقرير الموردين',
         FUNDERS_REPORT: 'تقرير الممولين',
         EXPENSES_REPORT: 'تقرير المصروفات',
