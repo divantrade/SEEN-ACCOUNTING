@@ -142,6 +142,124 @@ function onOpen() {
 }
 
 
+// ==================== تسجيل التعديلات التلقائي ====================
+/**
+ * دالة تُنفذ تلقائياً عند أي تعديل في الشيت
+ * تسجل التعديلات اليدوية في سجل النشاط
+ */
+function onEdit(e) {
+  try {
+    // التحقق من وجود الحدث
+    if (!e || !e.range) return;
+
+    const sheet = e.range.getSheet();
+    const sheetName = sheet.getName();
+
+    // تسجيل التعديلات في الشيتات المهمة فقط
+    const trackedSheets = [
+      CONFIG.SHEETS.TRANSACTIONS,
+      CONFIG.SHEETS.PROJECTS,
+      CONFIG.SHEETS.PARTIES,
+      CONFIG.SHEETS.BUDGETS
+    ];
+
+    if (!trackedSheets.includes(sheetName)) return;
+
+    // تجاهل تعديلات الهيدر (الصف الأول)
+    const row = e.range.getRow();
+    if (row === 1) return;
+
+    // جمع معلومات التعديل
+    const col = e.range.getColumn();
+    const oldValue = e.oldValue !== undefined ? e.oldValue : '';
+    const newValue = e.value !== undefined ? e.value : '';
+
+    // تجاهل إذا لم يتغير شيء
+    if (oldValue === newValue) return;
+
+    // جلب اسم العمود
+    const columnHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const columnName = columnHeaders[col - 1] || `عمود ${col}`;
+
+    // جلب رقم الحركة (العمود A) إذا كان شيت الحركات
+    let transNum = '';
+    if (sheetName === CONFIG.SHEETS.TRANSACTIONS) {
+      transNum = sheet.getRange(row, 1).getValue() || '';
+    }
+
+    // تحديد نوع العملية
+    let actionType = 'تعديل';
+    if (oldValue === '' && newValue !== '') {
+      actionType = 'إضافة قيمة';
+    } else if (oldValue !== '' && newValue === '') {
+      actionType = 'حذف قيمة';
+    }
+
+    // تسجيل النشاط
+    logActivity(
+      actionType,
+      sheetName,
+      row,
+      transNum,
+      `${columnName}: "${oldValue}" → "${newValue}"`,
+      {
+        column: col,
+        columnName: columnName,
+        oldValue: oldValue,
+        newValue: newValue
+      }
+    );
+
+  } catch (err) {
+    // لا نوقف التعديل في حالة خطأ التسجيل
+    console.error('خطأ في تسجيل التعديل:', err.message);
+  }
+}
+
+
+/**
+ * دالة تُنفذ عند تغيير هيكل الشيت (إضافة/حذف صفوف أو أعمدة)
+ */
+function onChange(e) {
+  try {
+    if (!e) return;
+
+    const changeType = e.changeType;
+
+    // تسجيل إضافة أو حذف الصفوف فقط
+    if (changeType === 'INSERT_ROW' || changeType === 'REMOVE_ROW') {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const activeSheet = ss.getActiveSheet();
+      const sheetName = activeSheet.getName();
+
+      // تسجيل فقط في الشيتات المهمة
+      const trackedSheets = [
+        CONFIG.SHEETS.TRANSACTIONS,
+        CONFIG.SHEETS.PROJECTS,
+        CONFIG.SHEETS.PARTIES,
+        CONFIG.SHEETS.BUDGETS
+      ];
+
+      if (!trackedSheets.includes(sheetName)) return;
+
+      const actionType = changeType === 'INSERT_ROW' ? 'إضافة صف' : 'حذف صف';
+
+      logActivity(
+        actionType,
+        sheetName,
+        null,
+        null,
+        `تم ${actionType} في ${sheetName}`,
+        { changeType: changeType }
+      );
+    }
+
+  } catch (err) {
+    console.error('خطأ في تسجيل التغيير:', err.message);
+  }
+}
+
+
 // ==================== دوال ترتيب الحركات ====================
 /**
  * ترتيب الحركات في دفتر الحركات المالية حسب التاريخ
