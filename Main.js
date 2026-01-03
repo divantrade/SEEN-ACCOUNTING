@@ -240,6 +240,7 @@ function onEditHandler(e) {
       CONFIG.SHEETS.TRANSACTIONS,
       CONFIG.SHEETS.PROJECTS,
       CONFIG.SHEETS.PARTIES,
+      CONFIG.SHEETS.ITEMS,
       CONFIG.SHEETS.BUDGETS
     ];
 
@@ -319,6 +320,7 @@ function onChangeHandler(e) {
         CONFIG.SHEETS.TRANSACTIONS,
         CONFIG.SHEETS.PROJECTS,
         CONFIG.SHEETS.PARTIES,
+        CONFIG.SHEETS.ITEMS,
         CONFIG.SHEETS.BUDGETS
       ];
 
