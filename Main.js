@@ -301,9 +301,13 @@ function onEditHandler(e) {
  */
 function onChangeHandler(e) {
   try {
-    if (!e) return;
+    if (!e) {
+      console.log('onChangeHandler: لا يوجد event object');
+      return;
+    }
 
     const changeType = e.changeType;
+    console.log('onChangeHandler triggered - changeType:', changeType);
 
     // تسجيل إضافة أو حذف الصفوف والأعمدة
     if (changeType === 'INSERT_ROW' || changeType === 'REMOVE_ROW' ||
@@ -312,6 +316,8 @@ function onChangeHandler(e) {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const activeSheet = ss.getActiveSheet();
       const sheetName = activeSheet.getName();
+
+      console.log('onChangeHandler: شيت نشط =', sheetName);
 
       // تسجيل فقط في الشيتات المهمة
       const trackedSheets = [
@@ -322,7 +328,12 @@ function onChangeHandler(e) {
         CONFIG.SHEETS.BUDGETS
       ];
 
-      if (!trackedSheets.includes(sheetName)) return;
+      console.log('onChangeHandler: الشيتات المتتبعة =', trackedSheets.join(', '));
+
+      if (!trackedSheets.includes(sheetName)) {
+        console.log('onChangeHandler: الشيت غير متتبع، تم التخطي');
+        return;
+      }
 
       const actionTypes = {
         'INSERT_ROW': 'إضافة صف',
@@ -333,6 +344,8 @@ function onChangeHandler(e) {
 
       const actionType = actionTypes[changeType] || changeType;
 
+      console.log('onChangeHandler: تسجيل العملية:', actionType);
+
       logActivity(
         actionType,
         sheetName,
@@ -341,6 +354,8 @@ function onChangeHandler(e) {
         `تم ${actionType} في ${sheetName}`,
         { changeType: changeType }
       );
+
+      console.log('onChangeHandler: تم التسجيل بنجاح');
     }
 
     // تسجيل التعديلات العامة (EDIT)
@@ -349,7 +364,7 @@ function onChangeHandler(e) {
     }
 
   } catch (err) {
-    console.error('خطأ في تسجيل التغيير:', err.message);
+    console.error('خطأ في تسجيل التغيير:', err.message, err.stack);
   }
 }
 
@@ -1846,17 +1861,46 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details) 
     // جلب البريد الإلكتروني للمستخدم الحالي
     let userEmail = '';
     try {
-      // نجرب أولاً getEffectiveUser (يعمل من HtmlService)
-      userEmail = Session.getEffectiveUser().getEmail();
+      // نجرب أولاً من Session
+      userEmail = Session.getActiveUser().getEmail();
       if (!userEmail) {
-        // إذا فشل، نجرب getActiveUser
-        userEmail = Session.getActiveUser().getEmail();
+        userEmail = Session.getEffectiveUser().getEmail();
       }
+
+      // إذا لم نحصل على الإيميل، نجرب من UserProperties المحفوظ
+      // (يتم حفظه عند فتح النموذج في showTransactionForm)
+      if (!userEmail) {
+        try {
+          userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') || '';
+        } catch (pe) { /* تجاهل */ }
+      }
+
+      // حفظ في ScriptProperties كاحتياطي إضافي
+      if (userEmail) {
+        try {
+          PropertiesService.getScriptProperties().setProperty('lastUserEmail', userEmail);
+        } catch (pe) { /* تجاهل */ }
+      }
+
+      // إذا لم نحصل على الإيميل، نجرب من ScriptProperties
+      if (!userEmail) {
+        try {
+          userEmail = PropertiesService.getScriptProperties().getProperty('lastUserEmail') || '';
+        } catch (pe) { /* تجاهل */ }
+      }
+
       if (!userEmail) {
         userEmail = 'غير معروف';
       }
     } catch (e) {
-      userEmail = 'غير متاح';
+      // محاولة من Properties المحفوظ
+      try {
+        userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') ||
+                    PropertiesService.getScriptProperties().getProperty('lastUserEmail') ||
+                    'غير متاح';
+      } catch (pe) {
+        userEmail = 'غير متاح';
+      }
     }
 
     // تحويل التفاصيل لـ JSON إذا كانت كائن
@@ -10968,6 +11012,19 @@ function testFormPermissions() {
  */
 function showTransactionForm() {
   try {
+    // ═══════════════════════════════════════════════════════════════
+    // حفظ إيميل المستخدم الحالي قبل فتح النموذج
+    // (لأن google.script.run لا يمكنه الحصول على الإيميل)
+    // ═══════════════════════════════════════════════════════════════
+    try {
+      const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+      if (userEmail) {
+        PropertiesService.getUserProperties().setProperty('currentUserEmail', userEmail);
+      }
+    } catch (emailErr) {
+      console.log('تعذر حفظ إيميل المستخدم:', emailErr.message);
+    }
+
     // جلب البيانات أولاً
     const formData = getSmartFormData();
 
@@ -11142,6 +11199,14 @@ function manualTransactionEntry() {
 function quickTransactionEntry() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // حفظ إيميل المستخدم للتسجيل
+  try {
+    const userEmail = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+    if (userEmail) {
+      PropertiesService.getUserProperties().setProperty('currentUserEmail', userEmail);
+    }
+  } catch (e) { /* تجاهل */ }
 
   // جلب البيانات للقوائم
   const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
