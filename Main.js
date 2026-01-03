@@ -102,6 +102,7 @@ function onOpen() {
     .addSubMenu(
       ui.createMenu('👁️ إخفاء/إظهار الشيتات')
         .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
+        .addItem('📋 إخفاء/إظهار التقارير التشغيلية', 'toggleOperationalReportsVisibility')
         .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
         .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
         .addItem('📒 إخفاء/إظهار الدفاتر والقوائم المحاسبية', 'toggleAccountingVisibility')
@@ -10844,6 +10845,25 @@ function toggleReportsVisibility() {
   ];
 
   const result = toggleSheetsVisibility_(ss, reportSheets, 'التقارير');
+  ui.alert(result.title, result.message, ui.ButtonSet.OK);
+}
+
+/**
+ * إخفاء/إظهار التقارير التشغيلية
+ * يشمل: تقارير ربحية المشاريع، دفتر الأستاذ المساعد، تقرير الاستحقاقات، التنبيهات والاستحقاقات
+ */
+function toggleOperationalReportsVisibility() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const operationalSheets = [
+    'تقارير ربحية المشاريع',      // تقارير ربحية المشاريع
+    'دفتر الأستاذ المساعد',        // دفتر الأستاذ المساعد
+    'تقرير الاستحقاقات',           // تقرير الاستحقاقات الشامل
+    CONFIG.SHEETS.ALERTS           // التنبيهات والاستحقاقات
+  ];
+
+  const result = toggleSheetsVisibility_(ss, operationalSheets, 'التقارير التشغيلية');
   ui.alert(result.title, result.message, ui.ButtonSet.OK);
 }
 
