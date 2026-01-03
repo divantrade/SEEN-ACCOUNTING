@@ -181,6 +181,7 @@ function installActivityTriggers() {
 
   // ═══════════════════════════════════════════════════════════════
   // تهيئة عدد الصفوف للشيتات المتتبعة (لاكتشاف الحذف)
+  // نستخدم getMaxRows() لاكتشاف حذف أي صف من أي مكان
   // ═══════════════════════════════════════════════════════════════
   const trackedSheets = [
     CONFIG.SHEETS.TRANSACTIONS,
@@ -194,8 +195,8 @@ function installActivityTriggers() {
   trackedSheets.forEach(sheetName => {
     const sheet = ss.getSheetByName(sheetName);
     if (sheet) {
-      const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
-      props.setProperty(rowCountKey, String(sheet.getLastRow()));
+      const maxRowsKey = 'maxRows_' + sheetName.replace(/\s/g, '_');
+      props.setProperty(maxRowsKey, String(sheet.getMaxRows()));
     }
   });
 
@@ -266,20 +267,21 @@ function onEditHandler(e) {
     if (!trackedSheets.includes(sheetName)) return;
 
     // ═══════════════════════════════════════════════════════════════
-    // تتبع عدد الصفوف لاكتشاف الحذف (احتياطي)
+    // تتبع عدد الصفوف لاكتشاف الحذف
+    // نستخدم getMaxRows() لأنه يكتشف حذف أي صف (حتى من المنتصف)
     // ═══════════════════════════════════════════════════════════════
     try {
       const props = PropertiesService.getScriptProperties();
-      const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
-      const lastRowCount = parseInt(props.getProperty(rowCountKey) || '0');
-      const currentRowCount = sheet.getLastRow();
+      const maxRowsKey = 'maxRows_' + sheetName.replace(/\s/g, '_');
+      const lastMaxRows = parseInt(props.getProperty(maxRowsKey) || '0');
+      const currentMaxRows = sheet.getMaxRows();
 
       // حفظ العدد الجديد
-      props.setProperty(rowCountKey, String(currentRowCount));
+      props.setProperty(maxRowsKey, String(currentMaxRows));
 
-      // اكتشاف الحذف
-      if (lastRowCount > 0 && currentRowCount < lastRowCount) {
-        const deletedRows = lastRowCount - currentRowCount;
+      // اكتشاف الحذف باستخدام MaxRows (يكتشف حذف أي صف من أي مكان)
+      if (lastMaxRows > 0 && currentMaxRows < lastMaxRows) {
+        const deletedRows = lastMaxRows - currentMaxRows;
         logActivity(
           'حذف صف',
           sheetName,
@@ -288,8 +290,8 @@ function onEditHandler(e) {
           `تم حذف ${deletedRows} صف من ${sheetName}`,
           {
             detectedBy: 'onEditHandler',
-            previousRowCount: lastRowCount,
-            currentRowCount: currentRowCount,
+            previousMaxRows: lastMaxRows,
+            currentMaxRows: currentMaxRows,
             deletedRows: deletedRows
           }
         );
@@ -375,20 +377,21 @@ function onChangeHandler(e) {
     const changeType = e ? e.changeType : 'UNKNOWN';
 
     // ═══════════════════════════════════════════════════════════════
-    // تسجيل حذف/إضافة الصفوف بمقارنة العدد (الطريقة الأكثر موثوقية)
+    // تسجيل حذف/إضافة الصفوف بمقارنة العدد
+    // نستخدم getMaxRows() لاكتشاف حذف أي صف (حتى من المنتصف)
     // ═══════════════════════════════════════════════════════════════
     try {
       const props = PropertiesService.getScriptProperties();
-      const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
-      const lastRowCount = parseInt(props.getProperty(rowCountKey) || '0');
-      const currentRowCount = activeSheet.getLastRow();
+      const maxRowsKey = 'maxRows_' + sheetName.replace(/\s/g, '_');
+      const lastMaxRows = parseInt(props.getProperty(maxRowsKey) || '0');
+      const currentMaxRows = activeSheet.getMaxRows();
 
       // حفظ العدد الجديد دائماً
-      props.setProperty(rowCountKey, String(currentRowCount));
+      props.setProperty(maxRowsKey, String(currentMaxRows));
 
-      // اكتشاف الحذف
-      if (lastRowCount > 0 && currentRowCount < lastRowCount) {
-        const deletedRows = lastRowCount - currentRowCount;
+      // اكتشاف الحذف باستخدام MaxRows
+      if (lastMaxRows > 0 && currentMaxRows < lastMaxRows) {
+        const deletedRows = lastMaxRows - currentMaxRows;
         logActivity(
           'حذف صف',
           sheetName,
@@ -397,17 +400,18 @@ function onChangeHandler(e) {
           `تم حذف ${deletedRows} صف من ${sheetName}`,
           {
             changeType: changeType,
-            previousRowCount: lastRowCount,
-            currentRowCount: currentRowCount,
+            detectedBy: 'onChangeHandler',
+            previousMaxRows: lastMaxRows,
+            currentMaxRows: currentMaxRows,
             deletedRows: deletedRows
           }
         );
         return; // لا نكمل لتجنب التسجيل المزدوج
       }
 
-      // اكتشاف الإضافة عبر المقارنة (احتياطي)
-      if (lastRowCount > 0 && currentRowCount > lastRowCount && changeType === 'INSERT_ROW') {
-        const addedRows = currentRowCount - lastRowCount;
+      // اكتشاف الإضافة عبر المقارنة
+      if (lastMaxRows > 0 && currentMaxRows > lastMaxRows) {
+        const addedRows = currentMaxRows - lastMaxRows;
         logActivity(
           'إضافة صف',
           sheetName,
@@ -416,8 +420,9 @@ function onChangeHandler(e) {
           `تم إضافة ${addedRows} صف في ${sheetName}`,
           {
             changeType: changeType,
-            previousRowCount: lastRowCount,
-            currentRowCount: currentRowCount,
+            detectedBy: 'onChangeHandler',
+            previousMaxRows: lastMaxRows,
+            currentMaxRows: currentMaxRows,
             addedRows: addedRows
           }
         );
