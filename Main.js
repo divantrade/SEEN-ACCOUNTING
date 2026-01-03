@@ -11003,6 +11003,11 @@ function saveTransactionData(formData) {
 
   // Y: كشف (رابط) - نتركه فارغاً
 
+  // ═══════════════════════════════════════════════════════════════
+  // إجبار Google Sheets على إعادة حساب المعادلات فوراً
+  // ═══════════════════════════════════════════════════════════════
+  SpreadsheetApp.flush();
+
   // حساب القيمة بالدولار للعرض في الرسالة
   const amountUsd = formData.currency === 'USD' ? amount : amount / exchangeRate;
 
