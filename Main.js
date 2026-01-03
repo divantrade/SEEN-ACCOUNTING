@@ -265,6 +265,39 @@ function onEditHandler(e) {
 
     if (!trackedSheets.includes(sheetName)) return;
 
+    // ═══════════════════════════════════════════════════════════════
+    // تتبع عدد الصفوف لاكتشاف الحذف (احتياطي)
+    // ═══════════════════════════════════════════════════════════════
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
+      const lastRowCount = parseInt(props.getProperty(rowCountKey) || '0');
+      const currentRowCount = sheet.getLastRow();
+
+      // حفظ العدد الجديد
+      props.setProperty(rowCountKey, String(currentRowCount));
+
+      // اكتشاف الحذف
+      if (lastRowCount > 0 && currentRowCount < lastRowCount) {
+        const deletedRows = lastRowCount - currentRowCount;
+        logActivity(
+          'حذف صف',
+          sheetName,
+          null,
+          null,
+          `تم حذف ${deletedRows} صف من ${sheetName}`,
+          {
+            detectedBy: 'onEditHandler',
+            previousRowCount: lastRowCount,
+            currentRowCount: currentRowCount,
+            deletedRows: deletedRows
+          }
+        );
+      }
+    } catch (propErr) {
+      // تجاهل أخطاء تتبع الصفوف
+    }
+
     // تجاهل تعديلات الهيدر (الصف الأول)
     const row = e.range.getRow();
     if (row === 1) return;
@@ -322,14 +355,6 @@ function onEditHandler(e) {
  */
 function onChangeHandler(e) {
   try {
-    if (!e) {
-      console.log('onChangeHandler: لا يوجد event object');
-      return;
-    }
-
-    const changeType = e.changeType;
-    console.log('onChangeHandler triggered - changeType:', changeType);
-
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const activeSheet = ss.getActiveSheet();
     const sheetName = activeSheet.getName();
@@ -347,8 +372,63 @@ function onChangeHandler(e) {
       return;
     }
 
+    const changeType = e ? e.changeType : 'UNKNOWN';
+
     // ═══════════════════════════════════════════════════════════════
-    // طريقة 1: الاعتماد على changeType المباشر
+    // تسجيل حذف/إضافة الصفوف بمقارنة العدد (الطريقة الأكثر موثوقية)
+    // ═══════════════════════════════════════════════════════════════
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
+      const lastRowCount = parseInt(props.getProperty(rowCountKey) || '0');
+      const currentRowCount = activeSheet.getLastRow();
+
+      // حفظ العدد الجديد دائماً
+      props.setProperty(rowCountKey, String(currentRowCount));
+
+      // اكتشاف الحذف
+      if (lastRowCount > 0 && currentRowCount < lastRowCount) {
+        const deletedRows = lastRowCount - currentRowCount;
+        logActivity(
+          'حذف صف',
+          sheetName,
+          null,
+          null,
+          `تم حذف ${deletedRows} صف من ${sheetName}`,
+          {
+            changeType: changeType,
+            previousRowCount: lastRowCount,
+            currentRowCount: currentRowCount,
+            deletedRows: deletedRows
+          }
+        );
+        return; // لا نكمل لتجنب التسجيل المزدوج
+      }
+
+      // اكتشاف الإضافة عبر المقارنة (احتياطي)
+      if (lastRowCount > 0 && currentRowCount > lastRowCount && changeType === 'INSERT_ROW') {
+        const addedRows = currentRowCount - lastRowCount;
+        logActivity(
+          'إضافة صف',
+          sheetName,
+          null,
+          null,
+          `تم إضافة ${addedRows} صف في ${sheetName}`,
+          {
+            changeType: changeType,
+            previousRowCount: lastRowCount,
+            currentRowCount: currentRowCount,
+            addedRows: addedRows
+          }
+        );
+        return;
+      }
+    } catch (propErr) {
+      console.log('خطأ في مقارنة عدد الصفوف:', propErr.message);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // الاعتماد على changeType المباشر (احتياطي)
     // ═══════════════════════════════════════════════════════════════
     if (changeType === 'INSERT_ROW' || changeType === 'REMOVE_ROW' ||
         changeType === 'INSERT_COLUMN' || changeType === 'REMOVE_COLUMN') {
@@ -370,48 +450,6 @@ function onChangeHandler(e) {
         `تم ${actionType} في ${sheetName}`,
         { changeType: changeType }
       );
-      return;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // طريقة 2: اكتشاف حذف الصفوف بمقارنة عدد الصفوف
-    // (احتياطي لأن REMOVE_ROW لا يعمل دائماً)
-    // ═══════════════════════════════════════════════════════════════
-    if (changeType === 'OTHER' || changeType === 'EDIT') {
-      try {
-        const props = PropertiesService.getScriptProperties();
-        const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
-        const lastRowCount = parseInt(props.getProperty(rowCountKey) || '0');
-        const currentRowCount = activeSheet.getLastRow();
-
-        // حفظ العدد الجديد
-        props.setProperty(rowCountKey, String(currentRowCount));
-
-        // اكتشاف الحذف
-        if (lastRowCount > 0 && currentRowCount < lastRowCount) {
-          const deletedRows = lastRowCount - currentRowCount;
-          logActivity(
-            'حذف صف',
-            sheetName,
-            null,
-            null,
-            `تم حذف ${deletedRows} صف من ${sheetName}`,
-            {
-              changeType: changeType,
-              previousRowCount: lastRowCount,
-              currentRowCount: currentRowCount,
-              deletedRows: deletedRows
-            }
-          );
-        }
-        // اكتشاف الإضافة (احتياطي)
-        else if (lastRowCount > 0 && currentRowCount > lastRowCount) {
-          const addedRows = currentRowCount - lastRowCount;
-          // لا نسجل هنا لأن الإضافة تُسجل في مكان آخر
-        }
-      } catch (propErr) {
-        console.log('خطأ في مقارنة عدد الصفوف:', propErr.message);
-      }
     }
 
   } catch (err) {
