@@ -15,6 +15,7 @@ function onOpen() {
 
     // الاستخدام اليومي العادي
     .addItem('➕ إضافة حركة جديدة (نموذج)', 'showTransactionForm')
+    .addItem('⚡ إضافة حركة سريعة', 'quickTransactionEntry')
     .addItem('🔃 ترتيب الحركات حسب التاريخ', 'sortTransactionsByDate')
     .addItem('🔍 تفعيل/إلغاء الفلتر', 'toggleFilter')
     .addSeparator()
@@ -10753,6 +10754,134 @@ function manualTransactionEntry() {
 }
 
 /**
+ * إدخال حركة سريعة عبر نوافذ متتالية (بديل للنموذج HTML)
+ * يعمل بدون مشاكل الصلاحيات
+ */
+function quickTransactionEntry() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // جلب البيانات للقوائم
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  const partiesSheet = ss.getSheetByName(CONFIG.SHEETS.PARTIES);
+
+  // جمع بيانات المشاريع
+  let projectsList = '';
+  if (projectsSheet && projectsSheet.getLastRow() > 1) {
+    const projects = projectsSheet.getRange(2, 1, projectsSheet.getLastRow() - 1, 2).getValues();
+    projectsList = projects.filter(r => r[0]).map(r => `${r[0]} - ${r[1]}`).join('\n');
+  }
+
+  // 1. اختيار المشروع
+  const projectResponse = ui.prompt(
+    '📁 الخطوة 1/7: المشروع',
+    'أدخل كود المشروع:\n\nالمشاريع المتاحة:\n' + projectsList.substring(0, 500),
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (projectResponse.getSelectedButton() !== ui.Button.OK) return;
+  const projectCode = projectResponse.getResponseText().trim();
+
+  // 2. طبيعة الحركة
+  const natureResponse = ui.prompt(
+    '📋 الخطوة 2/7: طبيعة الحركة',
+    'اختر رقم طبيعة الحركة:\n\n' +
+    '1. استحقاق مصروف\n' +
+    '2. دفعة مصروف\n' +
+    '3. استحقاق إيراد\n' +
+    '4. تحصيل إيراد\n' +
+    '5. تمويل\n' +
+    '6. تحويل داخلي',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (natureResponse.getSelectedButton() !== ui.Button.OK) return;
+  const natureTypes = ['استحقاق مصروف', 'دفعة مصروف', 'استحقاق إيراد', 'تحصيل إيراد', 'تمويل', 'تحويل داخلي'];
+  const natureType = natureTypes[parseInt(natureResponse.getResponseText()) - 1] || 'استحقاق مصروف';
+
+  // 3. البند والتصنيف
+  const itemResponse = ui.prompt(
+    '📄 الخطوة 3/7: البند',
+    'أدخل اسم البند (مثال: مونتاج، تصوير، إيجار):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (itemResponse.getSelectedButton() !== ui.Button.OK) return;
+  const item = itemResponse.getResponseText().trim();
+
+  // 4. المورد/الجهة
+  const partyResponse = ui.prompt(
+    '👤 الخطوة 4/7: المورد/الجهة',
+    'أدخل اسم المورد أو الجهة (أو اتركه فارغاً):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (partyResponse.getSelectedButton() !== ui.Button.OK) return;
+  const partyName = partyResponse.getResponseText().trim();
+
+  // 5. المبلغ والعملة
+  const amountResponse = ui.prompt(
+    '💰 الخطوة 5/7: المبلغ',
+    'أدخل المبلغ والعملة (مثال: 1000 USD أو 5000 TRY):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (amountResponse.getSelectedButton() !== ui.Button.OK) return;
+  const amountParts = amountResponse.getResponseText().trim().split(/\s+/);
+  const amount = parseFloat(amountParts[0]) || 0;
+  const currency = (amountParts[1] || 'USD').toUpperCase();
+
+  // 6. سعر الصرف (إذا لزم)
+  let exchangeRate = 1;
+  if (currency !== 'USD') {
+    const rateResponse = ui.prompt(
+      '💱 الخطوة 6/7: سعر الصرف',
+      `أدخل سعر صرف ${currency} مقابل الدولار:`,
+      ui.ButtonSet.OK_CANCEL
+    );
+    if (rateResponse.getSelectedButton() !== ui.Button.OK) return;
+    exchangeRate = parseFloat(rateResponse.getResponseText()) || 1;
+  }
+
+  // 7. التفاصيل
+  const detailsResponse = ui.prompt(
+    '📝 الخطوة 7/7: التفاصيل',
+    'أدخل تفاصيل الحركة (اختياري):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (detailsResponse.getSelectedButton() !== ui.Button.OK) return;
+  const details = detailsResponse.getResponseText().trim();
+
+  // تجميع البيانات
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  const formData = {
+    date: today,
+    natureType: natureType,
+    classification: natureType.includes('مصروف') ? 'مصروفات مباشرة' : 'إيرادات',
+    projectCode: projectCode,
+    item: item,
+    partyName: partyName,
+    details: details,
+    amount: amount.toString(),
+    currency: currency,
+    exchangeRate: exchangeRate.toString(),
+    paymentMethod: 'تحويل بنكي',
+    refNumber: '',
+    paymentTerm: '',
+    weeksCount: '',
+    customDueDate: '',
+    notes: ''
+  };
+
+  // حفظ الحركة
+  try {
+    const result = saveTransactionData(formData);
+    ui.alert(
+      '✅ تمت إضافة الحركة بنجاح!',
+      `رقم الحركة: ${result.transNum}\n${result.summary}`,
+      ui.ButtonSet.OK
+    );
+  } catch (e) {
+    ui.alert('❌ خطأ', e.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
  * حفظ الحركة من النموذج
  * @param {Object} formData بيانات النموذج
  * @returns {Object} نتيجة الحفظ
@@ -10767,6 +10896,7 @@ function saveTransactionData(formData) {
 
   // حساب رقم الحركة الجديد
   const lastRow = sheet.getLastRow();
+  const newRow = lastRow + 1;
   const newTransNum = lastRow > 1 ?
     (Number(sheet.getRange(lastRow, 1).getValue()) || 0) + 1 : 1;
 
@@ -10774,10 +10904,9 @@ function saveTransactionData(formData) {
   const dateParts = formData.date.split('/');
   const transDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
 
-  // حساب القيمة بالدولار
+  // حساب القيمة بالدولار (للعرض فقط - المعادلة ستحسبها)
   const amount = Number(formData.amount) || 0;
   const exchangeRate = Number(formData.exchangeRate) || 1;
-  const amountUsd = formData.currency === 'USD' ? amount : amount / exchangeRate;
 
   // تحديد نوع الحركة
   let movementType = '';
@@ -10799,67 +10928,83 @@ function saveTransactionData(formData) {
     }
   }
 
-  // حساب الشهر
-  const monthStr = Utilities.formatDate(transDate, Session.getScriptTimeZone(), 'yyyy-MM');
+  // ═══════════════════════════════════════════════════════════════
+  // الكتابة على الأعمدة غير المحسوبة فقط (تجنب مسح المعادلات)
+  // الأعمدة المحسوبة: M (القيمة بالدولار), O (الرصيد), U (تاريخ الاستحقاق), V (حالة السداد), W (الشهر)
+  // ═══════════════════════════════════════════════════════════════
 
-  // تحديد تاريخ الاستحقاق
-  let dueDate = '';
-  if (formData.paymentTerm === 'فوري') {
-    dueDate = transDate;
-  } else if (formData.paymentTerm === 'تاريخ مخصص' && formData.customDueDate) {
+  // A: رقم الحركة
+  sheet.getRange(newRow, 1).setValue(newTransNum);
+
+  // B: التاريخ
+  sheet.getRange(newRow, 2).setValue(transDate).setNumberFormat('dd/mm/yyyy');
+
+  // C: طبيعة الحركة
+  sheet.getRange(newRow, 3).setValue(formData.natureType);
+
+  // D: تصنيف الحركة
+  sheet.getRange(newRow, 4).setValue(formData.classification);
+
+  // E: كود المشروع
+  sheet.getRange(newRow, 5).setValue(formData.projectCode);
+
+  // F: اسم المشروع
+  sheet.getRange(newRow, 6).setValue(projectName);
+
+  // G: البند
+  sheet.getRange(newRow, 7).setValue(formData.item);
+
+  // H: التفاصيل
+  sheet.getRange(newRow, 8).setValue(formData.details || '');
+
+  // I: اسم المورد/الجهة
+  sheet.getRange(newRow, 9).setValue(formData.partyName || '');
+
+  // J: المبلغ بالعملة الأصلية
+  sheet.getRange(newRow, 10).setValue(amount).setNumberFormat('#,##0.00');
+
+  // K: العملة
+  sheet.getRange(newRow, 11).setValue(formData.currency);
+
+  // L: سعر الصرف
+  sheet.getRange(newRow, 12).setValue(exchangeRate).setNumberFormat('#,##0.0000');
+
+  // M: القيمة بالدولار - ⚠️ لا نكتب! المعادلة موجودة
+  // O: الرصيد - ⚠️ لا نكتب! المعادلة موجودة
+
+  // N: نوع الحركة
+  sheet.getRange(newRow, 14).setValue(movementType);
+
+  // P: رقم مرجعي
+  sheet.getRange(newRow, 16).setValue(formData.refNumber || '');
+
+  // Q: طريقة الدفع
+  sheet.getRange(newRow, 17).setValue(formData.paymentMethod || '');
+
+  // R: نوع شرط الدفع
+  sheet.getRange(newRow, 18).setValue(formData.paymentTerm || '');
+
+  // S: عدد الأسابيع
+  sheet.getRange(newRow, 19).setValue(formData.weeksCount || '');
+
+  // T: تاريخ مخصص
+  if (formData.customDueDate) {
     const dueParts = formData.customDueDate.split('/');
-    dueDate = new Date(dueParts[2], dueParts[1] - 1, dueParts[0]);
+    const customDate = new Date(dueParts[2], dueParts[1] - 1, dueParts[0]);
+    sheet.getRange(newRow, 20).setValue(customDate).setNumberFormat('dd/mm/yyyy');
   }
 
-  // تحديد حالة السداد
-  let paymentStatus = '';
-  if (movementType === 'مدين استحقاق') {
-    paymentStatus = 'معلق';
-  } else if (movementType === 'دائن دفعة') {
-    paymentStatus = 'عملية دفع/تحصيل';
-  }
+  // U: تاريخ الاستحقاق - ⚠️ لا نكتب! المعادلة موجودة
+  // V: حالة السداد - ⚠️ لا نكتب! المعادلة موجودة
+  // W: الشهر - ⚠️ لا نكتب! المعادلة موجودة
 
-  // بناء صف البيانات (25 عمود من A إلى Y)
-  const rowData = [
-    newTransNum,                          // A: رقم الحركة
-    transDate,                            // B: التاريخ
-    formData.natureType,                  // C: طبيعة الحركة
-    formData.classification,              // D: تصنيف الحركة
-    formData.projectCode,                 // E: كود المشروع
-    projectName,                          // F: اسم المشروع
-    formData.item,                        // G: البند
-    formData.details,                     // H: التفاصيل
-    formData.partyName,                   // I: اسم المورد/الجهة
-    amount,                               // J: المبلغ بالعملة الأصلية
-    formData.currency,                    // K: العملة
-    exchangeRate,                         // L: سعر الصرف
-    amountUsd,                            // M: القيمة بالدولار
-    movementType,                         // N: نوع الحركة
-    '',                                   // O: الرصيد (يُحسب لاحقاً)
-    formData.refNumber || '',             // P: رقم مرجعي
-    formData.paymentMethod,               // Q: طريقة الدفع
-    formData.paymentTerm || '',           // R: نوع شرط الدفع
-    formData.weeksCount || '',            // S: عدد الأسابيع
-    formData.customDueDate || '',         // T: تاريخ مخصص
-    dueDate,                              // U: تاريخ الاستحقاق
-    paymentStatus,                        // V: حالة السداد
-    monthStr,                             // W: الشهر
-    formData.notes || '',                 // X: ملاحظات
-    ''                                    // Y: كشف (رابط)
-  ];
+  // X: ملاحظات
+  sheet.getRange(newRow, 24).setValue(formData.notes || '');
 
-  // إضافة الصف
-  sheet.appendRow(rowData);
-  const newRow = sheet.getLastRow();
+  // Y: كشف (رابط) - نتركه فارغاً
 
-  // تنسيق الصف الجديد
-  sheet.getRange(newRow, 2).setNumberFormat('dd/mm/yyyy');  // التاريخ
-  sheet.getRange(newRow, 10).setNumberFormat('#,##0.00');   // المبلغ
-  sheet.getRange(newRow, 12).setNumberFormat('#,##0.0000'); // سعر الصرف
-  sheet.getRange(newRow, 13).setNumberFormat('#,##0.00');   // القيمة بالدولار
-  if (dueDate) {
-    sheet.getRange(newRow, 21).setNumberFormat('dd/mm/yyyy'); // تاريخ الاستحقاق
-  }
+  // حساب القيمة بالدولار للعرض في الرسالة
+  const amountUsd = formData.currency === 'USD' ? amount : amount / exchangeRate;
 
   return {
     success: true,
