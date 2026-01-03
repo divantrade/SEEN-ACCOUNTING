@@ -156,6 +156,7 @@ function onOpen() {
  */
 function installActivityTriggers() {
   const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // حذف الـ triggers القديمة أولاً
   const triggers = ScriptApp.getProjectTriggers();
@@ -178,6 +179,26 @@ function installActivityTriggers() {
     .onChange()
     .create();
 
+  // ═══════════════════════════════════════════════════════════════
+  // تهيئة عدد الصفوف للشيتات المتتبعة (لاكتشاف الحذف)
+  // ═══════════════════════════════════════════════════════════════
+  const trackedSheets = [
+    CONFIG.SHEETS.TRANSACTIONS,
+    CONFIG.SHEETS.PROJECTS,
+    CONFIG.SHEETS.PARTIES,
+    CONFIG.SHEETS.ITEMS,
+    CONFIG.SHEETS.BUDGETS
+  ];
+
+  const props = PropertiesService.getScriptProperties();
+  trackedSheets.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (sheet) {
+      const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
+      props.setProperty(rowCountKey, String(sheet.getLastRow()));
+    }
+  });
+
   ui.alert(
     '✅ تم تثبيت التسجيل التلقائي',
     'سيتم الآن تسجيل جميع التعديلات تلقائياً:\n\n' +
@@ -186,7 +207,7 @@ function installActivityTriggers() {
     '• حذف صفوف\n' +
     '• الإدخال اليدوي\n\n' +
     'يمكنك مراجعة السجل من:\n' +
-    'نظام المحاسبة ← إعدادات متقدمة ← عرض سجل النشاط',
+    'نظام المحاسبة ← إخفاء/إظهار الشيتات ← سجل النشاط',
     ui.ButtonSet.OK
   );
 }
@@ -309,31 +330,28 @@ function onChangeHandler(e) {
     const changeType = e.changeType;
     console.log('onChangeHandler triggered - changeType:', changeType);
 
-    // تسجيل إضافة أو حذف الصفوف والأعمدة
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const activeSheet = ss.getActiveSheet();
+    const sheetName = activeSheet.getName();
+
+    // الشيتات المتتبعة
+    const trackedSheets = [
+      CONFIG.SHEETS.TRANSACTIONS,
+      CONFIG.SHEETS.PROJECTS,
+      CONFIG.SHEETS.PARTIES,
+      CONFIG.SHEETS.ITEMS,
+      CONFIG.SHEETS.BUDGETS
+    ];
+
+    if (!trackedSheets.includes(sheetName)) {
+      return;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // طريقة 1: الاعتماد على changeType المباشر
+    // ═══════════════════════════════════════════════════════════════
     if (changeType === 'INSERT_ROW' || changeType === 'REMOVE_ROW' ||
         changeType === 'INSERT_COLUMN' || changeType === 'REMOVE_COLUMN') {
-
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const activeSheet = ss.getActiveSheet();
-      const sheetName = activeSheet.getName();
-
-      console.log('onChangeHandler: شيت نشط =', sheetName);
-
-      // تسجيل فقط في الشيتات المهمة
-      const trackedSheets = [
-        CONFIG.SHEETS.TRANSACTIONS,
-        CONFIG.SHEETS.PROJECTS,
-        CONFIG.SHEETS.PARTIES,
-        CONFIG.SHEETS.ITEMS,
-        CONFIG.SHEETS.BUDGETS
-      ];
-
-      console.log('onChangeHandler: الشيتات المتتبعة =', trackedSheets.join(', '));
-
-      if (!trackedSheets.includes(sheetName)) {
-        console.log('onChangeHandler: الشيت غير متتبع، تم التخطي');
-        return;
-      }
 
       const actionTypes = {
         'INSERT_ROW': 'إضافة صف',
@@ -344,8 +362,6 @@ function onChangeHandler(e) {
 
       const actionType = actionTypes[changeType] || changeType;
 
-      console.log('onChangeHandler: تسجيل العملية:', actionType);
-
       logActivity(
         actionType,
         sheetName,
@@ -354,13 +370,48 @@ function onChangeHandler(e) {
         `تم ${actionType} في ${sheetName}`,
         { changeType: changeType }
       );
-
-      console.log('onChangeHandler: تم التسجيل بنجاح');
+      return;
     }
 
-    // تسجيل التعديلات العامة (EDIT)
-    if (changeType === 'EDIT') {
-      // يتم معالجتها في onEditHandler
+    // ═══════════════════════════════════════════════════════════════
+    // طريقة 2: اكتشاف حذف الصفوف بمقارنة عدد الصفوف
+    // (احتياطي لأن REMOVE_ROW لا يعمل دائماً)
+    // ═══════════════════════════════════════════════════════════════
+    if (changeType === 'OTHER' || changeType === 'EDIT') {
+      try {
+        const props = PropertiesService.getScriptProperties();
+        const rowCountKey = 'rowCount_' + sheetName.replace(/\s/g, '_');
+        const lastRowCount = parseInt(props.getProperty(rowCountKey) || '0');
+        const currentRowCount = activeSheet.getLastRow();
+
+        // حفظ العدد الجديد
+        props.setProperty(rowCountKey, String(currentRowCount));
+
+        // اكتشاف الحذف
+        if (lastRowCount > 0 && currentRowCount < lastRowCount) {
+          const deletedRows = lastRowCount - currentRowCount;
+          logActivity(
+            'حذف صف',
+            sheetName,
+            null,
+            null,
+            `تم حذف ${deletedRows} صف من ${sheetName}`,
+            {
+              changeType: changeType,
+              previousRowCount: lastRowCount,
+              currentRowCount: currentRowCount,
+              deletedRows: deletedRows
+            }
+          );
+        }
+        // اكتشاف الإضافة (احتياطي)
+        else if (lastRowCount > 0 && currentRowCount > lastRowCount) {
+          const addedRows = currentRowCount - lastRowCount;
+          // لا نسجل هنا لأن الإضافة تُسجل في مكان آخر
+        }
+      } catch (propErr) {
+        console.log('خطأ في مقارنة عدد الصفوف:', propErr.message);
+      }
     }
 
   } catch (err) {
