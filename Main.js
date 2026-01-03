@@ -104,6 +104,7 @@ function onOpen() {
         .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
         .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
         .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
+        .addItem('📒 إخفاء/إظهار الدفاتر والقوائم المحاسبية', 'toggleAccountingVisibility')
         .addItem('📋 إخفاء/إظهار سجل النشاط', 'toggleActivityLogVisibility')
     )
 
@@ -10879,6 +10880,27 @@ function toggleDatabasesVisibility() {
   ];
 
   const result = toggleSheetsVisibility_(ss, dbSheets, 'قواعد البيانات');
+  ui.alert(result.title, result.message, ui.ButtonSet.OK);
+}
+
+/**
+ * إخفاء/إظهار شيتات الدفاتر والقوائم المحاسبية
+ * يشمل: شجرة الحسابات، دفتر الأستاذ، ميزان المراجعة، قيود اليومية، قائمة الدخل، المركز المالي
+ */
+function toggleAccountingVisibility() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const accountingSheets = [
+    CONFIG.SHEETS.CHART_OF_ACCOUNTS,   // شجرة الحسابات
+    CONFIG.SHEETS.GENERAL_LEDGER,      // دفتر الأستاذ العام
+    CONFIG.SHEETS.TRIAL_BALANCE,       // ميزان المراجعة
+    CONFIG.SHEETS.JOURNAL_ENTRIES,     // قيود اليومية
+    CONFIG.SHEETS.INCOME_STATEMENT,    // قائمة الدخل
+    CONFIG.SHEETS.BALANCE_SHEET        // المركز المالي
+  ];
+
+  const result = toggleSheetsVisibility_(ss, accountingSheets, 'الدفاتر والقوائم المحاسبية');
   ui.alert(result.title, result.message, ui.ButtonSet.OK);
 }
 
