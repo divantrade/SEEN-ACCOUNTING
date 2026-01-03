@@ -22,6 +22,54 @@ function onOpen() {
     .addItem('📝 إضافة ميزانية', 'addBudgetForm')
     .addItem('📊 مقارنة الميزانية', 'compareBudget')
     .addSeparator()
+
+    // ═══════════════════════════════════════════════════════════
+    // إعدادات متقدمة (نُقلت لأعلى لتظهر القائمة الفرعية بشكل كامل)
+    // ═══════════════════════════════════════════════════════════
+    .addSubMenu(
+      ui.createMenu('⚙️ إعدادات متقدمة')
+        .addItem('💾 حفظ الحركة المعلقة', 'processPendingTransaction')
+        .addItem('📝 إدخال حركة يدوياً (JSON)', 'manualTransactionEntry')
+        .addSeparator()
+        .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
+        .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
+        .addSeparator()
+        .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
+        .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
+        .addItem('🔗 مراجعة نوع الحركة (تقرير فقط)', 'reviewMovementTypesOnly')
+        .addItem('🔗 مراجعة وإصلاح نوع الحركة', 'reviewAndFixMovementTypes')
+        .addItem('⚖️ فحص الاستحقاقات والدفعات (سريع)', 'checkAccrualPaymentBalance')
+        .addItem('⚖️ تقرير الاستحقاقات والدفعات (شيت)', 'generateAccrualPaymentReport')
+        .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
+        .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
+        .addItem('🔄 تحديث الموازنات المخططة (dropdown + تناغم)', 'applyBudgetsSheetEnhancements')
+        .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
+        .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
+        .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
+        .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
+        .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
+        .addItem('💰 إضافة أعمدة العمولات للمشاريع', 'addProjectManagerColumns')
+        .addSeparator()
+        .addItem('📋 عرض سجل النشاط', 'showActivityLog')
+        .addItem('🗑️ مسح سجل النشاط', 'clearActivityLog')
+        .addItem('🔔 تفعيل التسجيل التلقائي', 'installActivityTriggers')
+        .addItem('🔕 إيقاف التسجيل التلقائي', 'uninstallActivityTriggers')
+        .addSeparator()
+        .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
+    )
+
+    .addSubMenu(
+      ui.createMenu('👁️ إخفاء/إظهار الشيتات')
+        .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
+        .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
+        .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
+    )
+
+    .addSeparator()
+
+    // ═══════════════════════════════════════════════════════════
+    // باقي القوائم الفرعية
+    // ═══════════════════════════════════════════════════════════
     .addItem('🔽 تحديث القوائم المنسدلة', 'refreshDropdowns')
     .addItem('🧹 تنظيف الايقونات من طبيعة الحركة', 'cleanupNatureTypeEmojis')
     .addItem('⏰ عرض الاستحقاقات (نافذة)', 'showUpcomingPayments')
@@ -94,48 +142,6 @@ function onOpen() {
         .addSeparator()
         .addItem('💰 تقرير عمولات مدير مشروعات', 'showCommissionReportDialog')
         .addItem('➕ إدراج استحقاق عمولة (من التقرير)', 'insertCommissionFromReport')
-    )
-
-    .addSeparator()
-
-    // إعدادات متقدمة
-    .addSubMenu(
-      ui.createMenu('⚙️ إعدادات متقدمة')
-        .addItem('💾 حفظ الحركة المعلقة', 'processPendingTransaction')
-        .addItem('📝 إدخال حركة يدوياً (JSON)', 'manualTransactionEntry')
-        .addSeparator()
-        .addItem('🔧 إنشاء النظام - الجزء 1 (حذف كامل)', 'setupPart1')
-        .addItem('🔧 إنشاء النظام - الجزء 2 (حذف كامل)', 'setupPart2')
-        .addSeparator()
-        .addItem('📅 تطبيع التواريخ', 'normalizeDateColumns')
-        .addItem('📋 إصلاح القوائم المنسدلة', 'fixAllDropdowns')
-        .addItem('🔗 مراجعة نوع الحركة (تقرير فقط)', 'reviewMovementTypesOnly')
-        .addItem('🔗 مراجعة وإصلاح نوع الحركة', 'reviewAndFixMovementTypes')
-        .addItem('⚖️ فحص الاستحقاقات والدفعات (سريع)', 'checkAccrualPaymentBalance')
-        .addItem('⚖️ تقرير الاستحقاقات والدفعات (شيت)', 'generateAccrualPaymentReport')
-        .addItem('🎨 إعادة تطبيق التلوين الشرطي', 'refreshTransactionsFormatting')
-        .addItem('📌 تثبيت أعمدة + تظليل الفواتير (المشاريع)', 'applyProjectsSheetEnhancements')
-        .addItem('🔄 تحديث الموازنات المخططة (dropdown + تناغم)', 'applyBudgetsSheetEnhancements')
-        .addItem('🔄 تحديث معادلة تاريخ الاستحقاق', 'refreshDueDateFormulas')
-        .addItem('💵 تحديث شامل (M, O, U, V)', 'refreshValueAndBalanceFormulas')
-        .addItem('📄 إضافة عمود كشف الحساب (دفتر الحركات)', 'addStatementLinkColumn')
-        .addItem('📄 إضافة عمود كشف الحساب (تقرير الموردين)', 'addStatementColumnToVendorReport')
-        .addItem('📄 إضافة عمود كشف الحساب (تقرير الممولين)', 'addStatementColumnToFunderReport')
-        .addItem('💰 إضافة أعمدة العمولات للمشاريع', 'addProjectManagerColumns')
-        .addSeparator()
-        .addItem('📋 عرض سجل النشاط', 'showActivityLog')
-        .addItem('🗑️ مسح سجل النشاط', 'clearActivityLog')
-        .addItem('🔔 تفعيل التسجيل التلقائي', 'installActivityTriggers')
-        .addItem('🔕 إيقاف التسجيل التلقائي', 'uninstallActivityTriggers')
-        .addSeparator()
-        .addItem('💾 إنشاء نسخة احتياطية للشيت', 'backupSpreadsheet')
-    )
-
-    .addSubMenu(
-      ui.createMenu('👁️ إخفاء/إظهار الشيتات')
-        .addItem('📊 إخفاء/إظهار التقارير', 'toggleReportsVisibility')
-        .addItem('🏦 إخفاء/إظهار حسابات البنوك', 'toggleBankAccountsVisibility')
-        .addItem('📁 إخفاء/إظهار قواعد البيانات', 'toggleDatabasesVisibility')
     )
 
     .addSeparator()
