@@ -79,6 +79,149 @@ function deleteWebhook() {
 }
 
 /**
+ * اختبار صلاحية Token البوت
+ * يتحقق من أن التوكن صحيح ويعرض معلومات البوت
+ */
+function testBotToken() {
+    try {
+        const token = getBotToken();
+        const url = `https://api.telegram.org/bot${token}/getMe`;
+
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            const bot = result.result;
+            const message = `✅ Token صحيح!\n\n` +
+                `🤖 اسم البوت: ${bot.first_name}\n` +
+                `📛 Username: @${bot.username}\n` +
+                `🆔 Bot ID: ${bot.id}`;
+
+            SpreadsheetApp.getUi().alert('✅ اختبار Token', message, SpreadsheetApp.getUi().ButtonSet.OK);
+            Logger.log('Bot Token is valid: ' + JSON.stringify(bot));
+            return { success: true, bot: bot };
+        } else {
+            SpreadsheetApp.getUi().alert('❌ Token غير صحيح',
+                `الخطأ: ${result.description}\n\n` +
+                'يرجى الحصول على Token جديد من @BotFather',
+                SpreadsheetApp.getUi().ButtonSet.OK);
+            Logger.log('Bot Token invalid: ' + result.description);
+            return { success: false, error: result.description };
+        }
+    } catch (error) {
+        SpreadsheetApp.getUi().alert('❌ خطأ', error.message, SpreadsheetApp.getUi().ButtonSet.OK);
+        Logger.log('Error testing token: ' + error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * تحديث Token وإعداد Webhook
+ * يسأل عن Token جديد ويقوم بإعداد كل شيء
+ */
+function updateBotTokenAndSetup() {
+    const ui = SpreadsheetApp.getUi();
+
+    const result = ui.prompt(
+        '🔐 تحديث Bot Token',
+        'الصق الـ Token الجديد من @BotFather:\n\n' +
+        '(مثال: 123456789:ABCdefGHI...)',
+        ui.ButtonSet.OK_CANCEL
+    );
+
+    if (result.getSelectedButton() !== ui.Button.OK) {
+        return;
+    }
+
+    const newToken = result.getResponseText().trim();
+    if (!newToken) {
+        ui.alert('❌ خطأ', 'لم يتم إدخال Token', ui.ButtonSet.OK);
+        return;
+    }
+
+    // اختبار التوكن الجديد
+    try {
+        const testUrl = `https://api.telegram.org/bot${newToken}/getMe`;
+        const response = UrlFetchApp.fetch(testUrl, { muteHttpExceptions: true });
+        const testResult = JSON.parse(response.getContentText());
+
+        if (!testResult.ok) {
+            ui.alert('❌ Token غير صحيح',
+                `الخطأ: ${testResult.description}\n\n` +
+                'تأكد من نسخ التوكن بشكل صحيح من @BotFather',
+                ui.ButtonSet.OK);
+            return;
+        }
+
+        // حفظ التوكن الجديد
+        PropertiesService.getScriptProperties().setProperty('TELEGRAM_BOT_TOKEN', newToken);
+        Logger.log('New token saved for bot: @' + testResult.result.username);
+
+        // إعداد Webhook
+        const webAppUrl = ScriptApp.getService().getUrl();
+        const webhookUrl = `https://api.telegram.org/bot${newToken}/setWebhook?url=${encodeURIComponent(webAppUrl)}`;
+
+        const webhookResponse = UrlFetchApp.fetch(webhookUrl, { muteHttpExceptions: true });
+        const webhookResult = JSON.parse(webhookResponse.getContentText());
+
+        if (webhookResult.ok) {
+            ui.alert('✅ تم بنجاح!',
+                `تم تحديث Token وإعداد Webhook بنجاح!\n\n` +
+                `🤖 البوت: @${testResult.result.username}\n` +
+                `🔗 Webhook URL: ${webAppUrl}\n\n` +
+                `البوت جاهز للاستخدام!`,
+                ui.ButtonSet.OK);
+        } else {
+            ui.alert('⚠️ تم حفظ Token لكن فشل Webhook',
+                `تم حفظ Token بنجاح\n` +
+                `لكن فشل إعداد Webhook: ${webhookResult.description}\n\n` +
+                `حاول تشغيل setWebhook مرة أخرى`,
+                ui.ButtonSet.OK);
+        }
+
+    } catch (error) {
+        ui.alert('❌ خطأ', error.message, ui.ButtonSet.OK);
+    }
+}
+
+/**
+ * عرض حالة Webhook الحالية
+ */
+function getWebhookInfo() {
+    try {
+        const token = getBotToken();
+        const url = `https://api.telegram.org/bot${token}/getWebhookInfo`;
+
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            const info = result.result;
+            let message = `📡 معلومات Webhook:\n\n`;
+            message += `🔗 URL: ${info.url || '(غير معين)'}\n`;
+            message += `⏳ Pending updates: ${info.pending_update_count}\n`;
+
+            if (info.last_error_date) {
+                const errorDate = new Date(info.last_error_date * 1000);
+                message += `\n❌ آخر خطأ:\n`;
+                message += `📅 التاريخ: ${errorDate.toLocaleString('ar-EG')}\n`;
+                message += `💬 الرسالة: ${info.last_error_message}`;
+            }
+
+            SpreadsheetApp.getUi().alert('📡 Webhook Info', message, SpreadsheetApp.getUi().ButtonSet.OK);
+            Logger.log('Webhook info: ' + JSON.stringify(info));
+            return info;
+        } else {
+            SpreadsheetApp.getUi().alert('❌ خطأ', result.description, SpreadsheetApp.getUi().ButtonSet.OK);
+            return null;
+        }
+    } catch (error) {
+        SpreadsheetApp.getUi().alert('❌ خطأ', error.message, SpreadsheetApp.getUi().ButtonSet.OK);
+        return null;
+    }
+}
+
+/**
  * معالجة الطلبات الواردة من تليجرام (Webhook endpoint)
  */
 function doPost(e) {
