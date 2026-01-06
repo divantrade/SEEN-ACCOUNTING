@@ -4556,13 +4556,14 @@ function generateChannelInvoice() {
     const dueDate = new Date(today);
     dueDate.setMonth(dueDate.getMonth() + 1);
 
-    // البحث عن آخر صف يحتوي على بيانات فعلية (تجنب الصفوف الفارغة)
-    const dataRange = transSheet.getDataRange();
-    const allData = dataRange.getValues();
+    // البحث عن آخر صف يحتوي على تاريخ فعلي في عمود B (التاريخ)
+    // هذا يتجنب مشكلة الصفوف التي تحتوي على dropdowns فقط
+    const dateColumn = transSheet.getRange('B:B').getValues();
     let lastDataRow = 1; // البداية من صف العناوين
-    for (let i = allData.length - 1; i >= 1; i--) {
-      // التحقق من وجود بيانات في أي من الأعمدة الأساسية (B, C, E, I, J)
-      if (allData[i][1] || allData[i][2] || allData[i][4] || allData[i][8] || allData[i][9]) {
+    for (let i = dateColumn.length - 1; i >= 1; i--) {
+      const cellValue = dateColumn[i][0];
+      // التحقق من أن الخلية تحتوي على تاريخ فعلي
+      if (cellValue && (cellValue instanceof Date || (typeof cellValue === 'string' && cellValue.trim() !== ''))) {
         lastDataRow = i + 1; // +1 لأن الفهرس يبدأ من 0
         break;
       }
@@ -4579,7 +4580,7 @@ function generateChannelInvoice() {
     const rowData = [
       '',                           // A: رقم الحركة (تلقائي)
       today,                        // B: التاريخ
-      '📈 استحقاق إيراد',           // C: طبيعة الحركة
+      'استحقاق إيراد',              // C: طبيعة الحركة (بدون إيموجي)
       'ايراد',                      // D: تصنيف الحركة
       projectCode,                  // E: كود المشروع
       projectName,                  // F: اسم المشروع
