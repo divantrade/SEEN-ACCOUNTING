@@ -283,6 +283,11 @@ function handleMessage(message) {
     const userSession = getUserSession(chatId);
     userSession.userName = authResult.name;
     userSession.permission = authResult.permission;
+    userSession.authorized = true; // علامة للتحقق السريع
+    if (username) {
+        userSession.username = username; // حفظ اسم المستخدم
+    }
+    saveUserSession(chatId, userSession); // حفظ الجلسة!
 
     // معالجة رقم الهاتف المُرسل
     if (contact) {
@@ -526,9 +531,9 @@ function handleCallbackQuery(callbackQuery) {
 
     const session = getUserSession(chatId);
 
-    // التحقق من المستخدم
-    if (!session.phoneNumber) {
-        sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
+    // التحقق من المستخدم (بالهاتف أو اسم المستخدم أو علامة التفويض)
+    if (!session.authorized && !session.phoneNumber && !session.username) {
+        sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED + '\n\nأرسل /start للبدء من جديد');
         return;
     }
 
@@ -1143,11 +1148,13 @@ function saveUserSession(chatId, session) {
 
 /**
  * إعادة تعيين جلسة المستخدم
+ * يحافظ على بيانات التفويض
  */
 function resetSession(chatId) {
     const session = getUserSession(chatId);
     session.state = BOT_CONFIG.CONVERSATION_STATES.IDLE;
     session.data = {};
+    // الحفاظ على: authorized, userName, permission, phoneNumber, username
     saveUserSession(chatId, session);
 }
 
