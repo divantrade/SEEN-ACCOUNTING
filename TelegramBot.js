@@ -245,9 +245,53 @@ function doPost(e) {
 
 /**
  * للاختبار - Web App GET
+ * يعرض رقم الإصدار للتحقق من النشر
  */
+const BOT_VERSION = '2.1.0'; // تحديث عند كل نشر
+
 function doGet(e) {
-    return ContentService.createTextOutput('SEEN Accounting Bot is running!');
+    return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
+}
+
+/**
+ * إرسال رسالة اختبار للتحقق من عمل البوت
+ * شغّل هذه الدالة من Apps Script
+ */
+function sendTestMessage() {
+    const ui = SpreadsheetApp.getUi();
+
+    const result = ui.prompt(
+        '📤 إرسال رسالة اختبار',
+        'أدخل Chat ID الخاص بك (يمكنك الحصول عليه من @userinfobot):',
+        ui.ButtonSet.OK_CANCEL
+    );
+
+    if (result.getSelectedButton() !== ui.Button.OK) {
+        return;
+    }
+
+    const chatId = result.getResponseText().trim();
+    if (!chatId) {
+        ui.alert('❌ خطأ', 'لم يتم إدخال Chat ID', ui.ButtonSet.OK);
+        return;
+    }
+
+    try {
+        const response = sendMessage(chatId,
+            '✅ *رسالة اختبار*\n\n' +
+            'البوت يعمل بشكل صحيح!\n' +
+            'الإصدار: ' + BOT_VERSION + '\n\n' +
+            'جرب إرسال /start',
+            null, 'Markdown');
+
+        if (response && response.ok) {
+            ui.alert('✅ نجاح', 'تم إرسال رسالة الاختبار بنجاح!', ui.ButtonSet.OK);
+        } else {
+            ui.alert('❌ فشل', 'فشل إرسال الرسالة: ' + JSON.stringify(response), ui.ButtonSet.OK);
+        }
+    } catch (error) {
+        ui.alert('❌ خطأ', error.message, ui.ButtonSet.OK);
+    }
 }
 
 // ==================== معالجة الرسائل ====================
