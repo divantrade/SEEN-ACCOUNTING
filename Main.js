@@ -25,6 +25,7 @@ function onOpen() {
     .addItem('➕ إضافة حركة جديدة (نموذج)', 'showTransactionForm')
     .addItem('⚡ إضافة حركة سريعة', 'quickTransactionEntry')
     .addItem('🧾 إنشاء فاتورة قناة', 'generateChannelInvoice')
+    .addItem('🔄 إعادة طباعة فاتورة', 'regenerateChannelInvoice')
     .addSeparator()
 
     // ═══════════════════════════════════════════════════════════
@@ -4636,6 +4637,122 @@ function generateChannelInvoice() {
     console.error('خطأ في generateChannelInvoice:', error);
     return;
   }
+}
+
+// ==================== 🔄 إعادة طباعة فاتورة موجودة ====================
+/**
+ * إعادة طباعة فاتورة موجودة من كود المشروع
+ * يبحث عن رقم الفاتورة المحفوظ في قاعدة بيانات المشاريع
+ * ويعيد إنشاء شيت الفاتورة بنفس البيانات
+ */
+function regenerateChannelInvoice() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const projectsSheet = ss.getSheetByName(CONFIG.SHEETS.PROJECTS);
+  if (!projectsSheet) {
+    ui.alert('⚠️ شيت "قاعدة بيانات المشاريع" غير موجود.');
+    return;
+  }
+
+  // طلب كود المشروع
+  const response = ui.prompt(
+    '🔄 إعادة طباعة فاتورة',
+    'أدخل كود المشروع للبحث عن الفاتورة:',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const projectCode = response.getResponseText().trim();
+  if (!projectCode) {
+    ui.alert('⚠️ لم يتم إدخال كود المشروع.');
+    return;
+  }
+
+  // البحث عن المشروع
+  const data = projectsSheet.getDataRange().getValues();
+  const headers = data[0];
+  let projectRow = null;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === projectCode) {
+      projectRow = data[i];
+      break;
+    }
+  }
+
+  if (!projectRow) {
+    ui.alert('⚠️ المشروع غير موجود: ' + projectCode);
+    return;
+  }
+
+  // البحث عن عمود رقم الفاتورة
+  const invoiceColIndex = headers.indexOf('رقم آخر فاتورة');
+  if (invoiceColIndex === -1) {
+    ui.alert('⚠️ لا يوجد عمود "رقم آخر فاتورة" في قاعدة بيانات المشاريع.\n\nيبدو أنه لم يتم إنشاء فاتورة لهذا المشروع من قبل.');
+    return;
+  }
+
+  const invoiceNumber = projectRow[invoiceColIndex];
+  if (!invoiceNumber) {
+    ui.alert('⚠️ لا توجد فاتورة سابقة لهذا المشروع.\n\nاستخدم "إنشاء فاتورة قناة" لإنشاء فاتورة جديدة.');
+    return;
+  }
+
+  // استخراج بيانات المشروع
+  const projectName = projectRow[1];
+  const projectType = projectRow[2];
+  const channelName = projectRow[3];
+  const contractValue = Number(projectRow[8]) || 0;
+
+  if (!contractValue) {
+    ui.alert('⚠️ قيمة العقد فارغة أو صفر.');
+    return;
+  }
+
+  // البحث عن تاريخ الفاتورة من دفتر الحركات (إن وجد)
+  let invoiceDate = new Date();
+  const transSheet = ss.getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+  if (transSheet) {
+    const transData = transSheet.getDataRange().getValues();
+    for (let i = 1; i < transData.length; i++) {
+      // البحث في عمود P (رقم مرجعي) = 16
+      if (transData[i][15] === invoiceNumber) {
+        invoiceDate = transData[i][1] || new Date(); // B: التاريخ
+        break;
+      }
+    }
+  }
+
+  // إنشاء شيت الفاتورة
+  const invoiceSheet = createInvoiceTemplateSheet(ss);
+
+  // ملء بيانات الفاتورة
+  invoiceSheet.getRange('B7').setValue(invoiceNumber);
+  invoiceSheet.getRange('B8').setValue(invoiceDate).setNumberFormat('yyyy-mm-dd');
+  invoiceSheet.getRange('B10').setValue(channelName || '');
+  invoiceSheet.getRange('B13').setValue(projectName || '');
+
+  // الوصف
+  let descriptionText = '';
+  if (projectType) descriptionText += projectType;
+  if (projectType && projectName) descriptionText += ' - ';
+  if (projectName) descriptionText += projectName;
+
+  invoiceSheet.getRange('A16').setValue(descriptionText || projectName || projectType || '');
+  invoiceSheet.getRange('B16').setValue(1);
+  invoiceSheet.getRange('C16')
+    .setValue(contractValue)
+    .setNumberFormat('$#,##0.00');
+
+  // رسالة نجاح
+  ui.alert(
+    '✅ تم إعادة طباعة الفاتورة بنجاح!\n\n' +
+    '• رقم الفاتورة: ' + invoiceNumber + '\n' +
+    '• المشروع: ' + projectName + '\n' +
+    '• القناة: ' + channelName + '\n' +
+    '• القيمة: $' + contractValue.toLocaleString()
+  );
 }
 
 // ==================== 📄 إنشاء كشف حساب من صف في دفتر الحركات ====================
