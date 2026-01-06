@@ -237,34 +237,34 @@ function handleCommand(chatId, command, session) {
             resetSession(chatId);
             break;
 
-        case '/مصروف':
         case '/expense':
+        case '/مصروف':
             startExpenseFlow(chatId, session);
             break;
 
-        case '/ايراد':
         case '/revenue':
+        case '/ايراد':
             startRevenueFlow(chatId, session);
             break;
 
-        case '/حالة':
         case '/status':
+        case '/حالة':
             showUserTransactionsStatus(chatId, session);
             break;
 
-        case '/مساعدة':
         case '/help':
+        case '/مساعدة':
             sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.HELP, null, 'Markdown');
             break;
 
-        case '/الغاء':
         case '/cancel':
+        case '/الغاء':
             resetSession(chatId);
             sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.CANCELLED);
             break;
 
         default:
-            sendMessage(chatId, '❓ أمر غير معروف\n\nاستخدم /مساعدة لعرض الأوامر المتاحة');
+            sendMessage(chatId, '❓ أمر غير معروف\n\nاستخدم /help لعرض الأوامر المتاحة');
     }
 }
 
