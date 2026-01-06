@@ -262,13 +262,16 @@ function handleMessage(message) {
     const photo = message.photo;
     const document = message.document;
 
+    // استخراج اسم المستخدم من تليجرام
+    const username = message.from ? message.from.username : null;
+
     // التحقق من المستخدم
     const userPhone = getUserPhoneFromMessage(message);
-    const authResult = checkUserAuthorization(userPhone, chatId);
+    const authResult = checkUserAuthorization(userPhone, chatId, username);
 
     if (!authResult.authorized) {
         // محاولة الحصول على رقم الهاتف
-        if (!userPhone) {
+        if (!userPhone && !username) {
             requestPhoneNumber(chatId);
             return;
         }
@@ -283,7 +286,7 @@ function handleMessage(message) {
 
     // معالجة رقم الهاتف المُرسل
     if (contact) {
-        handleContactReceived(chatId, contact);
+        handleContactReceived(chatId, contact, username);
         return;
     }
 
@@ -338,14 +341,14 @@ function requestPhoneNumber(chatId) {
 /**
  * معالجة رقم الهاتف المُستلم
  */
-function handleContactReceived(chatId, contact) {
+function handleContactReceived(chatId, contact, username) {
     const phoneNumber = contact.phone_number;
     const session = getUserSession(chatId);
 
     session.phoneNumber = phoneNumber;
     saveUserSession(chatId, session);
 
-    const authResult = checkUserAuthorization(phoneNumber, chatId);
+    const authResult = checkUserAuthorization(phoneNumber, chatId, username);
 
     if (authResult.authorized) {
         session.userName = authResult.name;
