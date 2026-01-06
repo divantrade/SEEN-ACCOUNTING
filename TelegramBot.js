@@ -1,0 +1,1188 @@
+// ==================== بوت تليجرام لنظام SEEN المحاسبي ====================
+/**
+ * ملف بوت تليجرام الرئيسي
+ * يتعامل مع استقبال الرسائل وإرسال الردود وإدارة المحادثات
+ */
+
+// ==================== إعدادات البوت ====================
+
+/**
+ * الحصول على Token البوت من Script Properties
+ */
+function getBotToken() {
+    const token = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+    if (!token) {
+        throw new Error('لم يتم تعيين TELEGRAM_BOT_TOKEN في Script Properties');
+    }
+    return token;
+}
+
+/**
+ * تعيين Token البوت
+ * يتم استدعاؤها مرة واحدة عند الإعداد
+ */
+function setBotToken(token) {
+    PropertiesService.getScriptProperties().setProperty('TELEGRAM_BOT_TOKEN', token);
+    Logger.log('تم تعيين Token البوت بنجاح');
+}
+
+/**
+ * الحصول على Chat ID للمحاسب (للإشعارات)
+ */
+function getAccountantChatId() {
+    return PropertiesService.getScriptProperties().getProperty('ACCOUNTANT_CHAT_ID');
+}
+
+/**
+ * تعيين Chat ID للمحاسب
+ */
+function setAccountantChatId(chatId) {
+    PropertiesService.getScriptProperties().setProperty('ACCOUNTANT_CHAT_ID', chatId);
+    Logger.log('تم تعيين Chat ID للمحاسب: ' + chatId);
+}
+
+// ==================== Webhook ====================
+
+/**
+ * إعداد Webhook للبوت
+ * يجب استدعاؤها بعد نشر السكريبت كـ Web App
+ */
+function setWebhook() {
+    const token = getBotToken();
+    const webAppUrl = ScriptApp.getService().getUrl();
+
+    const url = `https://api.telegram.org/bot${token}/setWebhook?url=${webAppUrl}`;
+
+    const response = UrlFetchApp.fetch(url);
+    const result = JSON.parse(response.getContentText());
+
+    Logger.log('Webhook setup result: ' + JSON.stringify(result));
+
+    if (result.ok) {
+        SpreadsheetApp.getUi().alert('✅ تم إعداد Webhook بنجاح!\n\nالبوت جاهز للاستخدام.');
+    } else {
+        SpreadsheetApp.getUi().alert('❌ فشل إعداد Webhook:\n' + result.description);
+    }
+
+    return result;
+}
+
+/**
+ * حذف Webhook
+ */
+function deleteWebhook() {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/deleteWebhook`;
+
+    const response = UrlFetchApp.fetch(url);
+    return JSON.parse(response.getContentText());
+}
+
+/**
+ * معالجة الطلبات الواردة من تليجرام (Webhook endpoint)
+ */
+function doPost(e) {
+    try {
+        const update = JSON.parse(e.postData.contents);
+        Logger.log('Received update: ' + JSON.stringify(update));
+
+        // معالجة الرسالة أو Callback
+        if (update.message) {
+            handleMessage(update.message);
+        } else if (update.callback_query) {
+            handleCallbackQuery(update.callback_query);
+        }
+
+        return ContentService.createTextOutput('OK');
+    } catch (error) {
+        Logger.log('Error in doPost: ' + error.message);
+        return ContentService.createTextOutput('Error: ' + error.message);
+    }
+}
+
+/**
+ * للاختبار - Web App GET
+ */
+function doGet(e) {
+    return ContentService.createTextOutput('SEEN Accounting Bot is running!');
+}
+
+// ==================== معالجة الرسائل ====================
+
+/**
+ * معالجة الرسائل الواردة
+ */
+function handleMessage(message) {
+    const chatId = message.chat.id;
+    const text = message.text || '';
+    const contact = message.contact;
+    const photo = message.photo;
+    const document = message.document;
+
+    // التحقق من المستخدم
+    const userPhone = getUserPhoneFromMessage(message);
+    const authResult = checkUserAuthorization(userPhone, chatId);
+
+    if (!authResult.authorized) {
+        // محاولة الحصول على رقم الهاتف
+        if (!userPhone) {
+            requestPhoneNumber(chatId);
+            return;
+        }
+        sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
+        return;
+    }
+
+    // حفظ بيانات المستخدم في الجلسة
+    const userSession = getUserSession(chatId);
+    userSession.userName = authResult.name;
+    userSession.permission = authResult.permission;
+
+    // معالجة رقم الهاتف المُرسل
+    if (contact) {
+        handleContactReceived(chatId, contact);
+        return;
+    }
+
+    // معالجة الصور والملفات
+    if (photo || document) {
+        handleAttachment(chatId, message);
+        return;
+    }
+
+    // معالجة الأوامر
+    if (text.startsWith('/')) {
+        handleCommand(chatId, text, userSession);
+        return;
+    }
+
+    // معالجة النص حسب حالة المحادثة
+    handleTextInput(chatId, text, userSession);
+}
+
+/**
+ * استخراج رقم الهاتف من الرسالة
+ */
+function getUserPhoneFromMessage(message) {
+    if (message.contact && message.contact.phone_number) {
+        return message.contact.phone_number;
+    }
+
+    // محاولة الحصول من الجلسة
+    const session = getUserSession(message.chat.id);
+    return session.phoneNumber || null;
+}
+
+/**
+ * طلب رقم الهاتف من المستخدم
+ */
+function requestPhoneNumber(chatId) {
+    const keyboard = {
+        keyboard: [[{
+            text: '📱 مشاركة رقم الهاتف',
+            request_contact: true
+        }]],
+        resize_keyboard: true,
+        one_time_keyboard: true
+    };
+
+    sendMessage(chatId,
+        '👋 مرحباً!\n\nللتحقق من هويتك، يرجى مشاركة رقم هاتفك بالضغط على الزر أدناه:',
+        keyboard
+    );
+}
+
+/**
+ * معالجة رقم الهاتف المُستلم
+ */
+function handleContactReceived(chatId, contact) {
+    const phoneNumber = contact.phone_number;
+    const session = getUserSession(chatId);
+
+    session.phoneNumber = phoneNumber;
+    saveUserSession(chatId, session);
+
+    const authResult = checkUserAuthorization(phoneNumber, chatId);
+
+    if (authResult.authorized) {
+        session.userName = authResult.name;
+        session.permission = authResult.permission;
+        saveUserSession(chatId, session);
+
+        // إزالة لوحة المفاتيح وإظهار الترحيب
+        const removeKeyboard = { remove_keyboard: true };
+        sendMessage(chatId,
+            `✅ تم التحقق بنجاح!\n\nمرحباً ${authResult.name}`,
+            removeKeyboard
+        );
+
+        // إرسال رسالة الترحيب
+        setTimeout(() => {
+            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.WELCOME, null, 'Markdown');
+        }, 500);
+    } else {
+        sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
+    }
+}
+
+/**
+ * معالجة الأوامر
+ */
+function handleCommand(chatId, command, session) {
+    const cmd = command.split(' ')[0].toLowerCase();
+
+    switch (cmd) {
+        case '/start':
+            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.WELCOME, null, 'Markdown');
+            resetSession(chatId);
+            break;
+
+        case '/مصروف':
+        case '/expense':
+            startExpenseFlow(chatId, session);
+            break;
+
+        case '/ايراد':
+        case '/revenue':
+            startRevenueFlow(chatId, session);
+            break;
+
+        case '/حالة':
+        case '/status':
+            showUserTransactionsStatus(chatId, session);
+            break;
+
+        case '/مساعدة':
+        case '/help':
+            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.HELP, null, 'Markdown');
+            break;
+
+        case '/الغاء':
+        case '/cancel':
+            resetSession(chatId);
+            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.CANCELLED);
+            break;
+
+        default:
+            sendMessage(chatId, '❓ أمر غير معروف\n\nاستخدم /مساعدة لعرض الأوامر المتاحة');
+    }
+}
+
+/**
+ * بدء تدفق المصروفات
+ */
+function startExpenseFlow(chatId, session) {
+    session.transactionType = 'expense';
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+    session.data = {};
+    saveUserSession(chatId, session);
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '📤 استحقاق مصروف (فاتورة)', callback_data: 'nature_استحقاق مصروف' }
+            ],
+            [
+                { text: '💸 دفعة مصروف (سداد)', callback_data: 'nature_دفعة مصروف' }
+            ],
+            [
+                { text: '❌ إلغاء', callback_data: 'cancel' }
+            ]
+        ]
+    };
+
+    sendMessage(chatId, '💰 *تسجيل مصروف*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+}
+
+/**
+ * بدء تدفق الإيرادات
+ */
+function startRevenueFlow(chatId, session) {
+    session.transactionType = 'revenue';
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+    session.data = {};
+    saveUserSession(chatId, session);
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '📥 استحقاق إيراد (فاتورة)', callback_data: 'nature_استحقاق إيراد' }
+            ],
+            [
+                { text: '💰 تحصيل إيراد (استلام)', callback_data: 'nature_تحصيل إيراد' }
+            ],
+            [
+                { text: '❌ إلغاء', callback_data: 'cancel' }
+            ]
+        ]
+    };
+
+    sendMessage(chatId, '📈 *تسجيل إيراد*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+}
+
+/**
+ * معالجة النص المُدخل
+ */
+function handleTextInput(chatId, text, session) {
+    const state = session.state || BOT_CONFIG.CONVERSATION_STATES.IDLE;
+
+    switch (state) {
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_PROJECT:
+            handleProjectSearch(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_ITEM:
+            handleItemSearch(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_PARTY:
+            handlePartySearch(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT:
+            handleAmountInput(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_EXCHANGE_RATE:
+            handleExchangeRateInput(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_DETAILS:
+            handleDetailsInput(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_WEEKS:
+            handleWeeksInput(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_CUSTOM_DATE:
+            handleCustomDateInput(chatId, text, session);
+            break;
+
+        default:
+            sendMessage(chatId, '❓ استخدم الأوامر أو الأزرار للتفاعل\n\n/مصروف - تسجيل مصروف\n/ايراد - تسجيل إيراد');
+    }
+}
+
+// ==================== معالجة Callback Queries ====================
+
+/**
+ * معالجة الضغط على الأزرار
+ */
+function handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
+    const data = callbackQuery.data;
+    const callbackId = callbackQuery.id;
+
+    // الرد على الـ callback لإزالة ساعة الانتظار
+    answerCallbackQuery(callbackId);
+
+    const session = getUserSession(chatId);
+
+    // التحقق من المستخدم
+    if (!session.phoneNumber) {
+        sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
+        return;
+    }
+
+    // معالجة الإلغاء
+    if (data === 'cancel') {
+        resetSession(chatId);
+        editMessage(chatId, messageId, BOT_CONFIG.INTERACTIVE_MESSAGES.CANCELLED);
+        return;
+    }
+
+    // معالجة حسب نوع البيانات
+    if (data.startsWith('nature_')) {
+        handleNatureSelection(chatId, messageId, data.replace('nature_', ''), session);
+    } else if (data.startsWith('project_')) {
+        handleProjectSelection(chatId, messageId, data.replace('project_', ''), session);
+    } else if (data.startsWith('item_')) {
+        handleItemSelection(chatId, messageId, data.replace('item_', ''), session);
+    } else if (data.startsWith('party_')) {
+        handlePartySelection(chatId, messageId, data.replace('party_', ''), session);
+    } else if (data.startsWith('partytype_')) {
+        handleNewPartyType(chatId, messageId, data.replace('partytype_', ''), session);
+    } else if (data.startsWith('currency_')) {
+        handleCurrencySelection(chatId, messageId, data.replace('currency_', ''), session);
+    } else if (data.startsWith('payment_')) {
+        handlePaymentMethodSelection(chatId, messageId, data.replace('payment_', ''), session);
+    } else if (data.startsWith('term_')) {
+        handlePaymentTermSelection(chatId, messageId, data.replace('term_', ''), session);
+    } else if (data.startsWith('attach_')) {
+        handleAttachmentChoice(chatId, messageId, data.replace('attach_', ''), session);
+    } else if (data.startsWith('confirm_')) {
+        handleConfirmation(chatId, messageId, data.replace('confirm_', ''), session);
+    } else if (data === 'new_party') {
+        handleNewPartyRequest(chatId, messageId, session);
+    } else if (data === 'edit_resend') {
+        handleEditAndResend(chatId, messageId, session);
+    }
+}
+
+/**
+ * معالجة اختيار طبيعة الحركة
+ */
+function handleNatureSelection(chatId, messageId, nature, session) {
+    session.data.nature = nature;
+
+    // تحديد التصنيف تلقائياً
+    if (nature === 'استحقاق مصروف' || nature === 'دفعة مصروف') {
+        session.data.classification = 'مصروفات';
+    } else {
+        session.data.classification = 'إيرادات';
+    }
+
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PROJECT;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `✅ تم اختيار: *${nature}*`);
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_PROJECT, null, 'Markdown');
+}
+
+/**
+ * معالجة البحث عن مشروع
+ */
+function handleProjectSearch(chatId, searchText, session) {
+    const projects = searchProjects(searchText);
+
+    if (projects.length === 0) {
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.NO_RESULTS);
+        return;
+    }
+
+    const buttons = projects.slice(0, 5).map(project => ([{
+        text: `🎬 ${project.name}`,
+        callback_data: `project_${project.code}`
+    }]));
+
+    buttons.push([{ text: '❌ إلغاء', callback_data: 'cancel' }]);
+
+    const keyboard = { inline_keyboard: buttons };
+    sendMessage(chatId, '🔍 *نتائج البحث:*', keyboard, 'Markdown');
+}
+
+/**
+ * معالجة اختيار المشروع
+ */
+function handleProjectSelection(chatId, messageId, projectCode, session) {
+    const project = getProjectByCode(projectCode);
+
+    if (project) {
+        session.data.projectCode = project.code;
+        session.data.projectName = project.name;
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ITEM;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, `✅ المشروع: *${project.name}*`);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_ITEM, null, 'Markdown');
+    }
+}
+
+/**
+ * معالجة البحث عن بند
+ */
+function handleItemSearch(chatId, searchText, session) {
+    const items = searchItems(searchText);
+
+    if (items.length === 0) {
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.NO_RESULTS);
+        return;
+    }
+
+    const buttons = items.slice(0, 5).map(item => ([{
+        text: `📋 ${item.name}`,
+        callback_data: `item_${item.name}`
+    }]));
+
+    buttons.push([{ text: '❌ إلغاء', callback_data: 'cancel' }]);
+
+    const keyboard = { inline_keyboard: buttons };
+    sendMessage(chatId, '🔍 *نتائج البحث:*', keyboard, 'Markdown');
+}
+
+/**
+ * معالجة اختيار البند
+ */
+function handleItemSelection(chatId, messageId, itemName, session) {
+    session.data.item = itemName;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PARTY;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `✅ البند: *${itemName}*`);
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_PARTY, null, 'Markdown');
+}
+
+/**
+ * معالجة البحث عن طرف
+ */
+function handlePartySearch(chatId, searchText, session) {
+    const parties = searchParties(searchText);
+
+    const buttons = parties.slice(0, 5).map(party => ([{
+        text: `👤 ${party.name} (${party.type})`,
+        callback_data: `party_${party.name}`
+    }]));
+
+    // إضافة زر إضافة طرف جديد
+    buttons.push([{
+        text: `➕ إضافة "${searchText}" كطرف جديد`,
+        callback_data: 'new_party'
+    }]);
+
+    // حفظ اسم الطرف الجديد المحتمل
+    session.data.potentialNewParty = searchText;
+    saveUserSession(chatId, session);
+
+    buttons.push([{ text: '❌ إلغاء', callback_data: 'cancel' }]);
+
+    const keyboard = { inline_keyboard: buttons };
+
+    if (parties.length === 0) {
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.PARTY_NOT_FOUND, keyboard, 'Markdown');
+    } else {
+        sendMessage(chatId, '🔍 *نتائج البحث:*', keyboard, 'Markdown');
+    }
+}
+
+/**
+ * معالجة اختيار الطرف
+ */
+function handlePartySelection(chatId, messageId, partyName, session) {
+    session.data.partyName = partyName;
+    session.data.isNewParty = false;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `✅ الطرف: *${partyName}*`);
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_AMOUNT, null, 'Markdown');
+}
+
+/**
+ * معالجة طلب إضافة طرف جديد
+ */
+function handleNewPartyRequest(chatId, messageId, session) {
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NEW_PARTY_TYPE;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `➕ إضافة طرف جديد: *${session.data.potentialNewParty}*`);
+    sendMessage(chatId, '📝 *اختر نوع الطرف:*', BOT_CONFIG.KEYBOARDS.NEW_PARTY_TYPE, 'Markdown');
+}
+
+/**
+ * معالجة اختيار نوع الطرف الجديد
+ */
+function handleNewPartyType(chatId, messageId, partyType, session) {
+    session.data.partyName = session.data.potentialNewParty;
+    session.data.partyType = partyType;
+    session.data.isNewParty = true;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `✅ طرف جديد: *${session.data.partyName}* (${partyType})`);
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_AMOUNT, null, 'Markdown');
+}
+
+/**
+ * معالجة إدخال المبلغ
+ */
+function handleAmountInput(chatId, text, session) {
+    // تنظيف النص واستخراج الرقم
+    const cleanText = text.replace(/[^\d.,]/g, '').replace(',', '.');
+    const amount = parseFloat(cleanText);
+
+    if (isNaN(amount) || amount <= 0) {
+        sendMessage(chatId, '❌ المبلغ غير صحيح\n\nيرجى إدخال رقم صحيح (مثال: 500)');
+        return;
+    }
+
+    session.data.amount = amount;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT; // نفس الحالة للعملة
+    saveUserSession(chatId, session);
+
+    sendMessage(chatId, `✅ المبلغ: *${amount}*\n\n${BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_CURRENCY}`,
+        BOT_CONFIG.KEYBOARDS.CURRENCY, 'Markdown');
+}
+
+/**
+ * معالجة اختيار العملة
+ */
+function handleCurrencySelection(chatId, messageId, currency, session) {
+    session.data.currency = currency;
+
+    if (currency === 'USD') {
+        session.data.exchangeRate = 1;
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_DETAILS;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, `✅ العملة: *${currency}*`);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_DETAILS, null, 'Markdown');
+    } else {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EXCHANGE_RATE;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, `✅ العملة: *${currency}*`);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_EXCHANGE_RATE, null, 'Markdown');
+    }
+}
+
+/**
+ * معالجة إدخال سعر الصرف
+ */
+function handleExchangeRateInput(chatId, text, session) {
+    const rate = parseFloat(text.replace(',', '.'));
+
+    if (isNaN(rate) || rate <= 0) {
+        sendMessage(chatId, '❌ سعر الصرف غير صحيح\n\nيرجى إدخال رقم صحيح');
+        return;
+    }
+
+    session.data.exchangeRate = rate;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_DETAILS;
+    saveUserSession(chatId, session);
+
+    sendMessage(chatId, `✅ سعر الصرف: *${rate}*`, null, 'Markdown');
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_DETAILS, null, 'Markdown');
+}
+
+/**
+ * معالجة إدخال التفاصيل
+ */
+function handleDetailsInput(chatId, text, session) {
+    session.data.details = text;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PAYMENT_METHOD;
+    saveUserSession(chatId, session);
+
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_PAYMENT_METHOD,
+        BOT_CONFIG.KEYBOARDS.PAYMENT_METHOD, 'Markdown');
+}
+
+/**
+ * معالجة اختيار طريقة الدفع
+ */
+function handlePaymentMethodSelection(chatId, messageId, method, session) {
+    session.data.paymentMethod = method;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PAYMENT_TERM;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `✅ طريقة الدفع: *${method}*`);
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_PAYMENT_TERM,
+        BOT_CONFIG.KEYBOARDS.PAYMENT_TERMS, 'Markdown');
+}
+
+/**
+ * معالجة اختيار شرط الدفع
+ */
+function handlePaymentTermSelection(chatId, messageId, term, session) {
+    session.data.paymentTermType = term;
+
+    if (term === 'بعد التسليم') {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_WEEKS;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, `✅ شرط الدفع: *${term}*`);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_WEEKS, null, 'Markdown');
+    } else if (term === 'تاريخ مخصص') {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CUSTOM_DATE;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, `✅ شرط الدفع: *${term}*`);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_CUSTOM_DATE, null, 'Markdown');
+    } else {
+        // فوري - انتقل للمرفقات
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ATTACHMENT;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, `✅ شرط الدفع: *${term}*`);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ASK_ATTACHMENT,
+            BOT_CONFIG.KEYBOARDS.ATTACHMENT, 'Markdown');
+    }
+}
+
+/**
+ * معالجة إدخال عدد الأسابيع
+ */
+function handleWeeksInput(chatId, text, session) {
+    const weeks = parseInt(text);
+
+    if (isNaN(weeks) || weeks < 0 || weeks > 52) {
+        sendMessage(chatId, '❌ عدد الأسابيع غير صحيح\n\nيرجى إدخال رقم بين 0 و 52');
+        return;
+    }
+
+    session.data.weeks = weeks;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ATTACHMENT;
+    saveUserSession(chatId, session);
+
+    sendMessage(chatId, `✅ عدد الأسابيع: *${weeks}*`, null, 'Markdown');
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ASK_ATTACHMENT,
+        BOT_CONFIG.KEYBOARDS.ATTACHMENT, 'Markdown');
+}
+
+/**
+ * معالجة إدخال تاريخ مخصص
+ */
+function handleCustomDateInput(chatId, text, session) {
+    // محاولة تحليل التاريخ
+    const dateParts = text.split('/');
+    if (dateParts.length !== 3) {
+        sendMessage(chatId, '❌ صيغة التاريخ غير صحيحة\n\nيرجى إدخال التاريخ بصيغة: يوم/شهر/سنة');
+        return;
+    }
+
+    const day = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1;
+    const year = parseInt(dateParts[2]);
+
+    const date = new Date(year, month, day);
+    if (isNaN(date.getTime())) {
+        sendMessage(chatId, '❌ التاريخ غير صحيح\n\nيرجى التأكد من صحة التاريخ');
+        return;
+    }
+
+    session.data.customDate = date;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ATTACHMENT;
+    saveUserSession(chatId, session);
+
+    const formattedDate = Utilities.formatDate(date, 'Asia/Istanbul', 'dd/MM/yyyy');
+    sendMessage(chatId, `✅ تاريخ الاستحقاق: *${formattedDate}*`, null, 'Markdown');
+    sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ASK_ATTACHMENT,
+        BOT_CONFIG.KEYBOARDS.ATTACHMENT, 'Markdown');
+}
+
+/**
+ * معالجة اختيار المرفقات
+ */
+function handleAttachmentChoice(chatId, messageId, choice, session) {
+    if (choice === 'skip') {
+        session.data.attachmentUrl = '';
+        showTransactionSummary(chatId, session);
+    } else if (choice === 'yes') {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ATTACHMENT;
+        saveUserSession(chatId, session);
+
+        editMessage(chatId, messageId, '📎 *إرفاق ملف*');
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SEND_ATTACHMENT, null, 'Markdown');
+    }
+}
+
+/**
+ * معالجة المرفقات (صور/ملفات)
+ */
+function handleAttachment(chatId, message) {
+    const session = getUserSession(chatId);
+
+    if (session.state !== BOT_CONFIG.CONVERSATION_STATES.WAITING_ATTACHMENT) {
+        sendMessage(chatId, '❓ لم يتم طلب مرفق حالياً');
+        return;
+    }
+
+    try {
+        let fileId;
+        let fileName;
+
+        if (message.photo) {
+            // أخذ أكبر حجم من الصورة
+            const photo = message.photo[message.photo.length - 1];
+            fileId = photo.file_id;
+            fileName = 'photo.jpg';
+        } else if (message.document) {
+            fileId = message.document.file_id;
+            fileName = message.document.file_name;
+        }
+
+        // حفظ الملف في Google Drive
+        const attachmentUrl = saveAttachmentToDrive(fileId, fileName, session);
+        session.data.attachmentUrl = attachmentUrl;
+        saveUserSession(chatId, session);
+
+        sendMessage(chatId, '✅ تم إرفاق الملف بنجاح!');
+        showTransactionSummary(chatId, session);
+
+    } catch (error) {
+        Logger.log('Error handling attachment: ' + error.message);
+        sendMessage(chatId, '❌ حدث خطأ في رفع الملف\n\nهل تريد المتابعة بدون مرفق؟',
+            BOT_CONFIG.KEYBOARDS.ATTACHMENT);
+    }
+}
+
+/**
+ * عرض ملخص الحركة
+ */
+function showTransactionSummary(chatId, session) {
+    const data = session.data;
+
+    let summary = BOT_CONFIG.INTERACTIVE_MESSAGES.TRANSACTION_SUMMARY
+        .replace('{nature}', data.nature)
+        .replace('{project}', data.projectName || '-')
+        .replace('{item}', data.item || '-')
+        .replace('{party}', data.partyName + (data.isNewParty ? ' (جديد)' : ''))
+        .replace('{amount}', data.amount)
+        .replace('{currency}', data.currency)
+        .replace('{details}', data.details || '-')
+        .replace('{payment_method}', data.paymentMethod || '-')
+        .replace('{payment_term}', data.paymentTermType || '-')
+        .replace('{attachment}', data.attachmentUrl ? 'نعم ✓' : 'لا');
+
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CONFIRMATION;
+    saveUserSession(chatId, session);
+
+    sendMessage(chatId, summary, BOT_CONFIG.KEYBOARDS.CONFIRMATION, 'Markdown');
+}
+
+/**
+ * معالجة التأكيد
+ */
+function handleConfirmation(chatId, messageId, choice, session) {
+    if (choice === 'yes') {
+        // حفظ الحركة
+        saveTransaction(chatId, session);
+    } else if (choice === 'edit') {
+        // العودة للتعديل
+        sendMessage(chatId, '✏️ اختر الحقل الذي تريد تعديله:\n\n/الغاء للإلغاء والبدء من جديد');
+        // TODO: إضافة أزرار لاختيار الحقل للتعديل
+    } else if (choice === 'cancel') {
+        resetSession(chatId);
+        editMessage(chatId, messageId, BOT_CONFIG.INTERACTIVE_MESSAGES.CANCELLED);
+    }
+}
+
+/**
+ * حفظ الحركة
+ */
+function saveTransaction(chatId, session) {
+    try {
+        const data = session.data;
+
+        // إعداد بيانات الحركة
+        const transactionData = {
+            date: new Date(),
+            nature: data.nature,
+            classification: data.classification,
+            projectCode: data.projectCode,
+            projectName: data.projectName,
+            item: data.item,
+            details: data.details,
+            partyName: data.partyName,
+            amount: data.amount,
+            currency: data.currency,
+            exchangeRate: data.exchangeRate,
+            paymentMethod: data.paymentMethod,
+            paymentTermType: data.paymentTermType,
+            weeks: data.weeks,
+            customDate: data.customDate,
+            telegramUser: session.userName,
+            chatId: chatId,
+            attachmentUrl: data.attachmentUrl,
+            isNewParty: data.isNewParty
+        };
+
+        // حفظ الحركة
+        const result = addBotTransaction(transactionData);
+
+        if (result.success) {
+            // إذا كان طرف جديد، أضفه لشيت الأطراف
+            if (data.isNewParty) {
+                addBotParty({
+                    name: data.partyName,
+                    type: data.partyType,
+                    telegramUser: session.userName,
+                    chatId: chatId,
+                    linkedTransactionId: result.transactionId
+                });
+            }
+
+            // إرسال رسالة النجاح
+            const successMessage = BOT_CONFIG.INTERACTIVE_MESSAGES.SUCCESS
+                .replace('{id}', result.transactionId);
+            sendMessage(chatId, successMessage, null, 'Markdown');
+
+            // إرسال إشعار للمحاسب
+            notifyAccountant(transactionData, result.transactionId);
+
+            // مسح الجلسة
+            resetSession(chatId);
+        } else {
+            sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.ERROR);
+        }
+
+    } catch (error) {
+        Logger.log('Error saving transaction: ' + error.message);
+        sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.ERROR);
+    }
+}
+
+/**
+ * عرض حالة حركات المستخدم
+ */
+function showUserTransactionsStatus(chatId, session) {
+    const sheet = getBotTransactionsSheet();
+    const columns = BOT_CONFIG.BOT_TRANSACTIONS_COLUMNS;
+    const data = sheet.getDataRange().getValues();
+
+    let pendingCount = 0;
+    let approvedCount = 0;
+    let rejectedCount = 0;
+    let pendingList = [];
+
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const rowChatId = row[columns.TELEGRAM_CHAT_ID.index - 1];
+
+        if (String(rowChatId) === String(chatId)) {
+            const status = row[columns.REVIEW_STATUS.index - 1];
+            const amount = row[columns.AMOUNT.index - 1];
+            const currency = row[columns.CURRENCY.index - 1];
+            const party = row[columns.PARTY_NAME.index - 1];
+
+            if (status === CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING) {
+                pendingCount++;
+                pendingList.push(`• ${amount} ${currency} - ${party}`);
+            } else if (status === CONFIG.TELEGRAM_BOT.REVIEW_STATUS.APPROVED) {
+                approvedCount++;
+            } else if (status === CONFIG.TELEGRAM_BOT.REVIEW_STATUS.REJECTED) {
+                rejectedCount++;
+            }
+        }
+    }
+
+    let message = `📊 *حالة حركاتك*\n\n`;
+    message += `⏳ قيد الانتظار: ${pendingCount}\n`;
+    message += `✅ معتمدة: ${approvedCount}\n`;
+    message += `❌ مرفوضة: ${rejectedCount}\n`;
+
+    if (pendingList.length > 0) {
+        message += `\n📋 *الحركات المعلقة:*\n`;
+        message += pendingList.slice(0, 5).join('\n');
+        if (pendingList.length > 5) {
+            message += `\n... و${pendingList.length - 5} حركات أخرى`;
+        }
+    }
+
+    sendMessage(chatId, message, null, 'Markdown');
+}
+
+// ==================== إدارة الجلسات ====================
+
+/**
+ * الحصول على جلسة المستخدم
+ */
+function getUserSession(chatId) {
+    const cache = CacheService.getScriptCache();
+    const sessionKey = 'session_' + chatId;
+    const cached = cache.get(sessionKey);
+
+    if (cached) {
+        return JSON.parse(cached);
+    }
+
+    return {
+        state: BOT_CONFIG.CONVERSATION_STATES.IDLE,
+        data: {},
+        phoneNumber: null,
+        userName: null,
+        permission: null
+    };
+}
+
+/**
+ * حفظ جلسة المستخدم
+ */
+function saveUserSession(chatId, session) {
+    const cache = CacheService.getScriptCache();
+    const sessionKey = 'session_' + chatId;
+    cache.put(sessionKey, JSON.stringify(session), 3600); // ساعة واحدة
+}
+
+/**
+ * إعادة تعيين جلسة المستخدم
+ */
+function resetSession(chatId) {
+    const session = getUserSession(chatId);
+    session.state = BOT_CONFIG.CONVERSATION_STATES.IDLE;
+    session.data = {};
+    saveUserSession(chatId, session);
+}
+
+// ==================== دوال Telegram API ====================
+
+/**
+ * إرسال رسالة
+ */
+function sendMessage(chatId, text, replyMarkup, parseMode) {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+
+    const payload = {
+        chat_id: chatId,
+        text: text,
+        parse_mode: parseMode || 'HTML'
+    };
+
+    if (replyMarkup) {
+        payload.reply_markup = JSON.stringify(replyMarkup);
+    }
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        return JSON.parse(response.getContentText());
+    } catch (error) {
+        Logger.log('Error sending message: ' + error.message);
+        return null;
+    }
+}
+
+/**
+ * تعديل رسالة
+ */
+function editMessage(chatId, messageId, text, replyMarkup, parseMode) {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/editMessageText`;
+
+    const payload = {
+        chat_id: chatId,
+        message_id: messageId,
+        text: text,
+        parse_mode: parseMode || 'Markdown'
+    };
+
+    if (replyMarkup) {
+        payload.reply_markup = JSON.stringify(replyMarkup);
+    }
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        return JSON.parse(response.getContentText());
+    } catch (error) {
+        Logger.log('Error editing message: ' + error.message);
+        return null;
+    }
+}
+
+/**
+ * الرد على Callback Query
+ */
+function answerCallbackQuery(callbackQueryId, text) {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/answerCallbackQuery`;
+
+    const payload = {
+        callback_query_id: callbackQueryId
+    };
+
+    if (text) {
+        payload.text = text;
+    }
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    try {
+        UrlFetchApp.fetch(url, options);
+    } catch (error) {
+        Logger.log('Error answering callback: ' + error.message);
+    }
+}
+
+/**
+ * الحصول على معلومات الملف
+ */
+function getFileInfo(fileId) {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`;
+
+    const response = UrlFetchApp.fetch(url);
+    return JSON.parse(response.getContentText());
+}
+
+/**
+ * تنزيل ملف من تليجرام
+ */
+function downloadTelegramFile(filePath) {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+
+    const response = UrlFetchApp.fetch(url);
+    return response.getBlob();
+}
+
+// ==================== إشعارات المحاسب ====================
+
+/**
+ * إرسال إشعار للمحاسب
+ */
+function notifyAccountant(transactionData, transactionId) {
+    const accountantChatId = getAccountantChatId();
+    if (!accountantChatId) {
+        Logger.log('Accountant Chat ID not set');
+        return;
+    }
+
+    const message = `
+📥 *حركة جديدة من البوت*
+─────────────────
+📌 رقم الحركة: #${transactionId}
+📋 النوع: ${transactionData.nature}
+🎬 المشروع: ${transactionData.projectName || '-'}
+👤 الطرف: ${transactionData.partyName}${transactionData.isNewParty ? ' (جديد)' : ''}
+💵 المبلغ: ${transactionData.amount} ${transactionData.currency}
+📝 التفاصيل: ${transactionData.details || '-'}
+👤 المُدخل: ${transactionData.telegramUser}
+─────────────────
+⏳ في انتظار المراجعة
+    `;
+
+    const keyboard = {
+        inline_keyboard: [[
+            { text: '📋 فتح شيت المراجعة', url: SpreadsheetApp.getActiveSpreadsheet().getUrl() }
+        ]]
+    };
+
+    sendMessage(accountantChatId, message, keyboard, 'Markdown');
+}
+
+/**
+ * إرسال إشعار للمستخدم بالاعتماد
+ */
+function notifyUserApproval(chatId, transactionData) {
+    const message = BOT_CONFIG.INTERACTIVE_MESSAGES.APPROVED_NOTIFICATION
+        .replace('{id}', transactionData.transactionId)
+        .replace('{date}', transactionData.date)
+        .replace('{amount}', transactionData.amount + ' ' + transactionData.currency)
+        .replace('{party}', transactionData.partyName);
+
+    sendMessage(chatId, message, null, 'Markdown');
+}
+
+/**
+ * إرسال إشعار للمستخدم بالرفض
+ */
+function notifyUserRejection(chatId, transactionData, reason) {
+    const message = BOT_CONFIG.INTERACTIVE_MESSAGES.REJECTED_NOTIFICATION
+        .replace('{id}', transactionData.transactionId)
+        .replace('{date}', transactionData.date)
+        .replace('{amount}', transactionData.amount + ' ' + transactionData.currency)
+        .replace('{party}', transactionData.partyName)
+        .replace('{reason}', reason);
+
+    sendMessage(chatId, message, BOT_CONFIG.KEYBOARDS.EDIT_AFTER_REJECT, 'Markdown');
+}

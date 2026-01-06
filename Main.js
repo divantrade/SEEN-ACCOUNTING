@@ -154,6 +154,26 @@ function onOpen() {
         .addItem('📋 إخفاء/إظهار سجل النشاط', 'toggleActivityLogVisibility')
     )
 
+    // ═══════════════════════════════════════════════════════════
+    // 8.5. بوت تليجرام
+    // ═══════════════════════════════════════════════════════════
+    .addSubMenu(
+      ui.createMenu('🤖 بوت تليجرام')
+        .addItem('📋 مراجعة حركات البوت', 'showBotReviewSidebar')
+        .addItem('✅ اعتماد جميع الحركات المعلقة', 'approveAllPendingTransactions')
+        .addItem('📊 تقرير الحركات المعلقة', 'showPendingTransactionsReport')
+        .addSeparator()
+        .addItem('📈 إحصائيات البوت', 'showBotStatistics')
+        .addItem('📎 تقرير المرفقات', 'showAttachmentsReport')
+        .addSeparator()
+        .addItem('🔧 إعداد شيتات البوت', 'setupBotSheets')
+        .addItem('🔗 إعداد Webhook', 'setWebhook')
+        .addItem('📁 إعداد مجلدات المرفقات', 'setupAttachmentsFolders')
+        .addItem('🧪 اختبار مجلد المرفقات', 'testAttachmentsFolder')
+        .addSeparator()
+        .addItem('🗑️ تنظيف مرفقات المرفوضة', 'cleanupRejectedAttachments')
+    )
+
     .addSubMenu(
       ui.createMenu('⚙️ إعدادات متقدمة')
         .addItem('💾 حفظ الحركة المعلقة', 'processPendingTransaction')
