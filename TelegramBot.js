@@ -185,6 +185,52 @@ function updateBotTokenAndSetup() {
 }
 
 /**
+ * تعيين Webhook يدوياً برابط محدد
+ * استخدم هذه الدالة إذا لم تعمل setWebhook تلقائياً
+ */
+function setWebhookManually() {
+    const ui = SpreadsheetApp.getUi();
+
+    const result = ui.prompt(
+        '🔗 تعيين Webhook يدوياً',
+        'الصق رابط الـ Web App (يجب أن ينتهي بـ /exec):\n\n' +
+        'يمكنك الحصول عليه من:\n' +
+        'Deploy → Manage deployments → Web URL',
+        ui.ButtonSet.OK_CANCEL
+    );
+
+    if (result.getSelectedButton() !== ui.Button.OK) {
+        return;
+    }
+
+    const webAppUrl = result.getResponseText().trim();
+    if (!webAppUrl || !webAppUrl.includes('/exec')) {
+        ui.alert('❌ خطأ', 'الرابط غير صحيح. يجب أن ينتهي بـ /exec', ui.ButtonSet.OK);
+        return;
+    }
+
+    try {
+        const token = getBotToken();
+        const url = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webAppUrl)}`;
+
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const webhookResult = JSON.parse(response.getContentText());
+
+        if (webhookResult.ok) {
+            ui.alert('✅ تم بنجاح!',
+                `تم تعيين Webhook بنجاح!\n\n` +
+                `🔗 URL: ${webAppUrl}\n\n` +
+                `جرب إرسال /start للبوت الآن.`,
+                ui.ButtonSet.OK);
+        } else {
+            ui.alert('❌ فشل', 'فشل تعيين Webhook: ' + webhookResult.description, ui.ButtonSet.OK);
+        }
+    } catch (error) {
+        ui.alert('❌ خطأ', error.message, ui.ButtonSet.OK);
+    }
+}
+
+/**
  * عرض حالة Webhook الحالية
  */
 function getWebhookInfo() {
