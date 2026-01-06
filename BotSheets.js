@@ -550,25 +550,60 @@ function addBotParty(partyData) {
 
 /**
  * التحقق من صلاحية المستخدم
+ * يبحث بالهاتف أو اسم المستخدم أو معرّف المحادثة
  */
-function checkUserAuthorization(phoneNumber, chatId) {
+function checkUserAuthorization(phoneNumber, chatId, username) {
     const sheet = getBotUsersSheet();
     const columns = BOT_CONFIG.BOT_USERS_COLUMNS;
 
     const data = sheet.getDataRange().getValues();
 
+    // تنظيف المدخلات
+    const inputPhone = phoneNumber ? String(phoneNumber).replace(/\D/g, '') : '';
+    const inputUsername = username ? String(username).toLowerCase().replace('@', '') : '';
+    const inputChatId = chatId ? String(chatId) : '';
+
+    Logger.log('Authorization check - Phone: ' + inputPhone + ', Username: ' + inputUsername + ', ChatId: ' + inputChatId);
+
     for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        const phone = String(row[columns.PHONE.index - 1]).replace(/\D/g, '');
+
+        // قراءة البيانات من الشيت
+        const sheetPhone = String(row[columns.PHONE.index - 1] || '').replace(/\D/g, '');
+        const sheetUsername = String(row[columns.TELEGRAM_USERNAME.index - 1] || '').toLowerCase().replace('@', '');
+        const sheetChatId = String(row[columns.TELEGRAM_CHAT_ID.index - 1] || '');
         const isActive = row[columns.IS_ACTIVE.index - 1];
 
-        // مقارنة الأرقام (بدون رموز)
-        const inputPhone = String(phoneNumber).replace(/\D/g, '');
+        Logger.log('Row ' + (i+1) + ' - Sheet Phone: ' + sheetPhone + ', Sheet Username: ' + sheetUsername + ', Active: ' + isActive);
 
-        if (phone === inputPhone && isActive === 'نعم') {
+        // التحقق من أن المستخدم نشط
+        if (isActive !== 'نعم') {
+            continue;
+        }
+
+        // المطابقة بالهاتف أو اسم المستخدم أو معرّف المحادثة
+        let matched = false;
+
+        if (inputPhone && sheetPhone && inputPhone === sheetPhone) {
+            matched = true;
+            Logger.log('Matched by phone!');
+        } else if (inputUsername && sheetUsername && inputUsername === sheetUsername) {
+            matched = true;
+            Logger.log('Matched by username!');
+        } else if (inputChatId && sheetChatId && inputChatId === sheetChatId) {
+            matched = true;
+            Logger.log('Matched by chat ID!');
+        }
+
+        if (matched) {
             // تحديث Chat ID إذا لم يكن موجوداً
-            if (!row[columns.TELEGRAM_CHAT_ID.index - 1] && chatId) {
+            if (!sheetChatId && chatId) {
                 sheet.getRange(i + 1, columns.TELEGRAM_CHAT_ID.index).setValue(chatId);
+            }
+
+            // تحديث اسم المستخدم إذا لم يكن موجوداً
+            if (!sheetUsername && username) {
+                sheet.getRange(i + 1, columns.TELEGRAM_USERNAME.index).setValue(username);
             }
 
             return {
@@ -579,6 +614,7 @@ function checkUserAuthorization(phoneNumber, chatId) {
         }
     }
 
+    Logger.log('No match found - User not authorized');
     return { authorized: false };
 }
 
