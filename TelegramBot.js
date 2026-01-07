@@ -271,9 +271,17 @@ function getWebhookInfo() {
  * معالجة الطلبات الواردة من تليجرام (Webhook endpoint)
  */
 function doPost(e) {
+    let debugChatId = null;
     try {
         const update = JSON.parse(e.postData.contents);
         Logger.log('Received update: ' + JSON.stringify(update));
+
+        // استخراج chatId للتصحيح
+        if (update.message) {
+            debugChatId = update.message.chat.id;
+        } else if (update.callback_query) {
+            debugChatId = update.callback_query.message.chat.id;
+        }
 
         // معالجة الرسالة أو Callback
         if (update.message) {
@@ -284,7 +292,13 @@ function doPost(e) {
 
         return ContentService.createTextOutput('OK');
     } catch (error) {
-        Logger.log('Error in doPost: ' + error.message);
+        Logger.log('Error in doPost: ' + error.message + '\nStack: ' + error.stack);
+        // إرسال رسالة خطأ للمستخدم
+        if (debugChatId) {
+            try {
+                sendMessage(debugChatId, '❌ حدث خطأ: ' + error.message);
+            } catch (e) {}
+        }
         return ContentService.createTextOutput('Error: ' + error.message);
     }
 }
@@ -293,7 +307,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '2.1.0'; // تحديث عند كل نشر
+const BOT_VERSION = '2.2.0'; // تحديث عند كل نشر - إضافة debugging
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
@@ -355,9 +369,13 @@ function handleMessage(message) {
     // استخراج اسم المستخدم من تليجرام
     const username = message.from ? message.from.username : null;
 
+    Logger.log('handleMessage - chatId: ' + chatId + ', text: ' + text + ', username: ' + username);
+
     // التحقق من المستخدم
     const userPhone = getUserPhoneFromMessage(message);
+    Logger.log('handleMessage - userPhone: ' + userPhone);
     const authResult = checkUserAuthorization(userPhone, chatId, username);
+    Logger.log('handleMessage - authResult: ' + JSON.stringify(authResult));
 
     if (!authResult.authorized) {
         // محاولة الحصول على رقم الهاتف
@@ -471,6 +489,7 @@ function handleContactReceived(chatId, contact, username) {
  */
 function handleCommand(chatId, command, session) {
     const cmd = command.split(' ')[0].toLowerCase();
+    Logger.log('handleCommand - cmd: ' + cmd + ', chatId: ' + chatId);
 
     switch (cmd) {
         case '/start':
@@ -480,6 +499,7 @@ function handleCommand(chatId, command, session) {
 
         case '/expense':
         case '/مصروف':
+            Logger.log('Starting expense flow for chatId: ' + chatId);
             startExpenseFlow(chatId, session);
             break;
 
@@ -513,26 +533,34 @@ function handleCommand(chatId, command, session) {
  * بدء تدفق المصروفات
  */
 function startExpenseFlow(chatId, session) {
-    session.transactionType = 'expense';
-    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
-    session.data = {};
-    saveUserSession(chatId, session);
+    try {
+        Logger.log('startExpenseFlow - chatId: ' + chatId);
 
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '📤 استحقاق مصروف (فاتورة)', callback_data: 'nature_استحقاق مصروف' }
-            ],
-            [
-                { text: '💸 دفعة مصروف (سداد)', callback_data: 'nature_دفعة مصروف' }
-            ],
-            [
-                { text: '❌ إلغاء', callback_data: 'cancel' }
+        session.transactionType = 'expense';
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+        session.data = {};
+        saveUserSession(chatId, session);
+
+        const keyboard = {
+            inline_keyboard: [
+                [
+                    { text: '📤 استحقاق مصروف (فاتورة)', callback_data: 'nature_استحقاق مصروف' }
+                ],
+                [
+                    { text: '💸 دفعة مصروف (سداد)', callback_data: 'nature_دفعة مصروف' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
             ]
-        ]
-    };
+        };
 
-    sendMessage(chatId, '💰 *تسجيل مصروف*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+        const result = sendMessage(chatId, '💰 *تسجيل مصروف*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+        Logger.log('startExpenseFlow - sendMessage result: ' + JSON.stringify(result));
+    } catch (error) {
+        Logger.log('Error in startExpenseFlow: ' + error.message + '\nStack: ' + error.stack);
+        sendMessage(chatId, '❌ خطأ في بدء تسجيل المصروف: ' + error.message);
+    }
 }
 
 /**
