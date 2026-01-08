@@ -3,6 +3,9 @@
 
 <head>
   <base target="_top">
+  <!-- Tom Select CSS & JS -->
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -282,6 +285,73 @@
       padding: 12px;
       border: 1px solid #a5d6a7;
     }
+
+    /* Tom Select RTL & Custom Styling */
+    .ts-wrapper {
+      direction: rtl;
+    }
+
+    .ts-wrapper .ts-control {
+      padding: 8px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #fafafa;
+      min-height: 42px;
+    }
+
+    .ts-wrapper .ts-control:hover {
+      border-color: #667eea;
+    }
+
+    .ts-wrapper.focus .ts-control {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      background: white;
+    }
+
+    .ts-wrapper .ts-dropdown {
+      border: 2px solid #667eea;
+      border-radius: 8px;
+      margin-top: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .ts-wrapper .ts-dropdown .option {
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+
+    .ts-wrapper .ts-dropdown .option:hover,
+    .ts-wrapper .ts-dropdown .option.active {
+      background: #667eea;
+      color: white;
+    }
+
+    .ts-wrapper .ts-dropdown .ts-dropdown-content {
+      max-height: 200px;
+    }
+
+    .ts-wrapper .ts-control input {
+      font-size: 14px;
+    }
+
+    .ts-wrapper .ts-control > .item {
+      background: transparent;
+      color: #333;
+    }
+
+    /* Placeholder styling */
+    .ts-wrapper .ts-control input::placeholder {
+      color: #999;
+    }
+
+    /* No results message */
+    .ts-wrapper .ts-dropdown .no-results {
+      padding: 10px 12px;
+      color: #999;
+      text-align: center;
+    }
   </style>
 </head>
 
@@ -524,6 +594,9 @@
       // إظهار النموذج
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('formState').style.display = 'block';
+
+      // تهيئة Tom Select للقوائم القابلة للبحث
+      initSearchableSelects();
     }
 
     // تعبئة قائمة المستخدمين
@@ -837,6 +910,8 @@
       document.getElementById('jsonSection').style.display = 'none';
       document.getElementById('successTitle').textContent = 'تمت الإضافة بنجاح!';
       lastFormData = null;
+      // إعادة تعيين Tom Select
+      resetTomSelects();
     }
 
     // دالة حفظ الحركة المعلقة
@@ -883,6 +958,70 @@
       setTimeout(function () {
         btn.textContent = originalText;
       }, 2000);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Tom Select - القوائم القابلة للبحث
+    // ═══════════════════════════════════════════════════════════════
+
+    // متغيرات لحفظ instances من Tom Select
+    let tomSelectInstances = {};
+
+    // تهيئة Tom Select على القوائم المطلوبة
+    function initSearchableSelects() {
+      // إعدادات مشتركة
+      const commonSettings = {
+        placeholder: 'ابحث أو اختر...',
+        allowEmptyOption: true,
+        create: false,
+        maxOptions: 100,
+        render: {
+          no_results: function(data, escape) {
+            return '<div class="no-results">لا توجد نتائج لـ "' + escape(data.input) + '"</div>';
+          }
+        }
+      };
+
+      // 1. قائمة المستخدمين
+      if (document.getElementById('currentUser')) {
+        tomSelectInstances.currentUser = new TomSelect('#currentUser', {
+          ...commonSettings,
+          placeholder: 'ابحث عن اسمك...'
+        });
+      }
+
+      // 2. قائمة المشاريع
+      if (document.getElementById('projectCode')) {
+        tomSelectInstances.projectCode = new TomSelect('#projectCode', {
+          ...commonSettings,
+          placeholder: 'ابحث عن المشروع...'
+        });
+      }
+
+      // 3. قائمة البنود
+      if (document.getElementById('item')) {
+        tomSelectInstances.item = new TomSelect('#item', {
+          ...commonSettings,
+          placeholder: 'ابحث عن البند...'
+        });
+      }
+
+      // 4. قائمة الأطراف (الموردين/الجهات)
+      if (document.getElementById('partyName')) {
+        tomSelectInstances.partyName = new TomSelect('#partyName', {
+          ...commonSettings,
+          placeholder: 'ابحث عن المورد/الجهة...'
+        });
+      }
+    }
+
+    // دالة لإعادة تعيين Tom Select عند reset النموذج
+    function resetTomSelects() {
+      for (const key in tomSelectInstances) {
+        if (tomSelectInstances[key]) {
+          tomSelectInstances[key].clear();
+        }
+      }
     }
   </script>
 </body>
