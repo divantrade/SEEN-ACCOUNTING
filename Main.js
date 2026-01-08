@@ -7819,6 +7819,65 @@ function onEdit(e) {
   if (row <= 1) return;
 
   // ═══════════════════════════════════════════════════════════
+  // تسجيل النشاط مع الإيميل الصحيح (Simple Trigger يمكنه جلب الإيميل)
+  // ═══════════════════════════════════════════════════════════
+  try {
+    const trackedForLog = [
+      CONFIG.SHEETS.TRANSACTIONS,
+      CONFIG.SHEETS.PROJECTS,
+      CONFIG.SHEETS.PARTIES,
+      CONFIG.SHEETS.ITEMS,
+      CONFIG.SHEETS.BUDGETS
+    ];
+
+    if (trackedForLog.includes(sheetName)) {
+      // جلب الإيميل الفعلي للمستخدم (يعمل في Simple Trigger فقط)
+      const realUserEmail = Session.getActiveUser().getEmail();
+
+      if (realUserEmail) {
+        const oldValue = e.oldValue !== undefined ? e.oldValue : '';
+        const newValue = e.value !== undefined ? e.value : '';
+
+        // تجاهل إذا لم يتغير شيء
+        if (oldValue !== newValue) {
+          const columnHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+          const columnName = columnHeaders[col - 1] || 'عمود ' + col;
+
+          let transNum = '';
+          if (sheetName === CONFIG.SHEETS.TRANSACTIONS) {
+            transNum = sheet.getRange(row, 1).getValue() || '';
+          }
+
+          let actionType = 'تعديل';
+          if (oldValue === '' && newValue !== '') {
+            actionType = 'إضافة قيمة';
+          } else if (oldValue !== '' && newValue === '') {
+            actionType = 'حذف قيمة';
+          }
+
+          // تسجيل النشاط مع الإيميل الصحيح
+          logActivity(
+            actionType,
+            sheetName,
+            row,
+            transNum,
+            columnName + ': "' + oldValue + '" → "' + newValue + '"',
+            {
+              column: col,
+              columnName: columnName,
+              oldValue: oldValue,
+              newValue: newValue
+            },
+            realUserEmail
+          );
+        }
+      }
+    }
+  } catch (logErr) {
+    // تجاهل أخطاء التسجيل - لا نوقف العمليات الأخرى
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // قائمة الشيتات المعالجة - الخروج السريع إذا لم يكن الشيت منها
   // ═══════════════════════════════════════════════════════════
   const isTransactions = (sheetName === CONFIG.SHEETS.TRANSACTIONS);
