@@ -211,11 +211,30 @@ function onOpen() {
     )
 
     // ═══════════════════════════════════════════════════════════
-    // 9. دليل الاستخدام
+    // 9. تعريف المستخدم
+    // ═══════════════════════════════════════════════════════════
+    .addSeparator()
+    .addItem('👤 تعريف المستخدم', 'showUserIdentificationDialog')
+
+    // ═══════════════════════════════════════════════════════════
+    // 10. دليل الاستخدام
     // ═══════════════════════════════════════════════════════════
     .addSeparator()
     .addItem('📖 دليل الاستخدام', 'showGuide')
     .addToUi();
+
+  // ═══════════════════════════════════════════════════════════
+  // عرض نافذة تعريف المستخدم تلقائياً إذا لم يكن معرّفاً
+  // ═══════════════════════════════════════════════════════════
+  try {
+    if (!isUserIdentified()) {
+      // تأخير بسيط لضمان اكتمال تحميل الشيت
+      Utilities.sleep(500);
+      showUserIdentificationDialog();
+    }
+  } catch (e) {
+    console.log('تعذر عرض نافذة تعريف المستخدم:', e.message);
+  }
 }
 
 
@@ -2052,55 +2071,61 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details, 
     // جلب البريد الإلكتروني للمستخدم الحالي
     let userEmail = '';
 
-    // أولاً: استخدام الإيميل الممرر من e.user (الأولوية القصوى)
+    // ═══════════════════════════════════════════════════════════════
+    // الأولوية 1: استخدام الإيميل/الاسم الممرر مباشرة
+    // ═══════════════════════════════════════════════════════════════
     if (userEmailParam) {
       userEmail = userEmailParam;
     }
 
-    // ثانياً: محاولة الطرق الأخرى إذا لم يتم تمرير الإيميل
+    // ═══════════════════════════════════════════════════════════════
+    // الأولوية 2: استخدام هوية المستخدم المحفوظة (من نافذة تعريف المستخدم)
+    // هذا هو الحل الموثوق للمستخدمين من خارج الدومين
+    // ═══════════════════════════════════════════════════════════════
     if (!userEmail) {
       try {
-        // نجرب أولاً من Session
+        const userProps = PropertiesService.getUserProperties();
+        const savedName = userProps.getProperty('currentUserName');
+        const savedEmail = userProps.getProperty('currentUserEmail');
+
+        if (savedName) {
+          // استخدام الاسم المحفوظ (أو الإيميل إذا كان متاحاً)
+          userEmail = savedEmail || savedName;
+        }
+      } catch (pe) { /* تجاهل */ }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // الأولوية 3: محاولة من Session (للمستخدمين من نفس الدومين)
+    // ═══════════════════════════════════════════════════════════════
+    if (!userEmail) {
+      try {
         userEmail = Session.getActiveUser().getEmail();
         if (!userEmail) {
           userEmail = Session.getEffectiveUser().getEmail();
         }
+      } catch (e) { /* تجاهل */ }
+    }
 
-        // إذا لم نحصل على الإيميل، نجرب من UserProperties المحفوظ
-        // (يتم حفظه عند فتح النموذج في showTransactionForm)
-        if (!userEmail) {
-          try {
-            userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') || '';
-          } catch (pe) { /* تجاهل */ }
-        }
+    // ═══════════════════════════════════════════════════════════════
+    // الأولوية 4: ScriptProperties كاحتياطي أخير
+    // ═══════════════════════════════════════════════════════════════
+    if (!userEmail) {
+      try {
+        userEmail = PropertiesService.getScriptProperties().getProperty('lastUserEmail') || '';
+      } catch (pe) { /* تجاهل */ }
+    }
 
-        // حفظ في ScriptProperties كاحتياطي إضافي
-        if (userEmail) {
-          try {
-            PropertiesService.getScriptProperties().setProperty('lastUserEmail', userEmail);
-          } catch (pe) { /* تجاهل */ }
-        }
+    // إذا لم نحصل على شيء
+    if (!userEmail) {
+      userEmail = 'غير معروف';
+    }
 
-        // إذا لم نحصل على الإيميل، نجرب من ScriptProperties
-        if (!userEmail) {
-          try {
-            userEmail = PropertiesService.getScriptProperties().getProperty('lastUserEmail') || '';
-          } catch (pe) { /* تجاهل */ }
-        }
-
-        if (!userEmail) {
-          userEmail = 'غير معروف';
-        }
-      } catch (e) {
-        // محاولة من Properties المحفوظ
-        try {
-          userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') ||
-                      PropertiesService.getScriptProperties().getProperty('lastUserEmail') ||
-                      'غير متاح';
-        } catch (pe) {
-          userEmail = 'غير متاح';
-        }
-      }
+    // حفظ الإيميل في ScriptProperties للاستخدام المستقبلي
+    if (userEmail && userEmail !== 'غير معروف') {
+      try {
+        PropertiesService.getScriptProperties().setProperty('lastUserEmail', userEmail);
+      } catch (pe) { /* تجاهل */ }
     }
 
     // محاولة الحصول على اسم المستخدم من شيت المستخدمين
@@ -11503,6 +11528,117 @@ function testFormPermissions() {
 
   ui.alert('🔍 نتائج الاختبار', results.join('\n'), ui.ButtonSet.OK);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// دوال تعريف المستخدم (User Identification)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * عرض نافذة تعريف المستخدم
+ * تظهر عند فتح الشيت أو من القائمة
+ */
+function showUserIdentificationDialog() {
+  try {
+    // جلب قائمة المستخدمين النشطين
+    const users = getActiveUsersForForm();
+
+    // جلب المستخدم الحالي المحفوظ (إن وجد)
+    let currentUser = null;
+    try {
+      const savedName = PropertiesService.getUserProperties().getProperty('currentUserName');
+      const savedEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail');
+      if (savedName) {
+        currentUser = { name: savedName, email: savedEmail || '' };
+      }
+    } catch (e) { /* تجاهل */ }
+
+    // إعداد البيانات للقالب
+    const usersData = {
+      users: users,
+      currentUser: currentUser
+    };
+
+    // إنشاء قالب HTML
+    const template = HtmlService.createTemplateFromFile('UserIdentification');
+    template.usersData = usersData;
+
+    const html = template.evaluate()
+      .setWidth(380)
+      .setHeight(420);
+
+    SpreadsheetApp.getUi().showModalDialog(html, '👤 تعريف المستخدم');
+  } catch (e) {
+    console.log('خطأ في عرض نافذة تعريف المستخدم:', e.message);
+    // لا نعرض رسالة خطأ للمستخدم حتى لا نزعجه
+  }
+}
+
+/**
+ * حفظ هوية المستخدم الحالي
+ * @param {string} userName - اسم المستخدم
+ * @param {string} userEmail - إيميل المستخدم
+ */
+function saveCurrentUserIdentity(userName, userEmail) {
+  try {
+    const userProps = PropertiesService.getUserProperties();
+    userProps.setProperty('currentUserName', userName || '');
+    userProps.setProperty('currentUserEmail', userEmail || '');
+
+    // تسجيل في الـ console للتأكد
+    console.log('تم حفظ هوية المستخدم:', userName, userEmail);
+
+    return { success: true };
+  } catch (e) {
+    console.log('خطأ في حفظ هوية المستخدم:', e.message);
+    throw new Error('فشل في حفظ البيانات: ' + e.message);
+  }
+}
+
+/**
+ * جلب هوية المستخدم الحالي المحفوظة
+ * @returns {Object} بيانات المستخدم {name, email} أو null
+ */
+function getCurrentUserIdentity() {
+  try {
+    const userProps = PropertiesService.getUserProperties();
+    const name = userProps.getProperty('currentUserName');
+    const email = userProps.getProperty('currentUserEmail');
+
+    if (name) {
+      return { name: name, email: email || '' };
+    }
+    return null;
+  } catch (e) {
+    console.log('خطأ في جلب هوية المستخدم:', e.message);
+    return null;
+  }
+}
+
+/**
+ * مسح هوية المستخدم الحالي (تسجيل خروج)
+ */
+function clearCurrentUserIdentity() {
+  try {
+    const userProps = PropertiesService.getUserProperties();
+    userProps.deleteProperty('currentUserName');
+    userProps.deleteProperty('currentUserEmail');
+    return { success: true };
+  } catch (e) {
+    console.log('خطأ في مسح هوية المستخدم:', e.message);
+    return { success: false };
+  }
+}
+
+/**
+ * التحقق مما إذا كان المستخدم قد عرّف نفسه
+ * @returns {boolean}
+ */
+function isUserIdentified() {
+  const identity = getCurrentUserIdentity();
+  return identity !== null && identity.name !== '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * عرض نموذج إضافة حركة جديدة
