@@ -2103,6 +2103,19 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details, 
       }
     }
 
+    // محاولة الحصول على اسم المستخدم من شيت المستخدمين
+    let displayName = userEmail;
+    try {
+      if (userEmail && userEmail !== 'غير معروف' && userEmail !== 'غير متاح') {
+        const userInfo = getUserByEmail(userEmail);
+        if (userInfo && userInfo.found && userInfo.name) {
+          displayName = userInfo.name + ' (' + userEmail + ')';
+        }
+      }
+    } catch (ue) {
+      // تجاهل - نستخدم الإيميل فقط
+    }
+
     // تحويل التفاصيل لـ JSON إذا كانت كائن
     let detailsStr = '';
     if (details) {
@@ -2119,10 +2132,16 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details, 
     // إدراج صف جديد بعد الهيدر
     logSheet.insertRowAfter(1);
 
+    // الحصول على نطاق الصف الجديد
+    const newRowRange = logSheet.getRange(2, 1, 1, 8);
+
+    // إزالة التنسيق الموروث من الهيدر
+    newRowRange.clearFormat();
+
     // كتابة البيانات في الصف الثاني
-    logSheet.getRange(2, 1, 1, 8).setValues([[
+    newRowRange.setValues([[
       timestamp,
-      userEmail,
+      displayName,
       actionType,
       sheetName,
       rowNum || '',
@@ -2130,6 +2149,17 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details, 
       summary,
       detailsStr
     ]]);
+
+    // تطبيق التنسيق الصحيح للبيانات
+    newRowRange
+      .setBackground('#ffffff')
+      .setFontColor('#000000')
+      .setFontWeight('normal')
+      .setFontSize(10)
+      .setVerticalAlignment('middle');
+
+    // تنسيق عمود الوقت
+    logSheet.getRange(2, 1).setNumberFormat('yyyy-mm-dd hh:mm:ss');
 
   } catch (e) {
     // في حالة فشل التسجيل، لا نوقف العملية الأصلية

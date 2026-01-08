@@ -295,6 +295,20 @@ function createBotUsersSheet() {
     // تجميد الصف الأول
     sheet.setFrozenRows(1);
 
+    // إضافة Data Validation لنوع المستخدم
+    const userTypeCol = columns.USER_TYPE.index;
+    const userTypeRule = SpreadsheetApp.newDataValidation()
+        .requireValueInList([
+            BOT_CONFIG.USER_TYPES.BOT,
+            BOT_CONFIG.USER_TYPES.SHEET,
+            BOT_CONFIG.USER_TYPES.BOTH
+        ])
+        .setAllowInvalid(false)
+        .build();
+
+    sheet.getRange(2, userTypeCol, CONFIG.SHEET.DEFAULT_ROWS, 1)
+        .setDataValidation(userTypeRule);
+
     // إضافة Data Validation للصلاحية
     const permissionCol = columns.PERMISSION.index;
     const permissionRule = SpreadsheetApp.newDataValidation()
@@ -616,6 +630,45 @@ function checkUserAuthorization(phoneNumber, chatId, username) {
 
     Logger.log('No match found - User not authorized');
     return { authorized: false };
+}
+
+/**
+ * البحث عن المستخدم بالإيميل
+ * تُستخدم لتسجيل النشاط مع اسم المستخدم
+ * @param {string} email - البريد الإلكتروني للمستخدم
+ * @returns {Object} بيانات المستخدم أو null
+ */
+function getUserByEmail(email) {
+    try {
+        if (!email) return null;
+
+        const sheet = getBotUsersSheet();
+        const columns = BOT_CONFIG.BOT_USERS_COLUMNS;
+        const data = sheet.getDataRange().getValues();
+
+        const inputEmail = String(email).toLowerCase().trim();
+
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            const sheetEmail = String(row[columns.EMAIL.index - 1] || '').toLowerCase().trim();
+
+            if (sheetEmail && sheetEmail === inputEmail) {
+                return {
+                    found: true,
+                    name: row[columns.NAME.index - 1] || '',
+                    email: sheetEmail,
+                    userType: row[columns.USER_TYPE.index - 1] || '',
+                    permission: row[columns.PERMISSION.index - 1] || '',
+                    isActive: row[columns.IS_ACTIVE.index - 1] === 'نعم'
+                };
+            }
+        }
+
+        return { found: false };
+    } catch (error) {
+        Logger.log('Error in getUserByEmail: ' + error.message);
+        return { found: false };
+    }
 }
 
 /**
