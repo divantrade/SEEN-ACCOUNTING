@@ -348,11 +348,23 @@ function onEditHandler(e) {
 
     if (!trackedSheets.includes(sheetName)) return;
 
+    // جلب إيميل المستخدم من الحدث (e.user) - يعمل مع المستخدمين الآخرين
+    let userEmail = '';
+    try {
+      if (e.user && e.user.getEmail) {
+        userEmail = e.user.getEmail();
+      } else if (e.user && e.user.email) {
+        userEmail = e.user.email;
+      }
+    } catch (ue) {
+      // تجاهل - سيتم استخدام الطرق البديلة في logActivity
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // اكتشاف حذف الصفوف بمقارنة أرقام الحركات/البيانات
     // ═══════════════════════════════════════════════════════════════
     try {
-      detectDeletedRows(sheet, sheetName);
+      detectDeletedRows(sheet, sheetName, userEmail);
     } catch (propErr) {
       // تجاهل أخطاء تتبع الصفوف
     }
@@ -387,7 +399,7 @@ function onEditHandler(e) {
       actionType = 'حذف قيمة';
     }
 
-    // تسجيل النشاط
+    // تسجيل النشاط مع تمرير إيميل المستخدم
     logActivity(
       actionType,
       sheetName,
@@ -399,7 +411,8 @@ function onEditHandler(e) {
         columnName: columnName,
         oldValue: oldValue,
         newValue: newValue
-      }
+      },
+      userEmail
     );
 
   } catch (err) {
@@ -433,11 +446,23 @@ function onChangeHandler(e) {
 
     const changeType = e ? e.changeType : 'UNKNOWN';
 
+    // جلب إيميل المستخدم من الحدث (e.user) - يعمل مع المستخدمين الآخرين
+    let userEmail = '';
+    try {
+      if (e && e.user && e.user.getEmail) {
+        userEmail = e.user.getEmail();
+      } else if (e && e.user && e.user.email) {
+        userEmail = e.user.email;
+      }
+    } catch (ue) {
+      // تجاهل - سيتم استخدام الطرق البديلة في logActivity
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // اكتشاف حذف الصفوف بمقارنة البيانات المخزنة
     // ═══════════════════════════════════════════════════════════════
     try {
-      detectDeletedRows(activeSheet, sheetName);
+      detectDeletedRows(activeSheet, sheetName, userEmail);
     } catch (propErr) {
       console.log('خطأ في اكتشاف الحذف:', propErr.message);
     }
@@ -452,7 +477,8 @@ function onChangeHandler(e) {
         null,
         null,
         `تم إضافة صف في ${sheetName}`,
-        { changeType: changeType }
+        { changeType: changeType },
+        userEmail
       );
     } else if (changeType === 'INSERT_COLUMN' || changeType === 'REMOVE_COLUMN') {
       const actionType = changeType === 'INSERT_COLUMN' ? 'إضافة عمود' : 'حذف عمود';
@@ -462,7 +488,8 @@ function onChangeHandler(e) {
         null,
         null,
         `تم ${actionType} في ${sheetName}`,
-        { changeType: changeType }
+        { changeType: changeType },
+        userEmail
       );
     }
 
@@ -475,8 +502,9 @@ function onChangeHandler(e) {
 /**
  * اكتشاف الصفوف المحذوفة بمقارنة البيانات المخزنة
  * يحفظ أرقام الحركات/المعرفات ويقارنها لاكتشاف المحذوف
+ * @param {string} userEmail - إيميل المستخدم من e.user (اختياري)
  */
-function detectDeletedRows(sheet, sheetName) {
+function detectDeletedRows(sheet, sheetName, userEmail) {
   const props = PropertiesService.getScriptProperties();
   const cacheKey = 'rowData_' + sheetName.replace(/\s/g, '_');
 
@@ -520,7 +548,8 @@ function detectDeletedRows(sheet, sheetName) {
           deletedId: item.id,
           deletedRow: item.row,
           totalDeleted: deletedItems.length
-        }
+        },
+        userEmail
       );
     });
   }
@@ -2007,8 +2036,9 @@ function createActivityLogSheet(ss) {
  * @param {string|number} transNum - رقم الحركة (اختياري)
  * @param {string} summary - ملخص العملية
  * @param {Object} details - تفاصيل إضافية (اختياري)
+ * @param {string} userEmailParam - إيميل المستخدم من e.user (اختياري)
  */
-function logActivity(actionType, sheetName, rowNum, transNum, summary, details) {
+function logActivity(actionType, sheetName, rowNum, transNum, summary, details, userEmailParam) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
@@ -2021,46 +2051,55 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details) 
 
     // جلب البريد الإلكتروني للمستخدم الحالي
     let userEmail = '';
-    try {
-      // نجرب أولاً من Session
-      userEmail = Session.getActiveUser().getEmail();
-      if (!userEmail) {
-        userEmail = Session.getEffectiveUser().getEmail();
-      }
 
-      // إذا لم نحصل على الإيميل، نجرب من UserProperties المحفوظ
-      // (يتم حفظه عند فتح النموذج في showTransactionForm)
-      if (!userEmail) {
-        try {
-          userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') || '';
-        } catch (pe) { /* تجاهل */ }
-      }
+    // أولاً: استخدام الإيميل الممرر من e.user (الأولوية القصوى)
+    if (userEmailParam) {
+      userEmail = userEmailParam;
+    }
 
-      // حفظ في ScriptProperties كاحتياطي إضافي
-      if (userEmail) {
-        try {
-          PropertiesService.getScriptProperties().setProperty('lastUserEmail', userEmail);
-        } catch (pe) { /* تجاهل */ }
-      }
-
-      // إذا لم نحصل على الإيميل، نجرب من ScriptProperties
-      if (!userEmail) {
-        try {
-          userEmail = PropertiesService.getScriptProperties().getProperty('lastUserEmail') || '';
-        } catch (pe) { /* تجاهل */ }
-      }
-
-      if (!userEmail) {
-        userEmail = 'غير معروف';
-      }
-    } catch (e) {
-      // محاولة من Properties المحفوظ
+    // ثانياً: محاولة الطرق الأخرى إذا لم يتم تمرير الإيميل
+    if (!userEmail) {
       try {
-        userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') ||
-                    PropertiesService.getScriptProperties().getProperty('lastUserEmail') ||
-                    'غير متاح';
-      } catch (pe) {
-        userEmail = 'غير متاح';
+        // نجرب أولاً من Session
+        userEmail = Session.getActiveUser().getEmail();
+        if (!userEmail) {
+          userEmail = Session.getEffectiveUser().getEmail();
+        }
+
+        // إذا لم نحصل على الإيميل، نجرب من UserProperties المحفوظ
+        // (يتم حفظه عند فتح النموذج في showTransactionForm)
+        if (!userEmail) {
+          try {
+            userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') || '';
+          } catch (pe) { /* تجاهل */ }
+        }
+
+        // حفظ في ScriptProperties كاحتياطي إضافي
+        if (userEmail) {
+          try {
+            PropertiesService.getScriptProperties().setProperty('lastUserEmail', userEmail);
+          } catch (pe) { /* تجاهل */ }
+        }
+
+        // إذا لم نحصل على الإيميل، نجرب من ScriptProperties
+        if (!userEmail) {
+          try {
+            userEmail = PropertiesService.getScriptProperties().getProperty('lastUserEmail') || '';
+          } catch (pe) { /* تجاهل */ }
+        }
+
+        if (!userEmail) {
+          userEmail = 'غير معروف';
+        }
+      } catch (e) {
+        // محاولة من Properties المحفوظ
+        try {
+          userEmail = PropertiesService.getUserProperties().getProperty('currentUserEmail') ||
+                      PropertiesService.getScriptProperties().getProperty('lastUserEmail') ||
+                      'غير متاح';
+        } catch (pe) {
+          userEmail = 'غير متاح';
+        }
       }
     }
 
@@ -2074,11 +2113,14 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details) 
       }
     }
 
-    // إضافة السجل الجديد
-    const newRow = logSheet.getLastRow() + 1;
+    // إضافة السجل الجديد في الصف الثاني (بعد الهيدر) - الأحدث في الأعلى
     const timestamp = new Date();
 
-    logSheet.getRange(newRow, 1, 1, 8).setValues([[
+    // إدراج صف جديد بعد الهيدر
+    logSheet.insertRowAfter(1);
+
+    // كتابة البيانات في الصف الثاني
+    logSheet.getRange(2, 1, 1, 8).setValues([[
       timestamp,
       userEmail,
       actionType,
@@ -2088,11 +2130,6 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details) 
       summary,
       detailsStr
     ]]);
-
-    // تطبيق تنسيق zebra للصفوف
-    if (newRow % 2 === 0) {
-      logSheet.getRange(newRow, 1, 1, 8).setBackground(CONFIG.COLORS.BG.ZEBRA_ODD);
-    }
 
   } catch (e) {
     // في حالة فشل التسجيل، لا نوقف العملية الأصلية

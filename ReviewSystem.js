@@ -645,32 +645,7 @@ function showPendingTransactionsReport() {
 }
 
 // ==================== دوال مساعدة ====================
-
-/**
- * تسجيل النشاط
- */
-function logActivity(action, sheetName, rowNumber, transactionId, details) {
-    try {
-        const ss = SpreadsheetApp.getActiveSpreadsheet();
-        const logSheet = ss.getSheetByName(CONFIG.SHEETS.ACTIVITY_LOG);
-
-        if (!logSheet) return;
-
-        const logRow = [
-            new Date(),
-            Session.getActiveUser().getEmail(),
-            action,
-            sheetName,
-            rowNumber,
-            transactionId,
-            details
-        ];
-
-        logSheet.appendRow(logRow);
-    } catch (error) {
-        Logger.log('Error logging activity: ' + error.message);
-    }
-}
+// ملاحظة: دالة logActivity موجودة في Main.js وتُستخدم من هناك
 
 /**
  * الحصول على إحصائيات البوت
