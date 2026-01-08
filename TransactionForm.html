@@ -301,6 +301,14 @@
       <div id="errorMsg" class="error"></div>
 
       <form id="transactionForm">
+        <!-- اختيار المستخدم -->
+        <div class="form-group" style="background: #e3f2fd; padding: 12px; border-radius: 10px; border: 1px solid #90caf9; margin-bottom: 14px;">
+          <label><span class="icon">👤</span> المستخدم <span class="required">*</span></label>
+          <select id="currentUser" required>
+            <option value="">-- اختر اسمك --</option>
+          </select>
+        </div>
+
         <!-- التاريخ -->
         <div class="date-section">
           <label><span class="icon">📅</span> التاريخ <span class="required">*</span></label>
@@ -324,18 +332,21 @@
           </div>
           <div class="form-group half">
             <label><span class="icon">🏷️</span> تصنيف الحركة <span class="required">*</span></label>
-            <select id="classification" required>
+            <select id="classification" required onchange="onClassificationChange()">
               <option value="">-- اختر --</option>
             </select>
           </div>
         </div>
 
         <!-- المشروع -->
-        <div class="form-group">
-          <label><span class="icon">📁</span> المشروع <span class="required">*</span></label>
-          <select id="projectCode" required>
+        <div class="form-group" id="projectGroup">
+          <label><span class="icon">📁</span> المشروع <span id="projectRequired" class="required">*</span></label>
+          <select id="projectCode">
             <option value="">-- اختر المشروع --</option>
           </select>
+          <small id="projectHint" style="display: none; color: #666; font-size: 11px; margin-top: 4px;">
+            💡 اختياري للمصروفات العمومية
+          </small>
         </div>
 
         <!-- البند + الطرف -->
@@ -487,6 +498,9 @@
       dropdownData = data;
       todayDate = data.today;
 
+      // تعبئة قائمة المستخدمين
+      populateUsersSelect(data.users);
+
       // تعبئة القوائم المنسدلة
       populateSelect('natureType', data.natureTypes);
       populateSelect('classification', data.classifications);
@@ -510,6 +524,29 @@
       // إظهار النموذج
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('formState').style.display = 'block';
+    }
+
+    // تعبئة قائمة المستخدمين
+    function populateUsersSelect(users) {
+      const select = document.getElementById('currentUser');
+      if (!users || users.length === 0) {
+        // إذا لا يوجد مستخدمين، اجعل الحقل غير مطلوب
+        select.required = false;
+        const option = document.createElement('option');
+        option.value = 'غير محدد';
+        option.textContent = 'غير محدد (لا يوجد مستخدمين مسجلين)';
+        select.appendChild(option);
+        select.value = 'غير محدد';
+        return;
+      }
+      users.forEach(function (user) {
+        const option = document.createElement('option');
+        option.value = user.email || user.name;  // استخدام الإيميل كقيمة أو الاسم
+        option.textContent = user.display;
+        option.setAttribute('data-name', user.name);
+        option.setAttribute('data-email', user.email || '');
+        select.appendChild(option);
+      });
     }
 
     function populateSelect(selectId, options) {
@@ -594,6 +631,25 @@
       }
     }
 
+    // عند تغيير تصنيف الحركة - للتحكم في إلزامية المشروع
+    function onClassificationChange() {
+      const classification = document.getElementById('classification').value;
+      const projectSelect = document.getElementById('projectCode');
+      const projectRequired = document.getElementById('projectRequired');
+      const projectHint = document.getElementById('projectHint');
+
+      // إذا كان التصنيف "مصروفات عمومية" يكون المشروع اختياري
+      if (classification === 'مصروفات عمومية') {
+        projectSelect.required = false;
+        projectRequired.style.display = 'none';
+        projectHint.style.display = 'block';
+      } else {
+        projectSelect.required = true;
+        projectRequired.style.display = 'inline';
+        projectHint.style.display = 'none';
+      }
+    }
+
     // عند تغيير العملة
     function onCurrencyChange() {
       const currency = document.getElementById('currency').value;
@@ -648,6 +704,12 @@
     document.getElementById('transactionForm').addEventListener('submit', function (e) {
       e.preventDefault();
 
+      // الحصول على بيانات المستخدم المحدد
+      const userSelect = document.getElementById('currentUser');
+      const selectedOption = userSelect.options[userSelect.selectedIndex];
+      const userName = selectedOption ? selectedOption.getAttribute('data-name') || selectedOption.text : '';
+      const userEmail = selectedOption ? selectedOption.getAttribute('data-email') || userSelect.value : '';
+
       const formData = {
         date: document.getElementById('selectedDate').value,
         natureType: document.getElementById('natureType').value,
@@ -664,12 +726,23 @@
         paymentTerm: document.getElementById('paymentTerm').value,
         weeksCount: document.getElementById('weeksCount').value,
         customDueDate: formatCustomDueDate(),
-        notes: document.getElementById('notes').value
+        notes: document.getElementById('notes').value,
+        submittedBy: userName,          // اسم المستخدم الذي أدخل الحركة
+        submittedByEmail: userEmail     // إيميل المستخدم
       };
 
       // التحقق من الحقول المطلوبة
+      const isGeneralExpense = formData.classification === 'مصروفات عمومية';
+
+      // التحقق من المستخدم
+      if (!userSelect.value && userSelect.required) {
+        showError('يرجى اختيار اسم المستخدم');
+        return;
+      }
+
+      // التحقق من باقي الحقول (المشروع اختياري للمصروفات العمومية)
       if (!formData.date || !formData.natureType || !formData.classification ||
-        !formData.projectCode || !formData.item || !formData.amount ||
+        (!isGeneralExpense && !formData.projectCode) || !formData.item || !formData.amount ||
         !formData.currency || !formData.paymentMethod) {
         showError('يرجى ملء جميع الحقول المطلوبة');
         return;

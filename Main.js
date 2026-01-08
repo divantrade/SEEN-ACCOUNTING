@@ -11612,8 +11612,51 @@ function getSmartFormData() {
     movementTypes: CONFIG.MOVEMENT.TYPES,
     currencies: CONFIG.CURRENCIES.LIST.slice(0, 3),  // USD, TRY, EGP
     paymentMethods: CONFIG.PAYMENT_METHODS,
-    paymentTerms: CONFIG.PAYMENT_TERMS.LIST
+    paymentTerms: CONFIG.PAYMENT_TERMS.LIST,
+    users: getActiveUsersForForm()  // قائمة المستخدمين النشطين
   };
+}
+
+/**
+ * جلب قائمة المستخدمين النشطين للنموذج
+ * @returns {Array} قائمة المستخدمين
+ */
+function getActiveUsersForForm() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const usersSheet = ss.getSheetByName(CONFIG.SHEETS.BOT_USERS);
+
+    if (!usersSheet || usersSheet.getLastRow() <= 1) {
+      return [];
+    }
+
+    const columns = BOT_CONFIG.BOT_USERS_COLUMNS;
+    const data = usersSheet.getDataRange().getValues();
+    const users = [];
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const name = row[columns.NAME.index - 1];
+      const email = row[columns.EMAIL.index - 1];
+      const userType = row[columns.USER_TYPE.index - 1];
+      const isActive = row[columns.IS_ACTIVE.index - 1];
+
+      // فقط المستخدمين النشطين الذين لديهم صلاحية شيت أو كلاهما
+      if (name && isActive === 'نعم' &&
+          (userType === BOT_CONFIG.USER_TYPES.SHEET || userType === BOT_CONFIG.USER_TYPES.BOTH)) {
+        users.push({
+          name: name,
+          email: email || '',
+          display: email ? `${name} (${email})` : name
+        });
+      }
+    }
+
+    return users;
+  } catch (e) {
+    console.log('خطأ في جلب المستخدمين:', e.message);
+    return [];
+  }
 }
 
 /**
@@ -12044,6 +12087,10 @@ function saveTransactionData(formData) {
   // تسجيل النشاط
   // ═══════════════════════════════════════════════════════════════
   const summaryText = `${formData.natureType} - ${formData.partyName || formData.item} - ${amount} ${formData.currency}`;
+
+  // استخدام إيميل المستخدم المحدد من النموذج أو اسمه
+  const userIdentifier = formData.submittedByEmail || formData.submittedBy || '';
+
   logActivity(
     'إضافة حركة',
     CONFIG.SHEETS.TRANSACTIONS,
@@ -12058,8 +12105,10 @@ function saveTransactionData(formData) {
       amount: amount,
       currency: formData.currency,
       amountUsd: amountUsd,
-      movementType: movementType
-    }
+      movementType: movementType,
+      submittedBy: formData.submittedBy  // إضافة اسم المستخدم للتفاصيل
+    },
+    userIdentifier  // تمرير الإيميل أو الاسم كمعرف للمستخدم
   );
 
   return {
