@@ -71,15 +71,24 @@ const BOT_CONFIG = {
 
     // ==================== هيكل شيت المستخدمين المصرح لهم ====================
     BOT_USERS_COLUMNS: {
-        PHONE: { index: 1, name: 'رقم الهاتف', width: 150 },
-        NAME: { index: 2, name: 'الاسم', width: 150 },
-        TELEGRAM_USERNAME: { index: 3, name: 'اسم المستخدم تليجرام', width: 150 },
-        TELEGRAM_CHAT_ID: { index: 4, name: 'معرّف المحادثة', width: 120 },
-        PERMISSION: { index: 5, name: 'الصلاحية', width: 120 },
-        IS_ACTIVE: { index: 6, name: 'نشط', width: 80 },
-        ADDED_DATE: { index: 7, name: 'تاريخ الإضافة', width: 120 },
-        ADDED_BY: { index: 8, name: 'أضافه', width: 120 },
-        NOTES: { index: 9, name: 'ملاحظات', width: 200 }
+        NAME: { index: 1, name: 'الاسم', width: 150 },
+        EMAIL: { index: 2, name: 'الإيميل', width: 200 },
+        PHONE: { index: 3, name: 'رقم الهاتف', width: 150 },
+        TELEGRAM_USERNAME: { index: 4, name: 'اسم المستخدم تليجرام', width: 150 },
+        TELEGRAM_CHAT_ID: { index: 5, name: 'معرّف المحادثة', width: 120 },
+        USER_TYPE: { index: 6, name: 'نوع المستخدم', width: 120 },
+        PERMISSION: { index: 7, name: 'الصلاحية', width: 120 },
+        IS_ACTIVE: { index: 8, name: 'نشط', width: 80 },
+        ADDED_DATE: { index: 9, name: 'تاريخ الإضافة', width: 120 },
+        ADDED_BY: { index: 10, name: 'أضافه', width: 120 },
+        NOTES: { index: 11, name: 'ملاحظات', width: 200 }
+    },
+
+    // أنواع المستخدمين
+    USER_TYPES: {
+        BOT: 'بوت',
+        SHEET: 'شيت',
+        BOTH: 'كلاهما'
     },
 
     // ==================== أوامر البوت ====================
