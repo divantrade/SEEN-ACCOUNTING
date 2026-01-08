@@ -2077,27 +2077,26 @@ function logActivity(actionType, sheetName, rowNum, transNum, summary, details, 
     let userEmail = '';
 
     // ═══════════════════════════════════════════════════════════════
-    // الأولوية 1: استخدام الإيميل/الاسم الممرر مباشرة
+    // الأولوية 1: استخدام هوية المستخدم المحفوظة (من نافذة تعريف المستخدم)
+    // هذا هو الحل الموثوق - المستخدم عرّف نفسه يدوياً
     // ═══════════════════════════════════════════════════════════════
-    if (userEmailParam) {
+    try {
+      const userProps = PropertiesService.getUserProperties();
+      const savedName = userProps.getProperty('currentUserName');
+      const savedEmail = userProps.getProperty('currentUserEmail');
+
+      if (savedName) {
+        // استخدام الإيميل المحفوظ أو الاسم
+        userEmail = savedEmail || savedName;
+      }
+    } catch (pe) { /* تجاهل */ }
+
+    // ═══════════════════════════════════════════════════════════════
+    // الأولوية 2: استخدام الإيميل الممرر (من النموذج فقط - ليس من e.user)
+    // نستخدمه فقط إذا لم يكن المستخدم قد عرّف نفسه
+    // ═══════════════════════════════════════════════════════════════
+    if (!userEmail && userEmailParam) {
       userEmail = userEmailParam;
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // الأولوية 2: استخدام هوية المستخدم المحفوظة (من نافذة تعريف المستخدم)
-    // هذا هو الحل الموثوق للمستخدمين من خارج الدومين
-    // ═══════════════════════════════════════════════════════════════
-    if (!userEmail) {
-      try {
-        const userProps = PropertiesService.getUserProperties();
-        const savedName = userProps.getProperty('currentUserName');
-        const savedEmail = userProps.getProperty('currentUserEmail');
-
-        if (savedName) {
-          // استخدام الاسم المحفوظ (أو الإيميل إذا كان متاحاً)
-          userEmail = savedEmail || savedName;
-        }
-      } catch (pe) { /* تجاهل */ }
     }
 
     // ═══════════════════════════════════════════════════════════════
