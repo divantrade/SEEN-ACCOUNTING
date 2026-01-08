@@ -214,7 +214,13 @@ function onOpen() {
     // 9. تعريف المستخدم
     // ═══════════════════════════════════════════════════════════
     .addSeparator()
-    .addItem('👤 تعريف المستخدم', 'showUserIdentificationDialog')
+    .addSubMenu(
+      ui.createMenu('👤 تعريف المستخدم')
+        .addItem('🔑 تعريف نفسي الآن', 'showUserIdentificationDialog')
+        .addSeparator()
+        .addItem('🔔 تفعيل النافذة التلقائية', 'installUserIdentificationTrigger')
+        .addItem('🔕 إلغاء النافذة التلقائية', 'uninstallUserIdentificationTrigger')
+    )
 
     // ═══════════════════════════════════════════════════════════
     // 10. دليل الاستخدام
@@ -11640,6 +11646,105 @@ function clearCurrentUserIdentity() {
 function isUserIdentified() {
   const identity = getCurrentUserIdentity();
   return identity !== null && identity.name !== '';
+}
+
+/**
+ * دالة تُستدعى من Installable Trigger عند فتح الشيت
+ * تعرض نافذة تعريف المستخدم إذا لم يكن معرّفاً
+ */
+function onOpenInstallable() {
+  try {
+    // التحقق مما إذا كان المستخدم قد عرّف نفسه
+    if (!isUserIdentified()) {
+      showUserIdentificationDialog();
+    }
+  } catch (e) {
+    console.log('خطأ في onOpenInstallable:', e.message);
+  }
+}
+
+/**
+ * تفعيل نافذة تعريف المستخدم التلقائية عند فتح الشيت
+ * يجب تشغيل هذه الدالة مرة واحدة فقط
+ */
+function installUserIdentificationTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // حذف أي trigger موجود مسبقاً لنفس الدالة
+  const triggers = ScriptApp.getUserTriggers(ss);
+  let existingTrigger = false;
+
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === 'onOpenInstallable') {
+      existingTrigger = true;
+      break;
+    }
+  }
+
+  if (existingTrigger) {
+    const response = ui.alert(
+      '⚠️ تنبيه',
+      'نافذة تعريف المستخدم التلقائية مُفعّلة بالفعل.\n\nهل تريد إعادة تفعيلها؟',
+      ui.ButtonSet.YES_NO
+    );
+
+    if (response !== ui.Button.YES) {
+      return;
+    }
+
+    // حذف الـ trigger الموجود
+    for (const trigger of triggers) {
+      if (trigger.getHandlerFunction() === 'onOpenInstallable') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    }
+  }
+
+  // إنشاء trigger جديد
+  ScriptApp.newTrigger('onOpenInstallable')
+    .forSpreadsheet(ss)
+    .onOpen()
+    .create();
+
+  ui.alert(
+    '✅ تم التفعيل',
+    'تم تفعيل نافذة تعريف المستخدم التلقائية.\n\n' +
+    'الآن عند فتح أي مستخدم للشيت، ستظهر له نافذة لتعريف نفسه.',
+    ui.ButtonSet.OK
+  );
+}
+
+/**
+ * إلغاء تفعيل نافذة تعريف المستخدم التلقائية
+ */
+function uninstallUserIdentificationTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const triggers = ScriptApp.getUserTriggers(ss);
+  let found = false;
+
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === 'onOpenInstallable') {
+      ScriptApp.deleteTrigger(trigger);
+      found = true;
+    }
+  }
+
+  if (found) {
+    ui.alert(
+      '✅ تم الإلغاء',
+      'تم إلغاء نافذة تعريف المستخدم التلقائية.',
+      ui.ButtonSet.OK
+    );
+  } else {
+    ui.alert(
+      'ℹ️ معلومة',
+      'نافذة تعريف المستخدم التلقائية غير مُفعّلة أصلاً.',
+      ui.ButtonSet.OK
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
