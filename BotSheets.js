@@ -587,11 +587,18 @@ function checkUserAuthorization(phoneNumber, chatId, username) {
         const sheetUsername = String(row[columns.TELEGRAM_USERNAME.index - 1] || '').toLowerCase().replace('@', '');
         const sheetChatId = String(row[columns.TELEGRAM_CHAT_ID.index - 1] || '');
         const isActive = row[columns.IS_ACTIVE.index - 1];
+        const userType = row[columns.USER_TYPE.index - 1] || '';
 
-        Logger.log('Row ' + (i+1) + ' - Sheet Phone: ' + sheetPhone + ', Sheet Username: ' + sheetUsername + ', Active: ' + isActive);
+        Logger.log('Row ' + (i+1) + ' - Sheet Phone: ' + sheetPhone + ', Sheet Username: ' + sheetUsername + ', Active: ' + isActive + ', Type: ' + userType);
 
         // التحقق من أن المستخدم نشط
         if (isActive !== 'نعم') {
+            continue;
+        }
+
+        // التحقق من أن نوع المستخدم يسمح باستخدام البوت
+        if (userType !== BOT_CONFIG.USER_TYPES.BOT && userType !== BOT_CONFIG.USER_TYPES.BOTH) {
+            Logger.log('User type "' + userType + '" not authorized for bot');
             continue;
         }
 
