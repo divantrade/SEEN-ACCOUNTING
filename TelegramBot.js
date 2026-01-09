@@ -378,11 +378,13 @@ function handleMessage(message) {
     Logger.log('handleMessage - authResult: ' + JSON.stringify(authResult));
 
     if (!authResult.authorized) {
-        // محاولة الحصول على رقم الهاتف
-        if (!userPhone && !username) {
+        // إذا لم يتم مشاركة رقم الهاتف بعد، نطلبه (حتى لو كان لديه username)
+        // لأن الـ username قد لا يكون مسجلاً في الشيت
+        if (!userPhone) {
             requestPhoneNumber(chatId);
             return;
         }
+        // إذا شارك الهاتف ولكنه غير مصرح
         sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
         return;
     }
