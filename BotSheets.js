@@ -640,6 +640,41 @@ function checkUserAuthorization(phoneNumber, chatId, username) {
 }
 
 /**
+ * دالة اختبار التحقق من صلاحية المستخدم
+ * شغّلها من Apps Script للتشخيص
+ */
+function testAuthorization() {
+    // اختبار برقم الهاتف من الشيت
+    const testPhone = "905530649846";
+
+    Logger.log("═══════════════════════════════════════");
+    Logger.log("=== بداية اختبار التصريح ===");
+    Logger.log("═══════════════════════════════════════");
+    Logger.log("Testing phone: " + testPhone);
+
+    // عرض محتويات BOT_CONFIG.USER_TYPES
+    Logger.log("BOT_CONFIG.USER_TYPES.BOT = '" + BOT_CONFIG.USER_TYPES.BOT + "'");
+    Logger.log("BOT_CONFIG.USER_TYPES.BOTH = '" + BOT_CONFIG.USER_TYPES.BOTH + "'");
+
+    const result = checkUserAuthorization(testPhone, null, null);
+
+    Logger.log("═══════════════════════════════════════");
+    Logger.log("=== النتيجة ===");
+    Logger.log(JSON.stringify(result));
+
+    if (result.authorized) {
+        Logger.log("✅ المستخدم مصرح له!");
+        Logger.log("الاسم: " + result.name);
+        Logger.log("الصلاحية: " + result.permission);
+    } else {
+        Logger.log("❌ المستخدم غير مصرح له");
+    }
+    Logger.log("═══════════════════════════════════════");
+
+    return result;
+}
+
+/**
  * البحث عن المستخدم بالإيميل
  * تُستخدم لتسجيل النشاط مع اسم المستخدم
  * @param {string} email - البريد الإلكتروني للمستخدم
