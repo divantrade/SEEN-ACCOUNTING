@@ -369,7 +369,13 @@ function handleMessage(message) {
     // استخراج اسم المستخدم من تليجرام
     const username = message.from ? message.from.username : null;
 
+    Logger.log('═══════════════════════════════════════');
     Logger.log('handleMessage - chatId: ' + chatId + ', text: ' + text + ', username: ' + username);
+    Logger.log('handleMessage - contact object: ' + JSON.stringify(contact));
+    Logger.log('handleMessage - has contact: ' + (contact ? 'YES' : 'NO'));
+    if (contact) {
+        Logger.log('handleMessage - contact.phone_number: ' + contact.phone_number);
+    }
 
     // التحقق من المستخدم
     const userPhone = getUserPhoneFromMessage(message);
