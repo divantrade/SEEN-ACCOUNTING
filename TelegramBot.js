@@ -273,7 +273,24 @@ function getWebhookInfo() {
 function doPost(e) {
     let debugChatId = null;
     try {
+        if (!e || !e.postData || !e.postData.contents) {
+             return ContentService.createTextOutput('OK');
+        }
+
         const update = JSON.parse(e.postData.contents);
+        
+        // Ignore updates older than 60 seconds (Deduplication)
+        if (update.message && update.message.date) {
+            const messageDate = update.message.date;
+            const now = Math.floor(Date.now() / 1000);
+            const age = now - messageDate;
+            
+            if (age > 60) {
+                Logger.log('⚠️ Ignoring old update (' + age + 's old): ' + update.update_id);
+                return ContentService.createTextOutput('OK');
+            }
+        }
+
         Logger.log('Received update: ' + JSON.stringify(update));
 
         // استخراج chatId للتصحيح
@@ -291,15 +308,22 @@ function doPost(e) {
         }
 
         return ContentService.createTextOutput('OK');
+
     } catch (error) {
-        Logger.log('Error in doPost: ' + error.message + '\nStack: ' + error.stack);
-        // إرسال رسالة خطأ للمستخدم
+        Logger.log('❌ Error in doPost: ' + error.message + '\nStack: ' + error.stack);
+        
+        // إرسال رسالة خطأ للمستخدم إذا أمكن (فقط للأخطاء الجديدة)
         if (debugChatId) {
             try {
-                sendMessage(debugChatId, '❌ حدث خطأ: ' + error.message);
+                // لا نرسل رسالة خطأ إذا كان السبب timeout لتجنب الإزعاج
+                if (!error.message.includes('Exceeded limit')) {
+                     sendMessage(debugChatId, '❌ حدث خطأ تقني: ' + error.message);
+                }
             } catch (e) {}
         }
-        return ContentService.createTextOutput('Error: ' + error.message);
+        
+        // CRITICAL: Always return OK to stop Telegram from retrying
+        return ContentService.createTextOutput('OK');
     }
 }
 

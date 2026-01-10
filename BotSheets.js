@@ -589,7 +589,7 @@ function checkUserAuthorization(phoneNumber, chatId, username) {
         const isActive = row[columns.IS_ACTIVE.index - 1];
         const userType = row[columns.USER_TYPE.index - 1] || '';
 
-        Logger.log('Row ' + (i+1) + ' - Sheet Phone: ' + sheetPhone + ', Sheet Username: ' + sheetUsername + ', Active: ' + isActive + ', Type: ' + userType);
+        Logger.log('Row ' + (i + 1) + ' - Sheet Phone: ' + sheetPhone + ', Sheet Username: ' + sheetUsername + ', Active: ' + isActive + ', Type: ' + userType);
 
         // التحقق من أن المستخدم نشط
         if (isActive !== 'نعم') {
@@ -602,16 +602,24 @@ function checkUserAuthorization(phoneNumber, chatId, username) {
             continue;
         }
 
-        // المطابقة بالهاتف أو اسم المستخدم أو معرّف المحادثة
+        // المطابقة بالهاتف (آخر 10 أرقام لتجاوز اختلاف الصيغ الدولية)
         let matched = false;
 
-        if (inputPhone && sheetPhone && inputPhone === sheetPhone) {
-            matched = true;
-            Logger.log('Matched by phone!');
-        } else if (inputUsername && sheetUsername && inputUsername === sheetUsername) {
+        if (inputPhone && sheetPhone) {
+            // مقارنة آخر 10 أرقام فقط (لتغطية صيغة +90 أو 050 أو 500)
+            const inputSuffix = inputPhone.slice(-10);
+            const sheetSuffix = sheetPhone.slice(-10);
+
+            if (inputSuffix === sheetSuffix) {
+                matched = true;
+                Logger.log('Matched by phone (Fuzzy)!');
+            }
+        }
+
+        if (!matched && inputUsername && sheetUsername && inputUsername === sheetUsername) {
             matched = true;
             Logger.log('Matched by username!');
-        } else if (inputChatId && sheetChatId && inputChatId === sheetChatId) {
+        } else if (!matched && inputChatId && sheetChatId && inputChatId === sheetChatId) {
             matched = true;
             Logger.log('Matched by chat ID!');
         }
