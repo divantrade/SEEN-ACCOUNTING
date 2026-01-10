@@ -142,6 +142,60 @@ function deleteWebhook() {
 }
 
 /**
+ * تفريغ طابور الرسائل العالقة يدوياً
+ * استخدم هذه الدالة عندما يفشل fullWebhookReset
+ */
+function flushPendingUpdates() {
+    Logger.log('🧹 جاري تفريغ طابور الرسائل العالقة...');
+
+    const token = getBotToken();
+
+    // 1. حذف الويب هوك أولاً
+    Logger.log('1️⃣ حذف Webhook...');
+    const deleteUrl = `https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=true`;
+    const deleteResponse = UrlFetchApp.fetch(deleteUrl);
+    const deleteResult = JSON.parse(deleteResponse.getContentText());
+    Logger.log('Delete result: ' + JSON.stringify(deleteResult));
+
+    // 2. انتظار قليل
+    Utilities.sleep(2000);
+
+    // 3. استخدام getUpdates لسحب جميع الرسائل وتخطيها
+    Logger.log('2️⃣ سحب جميع التحديثات العالقة...');
+    const getUrl = `https://api.telegram.org/bot${token}/getUpdates?timeout=1`;
+    const getResponse = UrlFetchApp.fetch(getUrl);
+    const updates = JSON.parse(getResponse.getContentText());
+
+    if (updates.ok && updates.result.length > 0) {
+        const lastUpdateId = updates.result[updates.result.length - 1].update_id;
+        Logger.log('📊 وجدنا ' + updates.result.length + ' رسائل عالقة');
+        Logger.log('آخر update_id: ' + lastUpdateId);
+
+        // 4. تخطي جميع الرسائل باستخدام offset
+        const offsetUrl = `https://api.telegram.org/bot${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=1`;
+        UrlFetchApp.fetch(offsetUrl);
+        Logger.log('✅ تم تخطي جميع الرسائل العالقة');
+    } else {
+        Logger.log('ℹ️ لا توجد رسائل عالقة');
+    }
+
+    // 5. إعادة تعيين الويب هوك
+    Logger.log('3️⃣ إعادة تعيين Webhook...');
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const setUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${webAppUrl}`;
+    const setResponse = UrlFetchApp.fetch(setUrl);
+    const setResult = JSON.parse(setResponse.getContentText());
+
+    if (setResult.ok) {
+        Logger.log('✅ تم إعادة تعيين Webhook بنجاح!');
+        Logger.log('الرابط: ' + webAppUrl);
+        Logger.log('🎉 انتهى! جرب إرسال رسالة جديدة للبوت الآن');
+    } else {
+        Logger.log('❌ فشل تعيين Webhook: ' + setResult.description);
+    }
+}
+
+/**
  * اختبار صلاحية Token البوت
  * يتحقق من أن التوكن صحيح ويعرض معلومات البوت
  */
