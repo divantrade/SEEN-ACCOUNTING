@@ -420,9 +420,7 @@ function doPost(e) {
 
         // ============================================================
         // 🔒 منع التكرار القوي (Anti-Loop Protection)
-        // ⚠️ TEMPORARILY DISABLED لحل مشكلة الرسالة العالقة
         // ============================================================
-        /*
         const cache = CacheService.getScriptCache();
         if (cache.get(updateId)) {
             logToSheet('⚠️ Duplicate update detected: ' + updateId);
@@ -430,8 +428,7 @@ function doPost(e) {
             return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
         }
         cache.put(updateId, 'processed', 21600);
-        */
-        logToSheet('✅ Processing update: ' + updateId + ' (dedup disabled)');
+        logToSheet('✅ New update processed: ' + updateId);
 
         // ... rest of the logic ...
 
