@@ -351,8 +351,8 @@ function doPost(e) {
         // ============================================================
         const cache = CacheService.getScriptCache();
         if (cache.get(updateId)) {
-            logToSheet('♻️ Duplicate ignored: ' + updateId);
-            return ContentService.createTextOutput('OK');
+            // ⚡️ FAST EXIT (JSON)
+            return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
         }
         cache.put(updateId, 'processed', 21600);
         logToSheet('✅ New update processed: ' + updateId);
