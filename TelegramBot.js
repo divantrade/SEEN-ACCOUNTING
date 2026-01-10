@@ -273,49 +273,55 @@ function getWebhookInfo() {
 /**
  * معالجة الطلبات الواردة من تليجرام (Webhook endpoint)
  */
+// ==================== Debugging Helper ====================
+function logToSheet(message) {
+    try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        let sheet = ss.getSheetByName('BotLogs');
+        if (!sheet) {
+            sheet = ss.insertSheet('BotLogs');
+            sheet.appendRow(['Timestamp', 'Message']);
+        }
+        sheet.appendRow([new Date(), message]);
+    } catch (e) {
+        // Fail silently if sheet access fails
+    }
+}
+
 function doPost(e) {
+    logToSheet('🚀 doPost Triggered!');
+
     let debugChatId = null;
     try {
         if (!e || !e.postData || !e.postData.contents) {
+            logToSheet('❌ No postData received');
             return ContentService.createTextOutput('OK');
         }
 
         const update = JSON.parse(e.postData.contents);
+        logToSheet('📨 Payload: ' + JSON.stringify(update));
+
         const updateId = String(update.update_id);
 
         // ============================================================
         // 🔒 منع التكرار القوي (Anti-Loop Protection)
         // ============================================================
-        // استخدام CacheService لتذكر آخر تحديثات تمت معالجتها
         const cache = CacheService.getScriptCache();
         if (cache.get(updateId)) {
-            // Logger.log('♻️ Duplicate update ignored: ' + updateId);
+            logToSheet('♻️ Duplicate ignored: ' + updateId);
             return ContentService.createTextOutput('OK');
         }
-        // حفظ رقم التحديث لمدة 6 ساعات لمنع تكراره
         cache.put(updateId, 'processed', 21600);
+        logToSheet('✅ New update processed: ' + updateId);
 
-        // التحقق من تاريخ الرسالة (تم تعطيله مؤقتاً للتشخيص)
-        // if (update.message && update.message.date) {
-        //     const messageDate = update.message.date;
-        //     const now = Math.floor(Date.now() / 1000);
-        //     if (now - messageDate > 120) {
-        //         Logger.log('⚠️ Ignoring old message (' + (now - messageDate) + 's)');
-        //         return ContentService.createTextOutput('OK');
-        //     }
-        // }
-        // ============================================================
+        // ... rest of the logic ...
 
-        Logger.log('Received update: ' + JSON.stringify(update));
-
-        // استخراج chatId للتصحيح
         if (update.message) {
             debugChatId = update.message.chat.id;
         } else if (update.callback_query) {
             debugChatId = update.callback_query.message.chat.id;
         }
 
-        // معالجة الرسالة أو Callback
         if (update.message) {
             handleMessage(update.message);
         } else if (update.callback_query) {
@@ -325,17 +331,8 @@ function doPost(e) {
         return ContentService.createTextOutput('OK');
 
     } catch (error) {
-        Logger.log('❌ Error in doPost: ' + error.message + '\nStack: ' + error.stack);
-
-        // إرسال رسالة خطأ للمستخدم إذا أمكن
-        if (debugChatId) {
-            try {
-                if (!error.message.includes('Exceeded limit')) {
-                    sendMessage(debugChatId, '❌ خطأ [v4]: ' + error.message);
-                }
-            } catch (e) { }
-        }
-
+        logToSheet('🔥 FATAL ERROR: ' + error.message);
+        Logger.log('❌ Error in doPost: ' + error.message);
         return ContentService.createTextOutput('OK');
     }
 }
