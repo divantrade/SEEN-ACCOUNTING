@@ -92,22 +92,42 @@ function deleteWebhookWithDrop() {
 /**
  * إصلاح كامل: حذف الويب هوك وتصفية الطابور ثم إعادة التعيين
  */
+/**
+ * إصلاح كامل: حذف الويب هوك وتصفية الطابور ثم إعادة التعيين
+ * (نسخة آمنة بدون واجهة مستخدم للإصلاح السريع)
+ */
 function fullWebhookReset() {
-    const ui = SpreadsheetApp.getUi();
+    Logger.log('🔄 جاري عملية إعادة الضبط الكاملة...');
 
     // 1. حذف وتصفية
     const deleteResult = deleteWebhookWithDrop();
 
     if (!deleteResult.ok) {
-        ui.alert('❌ فشل الحذف', deleteResult.description, ui.ButtonSet.OK);
+        Logger.log('❌ فشل الحذف: ' + deleteResult.description);
         return;
     }
+    Logger.log('✅ تم حذف Webhook وتصفية التحديثات العالقة.');
 
     // 2. انتظار قليل
     Utilities.sleep(2000);
 
-    // 3. إعادة التعيين يدوياً
-    setWebhookManually();
+    // 3. إعادة التعيين
+    try {
+        const token = getBotToken();
+        const webAppUrl = ScriptApp.getService().getUrl();
+        const url = `https://api.telegram.org/bot${token}/setWebhook?url=${webAppUrl}`;
+        const response = UrlFetchApp.fetch(url);
+        const result = JSON.parse(response.getContentText());
+        
+        if (result.ok) {
+             Logger.log('✅ تم إعادة تعيين Webhook بنجاح!');
+             Logger.log('الرابط: ' + webAppUrl);
+        } else {
+             Logger.log('❌ فشل تعيين Webhook: ' + result.description);
+        }
+    } catch (e) {
+        Logger.log('❌ خطأ في إعادة التعيين: ' + e.message);
+    }
 }
 
 /**
