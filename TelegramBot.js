@@ -344,7 +344,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '4.2.0'; // [v4.2 Command Parsing Fix]
+const BOT_VERSION = '5.0.0'; // [v5.0 Debug Release]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
@@ -676,7 +676,7 @@ function handleTextInput(chatId, text, session) {
             break;
 
         default:
-            sendMessage(chatId, '❓ استخدم الأوامر أو الأزرار للتفاعل\n\n/مصروف - تسجيل مصروف\n/ايراد - تسجيل إيراد');
+            sendMessage(chatId, '[v5.0 DEBUG] ❓ أمر غير معروف\n\nتأكد من كتابة الأمر بشكل صحيح (مثال: /expense)');
     }
 }
 
