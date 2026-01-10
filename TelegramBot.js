@@ -257,8 +257,8 @@ function updateBotTokenAndSetup() {
  */
 function setWebhookManually() {
     // 👇👇👇 أدخل رابط الـ Web App (المنتهي بـ /exec) هنا بين علامتي التنصيص 👇👇👇
-    const webAppUrl = 'PUT_YOUR_EXEC_URL_HERE';
-    // 👆👆👆 مثال: https://script.google.com/.../exec 👆👆👆
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbxQvDJ8aOPn-eNCTCZErQwMcV8PZUpq-97Ru3YhxTGvEeclml7QIRDDYRl_1DhtEIU4IA/exec';
+    // 👆👆👆 تم وضع الرابط الخاص بك 👆👆👆
 
     Logger.log('🔄 جاري تعيين Webhook يدوياً...');
     Logger.log('الرابط المستخدم: ' + webAppUrl);
