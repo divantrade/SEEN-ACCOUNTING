@@ -118,12 +118,12 @@ function fullWebhookReset() {
         const url = `https://api.telegram.org/bot${token}/setWebhook?url=${webAppUrl}`;
         const response = UrlFetchApp.fetch(url);
         const result = JSON.parse(response.getContentText());
-        
+
         if (result.ok) {
-             Logger.log('✅ تم إعادة تعيين Webhook بنجاح!');
-             Logger.log('الرابط: ' + webAppUrl);
+            Logger.log('✅ تم إعادة تعيين Webhook بنجاح!');
+            Logger.log('الرابط: ' + webAppUrl);
         } else {
-             Logger.log('❌ فشل تعيين Webhook: ' + result.description);
+            Logger.log('❌ فشل تعيين Webhook: ' + result.description);
         }
     } catch (e) {
         Logger.log('❌ خطأ في إعادة التعيين: ' + e.message);
@@ -251,24 +251,24 @@ function updateBotTokenAndSetup() {
  * تعيين Webhook يدوياً برابط محدد
  * استخدم هذه الدالة إذا لم تعمل setWebhook تلقائياً
  */
+/**
+ * تعيين Webhook يدوياً برابط محدد
+ * (تم التعديل لتعمل من المحرر مباشرة)
+ */
 function setWebhookManually() {
-    const ui = SpreadsheetApp.getUi();
+    // 👇👇👇 أدخل رابط الـ Web App (المنتهي بـ /exec) هنا بين علامتي التنصيص 👇👇👇
+    const webAppUrl = 'PUT_YOUR_EXEC_URL_HERE';
+    // 👆👆👆 مثال: https://script.google.com/.../exec 👆👆👆
 
-    const result = ui.prompt(
-        '🔗 تعيين Webhook يدوياً',
-        'الصق رابط الـ Web App (يجب أن ينتهي بـ /exec):\n\n' +
-        'يمكنك الحصول عليه من:\n' +
-        'Deploy → Manage deployments → Web URL',
-        ui.ButtonSet.OK_CANCEL
-    );
+    Logger.log('🔄 جاري تعيين Webhook يدوياً...');
+    Logger.log('الرابط المستخدم: ' + webAppUrl);
 
-    if (result.getSelectedButton() !== ui.Button.OK) {
-        return;
-    }
-
-    const webAppUrl = result.getResponseText().trim();
-    if (!webAppUrl || !webAppUrl.includes('/exec')) {
-        ui.alert('❌ خطأ', 'الرابط غير صحيح. يجب أن ينتهي بـ /exec', ui.ButtonSet.OK);
+    if (webAppUrl === 'PUT_YOUR_EXEC_URL_HERE' || !webAppUrl.includes('/exec')) {
+        Logger.log('❌ خطأ: لم يتم وضع الرابط الصحيح!');
+        Logger.log('⚠️ التعليمات:');
+        Logger.log('1. انسخ رابط الـ Web App (Type: Web App) من Deploy > Manage deployments');
+        Logger.log('2. ألصقه مكان "PUT_YOUR_EXEC_URL_HERE" في السطر 239 تقريباً');
+        Logger.log('3. اضغط Run مرة أخرى');
         return;
     }
 
@@ -280,16 +280,14 @@ function setWebhookManually() {
         const webhookResult = JSON.parse(response.getContentText());
 
         if (webhookResult.ok) {
-            ui.alert('✅ تم بنجاح!',
-                `تم تعيين Webhook بنجاح!\n\n` +
-                `🔗 URL: ${webAppUrl}\n\n` +
-                `جرب إرسال /start للبوت الآن.`,
-                ui.ButtonSet.OK);
+            Logger.log('✅ تم بنجاح!');
+            Logger.log(`تم ربط البوت بالرابط: ${webAppUrl}`);
+            Logger.log('جرب إرسال /start للبوت الآن.');
         } else {
-            ui.alert('❌ فشل', 'فشل تعيين Webhook: ' + webhookResult.description, ui.ButtonSet.OK);
+            Logger.log('❌ فشل تعيين Webhook: ' + webhookResult.description);
         }
     } catch (error) {
-        ui.alert('❌ خطأ', error.message, ui.ButtonSet.OK);
+        Logger.log('❌ خطأ: ' + error.message);
     }
 }
 
