@@ -351,8 +351,8 @@ function doPost(e) {
         // ============================================================
         const cache = CacheService.getScriptCache();
         if (cache.get(updateId)) {
-            logToSheet('♻️ Duplicate ignored: ' + updateId);
-            return ContentService.createTextOutput('OK');
+            // ⚡️ FAST EXIT (JSON)
+            return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
         }
         cache.put(updateId, 'processed', 21600);
         logToSheet('✅ New update processed: ' + updateId);
@@ -371,12 +371,11 @@ function doPost(e) {
             handleCallbackQuery(update.callback_query);
         }
 
-        return ContentService.createTextOutput('OK');
+        return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
 
     } catch (error) {
         logToSheet('🔥 FATAL ERROR: ' + error.message);
-        Logger.log('❌ Error in doPost: ' + error.message);
-        return ContentService.createTextOutput('OK');
+        return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
     }
 }
 
@@ -384,7 +383,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '5.0.0'; // [v5.0 Debug Release]
+const BOT_VERSION = '5.1.0'; // [v5.1 Performance Fix]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
