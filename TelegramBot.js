@@ -344,7 +344,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '4.1.0'; // [v4.1 Compatibility Fix]
+const BOT_VERSION = '4.2.0'; // [v4.2 Command Parsing Fix]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
@@ -455,8 +455,11 @@ function handleMessage(message) {
     }
 
     // معالجة الأوامر
-    if (text.startsWith('/')) {
-        handleCommand(chatId, text, userSession);
+    // تنظيف النص من المسافات الزائدة (Trim)
+    const cleanText = text.trim();
+
+    if (cleanText.startsWith('/')) {
+        handleCommand(chatId, cleanText, userSession);
         return;
     }
 
