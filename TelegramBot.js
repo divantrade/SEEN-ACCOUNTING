@@ -344,7 +344,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '4.0.0'; // [v4 Loop Fix]
+const BOT_VERSION = '4.1.0'; // [v4.1 Compatibility Fix]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
@@ -521,9 +521,9 @@ function handleContactReceived(chatId, contact, username) {
         );
 
         // إرسال رسالة الترحيب
-        setTimeout(() => {
-            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.WELCOME, null, 'Markdown');
-        }, 500);
+        // إرسال رسالة الترحيب (مع تأخير بسيط للفصل بين الرسائل)
+        Utilities.sleep(500);
+        sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.WELCOME, null, 'Markdown');
     } else {
         sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
     }
