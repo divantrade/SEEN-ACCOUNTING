@@ -332,7 +332,7 @@ function logToSheet(message) {
 }
 
 function doPost(e) {
-    // logToSheet('🚀 doPost Triggered!');
+    logToSheet('🚀 doPost Triggered!');
 
     let debugChatId = null;
     try {
