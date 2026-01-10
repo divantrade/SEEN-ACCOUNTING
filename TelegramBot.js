@@ -355,7 +355,7 @@ function doPost(e) {
     let debugChatId = null;
     try {
         if (!e || !e.postData || !e.postData.contents) {
-            // logToSheet('❌ No postData received');
+            logToSheet('❌ No postData received');
             return ContentService.createTextOutput('OK');
         }
 
@@ -369,6 +369,7 @@ function doPost(e) {
         // ============================================================
         const cache = CacheService.getScriptCache();
         if (cache.get(updateId)) {
+            logToSheet('⚠️ Duplicate update detected: ' + updateId);
             // ⚡️ FAST EXIT (JSON)
             return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
         }
@@ -379,20 +380,28 @@ function doPost(e) {
 
         if (update.message) {
             debugChatId = update.message.chat.id;
+            logToSheet('📩 Message detected from chatId: ' + debugChatId);
         } else if (update.callback_query) {
             debugChatId = update.callback_query.message.chat.id;
+            logToSheet('🔘 Callback query detected from chatId: ' + debugChatId);
         }
+
+        logToSheet('🔄 About to handle message/callback...');
 
         if (update.message) {
             handleMessage(update.message);
+            logToSheet('✔️ handleMessage completed');
         } else if (update.callback_query) {
             handleCallbackQuery(update.callback_query);
+            logToSheet('✔️ handleCallbackQuery completed');
         }
 
+        logToSheet('✅ doPost completed successfully');
         return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
 
     } catch (error) {
         logToSheet('🔥 FATAL ERROR: ' + error.message);
+        logToSheet('🔥 Stack: ' + error.stack);
         return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
     }
 }
@@ -463,31 +472,34 @@ function handleMessage(message) {
     // استخراج اسم المستخدم من تليجرام
     const username = message.from ? message.from.username : null;
 
-    Logger.log('═══════════════════════════════════════');
-    Logger.log('handleMessage - chatId: ' + chatId + ', text: ' + text + ', username: ' + username);
-    Logger.log('handleMessage - contact object: ' + JSON.stringify(contact));
-    Logger.log('handleMessage - has contact: ' + (contact ? 'YES' : 'NO'));
-    if (contact) {
-        Logger.log('handleMessage - contact.phone_number: ' + contact.phone_number);
-    }
+    logToSheet('═══ handleMessage START ═══');
+    logToSheet('chatId: ' + chatId + ', text: "' + text + '", username: ' + username);
+    logToSheet('has contact: ' + (contact ? 'YES' : 'NO'));
 
     // التحقق من المستخدم
     const userPhone = getUserPhoneFromMessage(message);
-    Logger.log('handleMessage - userPhone: ' + userPhone);
+    logToSheet('userPhone extracted: ' + userPhone);
+
+    logToSheet('Calling checkUserAuthorization...');
     const authResult = checkUserAuthorization(userPhone, chatId, username);
-    Logger.log('handleMessage - authResult: ' + JSON.stringify(authResult));
+    logToSheet('authResult: ' + JSON.stringify(authResult));
 
     if (!authResult.authorized) {
+        logToSheet('⛔ User NOT authorized');
         // إذا لم يتم مشاركة رقم الهاتف بعد، نطلبه (حتى لو كان لديه username)
         // لأن الـ username قد لا يكون مسجلاً في الشيت
         if (!userPhone) {
+            logToSheet('Requesting phone number...');
             requestPhoneNumber(chatId);
             return;
         }
         // إذا شارك الهاتف ولكنه غير مصرح
+        logToSheet('Sending unauthorized message...');
         sendMessage(chatId, CONFIG.TELEGRAM_BOT.MESSAGES.UNAUTHORIZED);
         return;
     }
+
+    logToSheet('✅ User authorized: ' + authResult.name);
 
     // حفظ بيانات المستخدم في الجلسة
     const userSession = getUserSession(chatId);
@@ -498,15 +510,18 @@ function handleMessage(message) {
         userSession.username = username; // حفظ اسم المستخدم
     }
     saveUserSession(chatId, userSession); // حفظ الجلسة!
+    logToSheet('Session saved for user');
 
     // معالجة رقم الهاتف المُرسل
     if (contact) {
+        logToSheet('Processing contact...');
         handleContactReceived(chatId, contact, username);
         return;
     }
 
     // معالجة الصور والملفات
     if (photo || document) {
+        logToSheet('Processing attachment...');
         handleAttachment(chatId, message);
         return;
     }
@@ -516,12 +531,15 @@ function handleMessage(message) {
     const cleanText = text.trim();
 
     if (cleanText.startsWith('/')) {
+        logToSheet('Processing command: ' + cleanText);
         handleCommand(chatId, cleanText, userSession);
         return;
     }
 
     // معالجة النص حسب حالة المحادثة
+    logToSheet('Processing text input based on state...');
     handleTextInput(chatId, text, userSession);
+    logToSheet('═══ handleMessage END ═══');
 }
 
 /**
@@ -593,44 +611,53 @@ function handleContactReceived(chatId, contact, username) {
  */
 function handleCommand(chatId, command, session) {
     const cmd = command.split(' ')[0].toLowerCase();
-    Logger.log('handleCommand - cmd: ' + cmd + ', chatId: ' + chatId);
+    logToSheet('═══ handleCommand ═══');
+    logToSheet('Command: ' + cmd + ', chatId: ' + chatId);
 
     switch (cmd) {
         case '/start':
+            logToSheet('Sending welcome message...');
             sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.WELCOME, null, 'Markdown');
+            logToSheet('Welcome message sent');
             resetSession(chatId);
             break;
 
         case '/expense':
         case '/مصروف':
-            Logger.log('Starting expense flow for chatId: ' + chatId);
+            logToSheet('Starting expense flow...');
             startExpenseFlow(chatId, session);
             break;
 
         case '/revenue':
         case '/ايراد':
+            logToSheet('Starting revenue flow...');
             startRevenueFlow(chatId, session);
             break;
 
         case '/status':
         case '/حالة':
+            logToSheet('Showing status...');
             showUserTransactionsStatus(chatId, session);
             break;
 
         case '/help':
         case '/مساعدة':
+            logToSheet('Sending help...');
             sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.HELP, null, 'Markdown');
             break;
 
         case '/cancel':
         case '/الغاء':
+            logToSheet('Cancelling...');
             resetSession(chatId);
             sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.CANCELLED);
             break;
 
         default:
+            logToSheet('Unknown command');
             sendMessage(chatId, '❓ أمر غير معروف\n\nاستخدم /help لعرض الأوامر المتاحة');
     }
+    logToSheet('═══ handleCommand END ═══');
 }
 
 /**
@@ -1386,6 +1413,9 @@ function resetSession(chatId) {
  * إرسال رسالة
  */
 function sendMessage(chatId, text, replyMarkup, parseMode) {
+    logToSheet('>>> sendMessage START - chatId: ' + chatId);
+    logToSheet('Text length: ' + text.length + ', parseMode: ' + parseMode);
+
     const token = getBotToken();
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -1407,10 +1437,20 @@ function sendMessage(chatId, text, replyMarkup, parseMode) {
     };
 
     try {
+        logToSheet('Calling Telegram API...');
         const response = UrlFetchApp.fetch(url, options);
-        return JSON.parse(response.getContentText());
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            logToSheet('✅ Message sent successfully');
+        } else {
+            logToSheet('❌ Telegram API error: ' + result.description);
+        }
+
+        logToSheet('>>> sendMessage END');
+        return result;
     } catch (error) {
-        Logger.log('Error sending message: ' + error.message);
+        logToSheet('🔥 sendMessage ERROR: ' + error.message);
         return null;
     }
 }
