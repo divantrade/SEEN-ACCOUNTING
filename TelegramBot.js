@@ -342,7 +342,7 @@ function doPost(e) {
         }
 
         const update = JSON.parse(e.postData.contents);
-        // logToSheet('📨 Payload: ' + JSON.stringify(update));
+        logToSheet('📨 Payload: ' + JSON.stringify(update));
 
         const updateId = String(update.update_id);
 
@@ -355,7 +355,7 @@ function doPost(e) {
             return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
         }
         cache.put(updateId, 'processed', 21600);
-        // logToSheet('✅ New update processed: ' + updateId);
+        logToSheet('✅ New update processed: ' + updateId);
 
         // ... rest of the logic ...
 
@@ -383,7 +383,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '5.2.2'; // [v5.2.2 Connection Check]
+const BOT_VERSION = '5.2.3'; // [v5.2.2 Connection Check]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
