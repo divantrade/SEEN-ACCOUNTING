@@ -68,6 +68,49 @@ function setWebhook() {
 }
 
 /**
+ * حذف Webhook مع إسقاط التحديثات العالقة
+ * هذا هو الحل لمشكلة التكرار
+ */
+function deleteWebhookWithDrop() {
+    const token = getBotToken();
+    // خيار drop_pending_updates غير موجود في deleteWebhook مباشرة في التوثيق القديم
+    // لكن يمكن تحقيقه بإعادة تعيين الويب هوك مع الرابط
+    // أو استخدام أمر deleteWebhook مع المعامل if supported
+
+    // الطريقة الأضمن: setWebhook برابط فارغ ثم setWebhook جديد
+    // لكن api تليجرام يدعم drop_pending_updates في setWebhook أو deleteWebhook
+
+    const url = `https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=true`;
+
+    const response = UrlFetchApp.fetch(url);
+    const result = JSON.parse(response.getContentText());
+
+    Logger.log('Delete Webhook result: ' + JSON.stringify(result));
+    return result;
+}
+
+/**
+ * إصلاح كامل: حذف الويب هوك وتصفية الطابور ثم إعادة التعيين
+ */
+function fullWebhookReset() {
+    const ui = SpreadsheetApp.getUi();
+
+    // 1. حذف وتصفية
+    const deleteResult = deleteWebhookWithDrop();
+
+    if (!deleteResult.ok) {
+        ui.alert('❌ فشل الحذف', deleteResult.description, ui.ButtonSet.OK);
+        return;
+    }
+
+    // 2. انتظار قليل
+    Utilities.sleep(2000);
+
+    // 3. إعادة التعيين يدوياً
+    setWebhookManually();
+}
+
+/**
  * حذف Webhook
  */
 function deleteWebhook() {
