@@ -5,7 +5,44 @@
  */
 
 // ==================== إعدادات البوت ====================
+/**
+ * معالجة التحديثات المعلقة (للاستخدام مع Time Trigger)
+ * شغّل هذه الدالة كل دقيقة عبر Trigger
+ */
+function processPendingUpdates() {
+    const token = getBotToken();
+    const cache = CacheService.getScriptCache();
+    let offset = parseInt(cache.get('telegram_offset') || '0');
 
+    try {
+        const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=5`;
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const data = JSON.parse(response.getContentText());
+
+        if (data.ok && data.result.length > 0) {
+            logToSheet(`📥 Processing ${data.result.length} updates`);
+
+            for (const update of data.result) {
+                try {
+                    if (update.message) {
+                        handleMessage(update.message);
+                    } else if (update.callback_query) {
+                        handleCallbackQuery(update.callback_query);
+                    }
+                    offset = update.update_id + 1;
+                } catch (e) {
+                    logToSheet('Error processing update: ' + e.message);
+                }
+            }
+
+            // حفظ آخر offset
+            cache.put('telegram_offset', String(offset), 21600);
+            logToSheet(`✅ Processed successfully. Next offset: ${offset}`);
+        }
+    } catch (e) {
+        logToSheet('🔥 Error in processPendingUpdates: ' + e.message);
+    }
+}
 /**
  * الحصول على Token البوت من Script Properties
  */
@@ -311,8 +348,8 @@ function updateBotTokenAndSetup() {
  */
 function setWebhookManually() {
     // 👇👇👇 أدخل رابط الـ Web App (المنتهي بـ /exec) هنا بين علامتي التنصيص 👇👇👇
-    const webAppUrl = 'https://script.google.com/macros/s/AKfycbxHJ8Q5knS8xcJzvjrJq7uw7SV7BHDDPzBZ_rv_7rIkzxgg4bTnLWbgZZP6JqwGI5dPkA/exec';
-    // 👆👆👆 رابط Production الجديد 👆👆👆
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbxmdDeGESS8LSTXmeMIgP958MhUqQDPlT0ZO_0yKfVWpbHpENACBwR0PCrqn4cJldUz6Q/exec';
+    // 👆👆👆 تم وضع الرابط الخاص بك 👆👆👆
 
     Logger.log('🔄 جاري تعيين Webhook يدوياً...');
     Logger.log('الرابط المستخدم: ' + webAppUrl);
