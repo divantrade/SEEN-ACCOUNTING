@@ -383,7 +383,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '5.2.0'; // [v5.2 Extreme Speed]
+const BOT_VERSION = '5.2.2'; // [v5.2.2 Connection Check]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
