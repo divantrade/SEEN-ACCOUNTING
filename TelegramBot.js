@@ -332,17 +332,17 @@ function logToSheet(message) {
 }
 
 function doPost(e) {
-    logToSheet('🚀 doPost Triggered!');
+     // logToSheet('🚀 doPost Triggered!');
 
     let debugChatId = null;
     try {
         if (!e || !e.postData || !e.postData.contents) {
-            logToSheet('❌ No postData received');
+             // logToSheet('❌ No postData received');
             return ContentService.createTextOutput('OK');
         }
 
         const update = JSON.parse(e.postData.contents);
-        logToSheet('📨 Payload: ' + JSON.stringify(update));
+         // logToSheet('📨 Payload: ' + JSON.stringify(update));
 
         const updateId = String(update.update_id);
 
@@ -355,7 +355,7 @@ function doPost(e) {
             return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
         }
         cache.put(updateId, 'processed', 21600);
-        logToSheet('✅ New update processed: ' + updateId);
+         // logToSheet('✅ New update processed: ' + updateId);
 
         // ... rest of the logic ...
 
@@ -374,7 +374,7 @@ function doPost(e) {
         return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
 
     } catch (error) {
-        logToSheet('🔥 FATAL ERROR: ' + error.message);
+         // logToSheet('🔥 FATAL ERROR: ' + error.message);
         return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
     }
 }
