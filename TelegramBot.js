@@ -270,26 +270,41 @@ function getWebhookInfo() {
 /**
  * معالجة الطلبات الواردة من تليجرام (Webhook endpoint)
  */
+/**
+ * معالجة الطلبات الواردة من تليجرام (Webhook endpoint)
+ */
 function doPost(e) {
     let debugChatId = null;
     try {
         if (!e || !e.postData || !e.postData.contents) {
-             return ContentService.createTextOutput('OK');
+            return ContentService.createTextOutput('OK');
         }
 
         const update = JSON.parse(e.postData.contents);
-        
-        // Ignore updates older than 60 seconds (Deduplication)
+        const updateId = String(update.update_id);
+
+        // ============================================================
+        // 🔒 منع التكرار القوي (Anti-Loop Protection)
+        // ============================================================
+        // استخدام CacheService لتذكر آخر تحديثات تمت معالجتها
+        const cache = CacheService.getScriptCache();
+        if (cache.get(updateId)) {
+            // Logger.log('♻️ Duplicate update ignored: ' + updateId);
+            return ContentService.createTextOutput('OK');
+        }
+        // حفظ رقم التحديث لمدة 6 ساعات لمنع تكراره
+        cache.put(updateId, 'processed', 21600);
+
+        // التحقق من تاريخ الرسالة (تجاهل الرسائل الأقدم من دقيقتين)
         if (update.message && update.message.date) {
             const messageDate = update.message.date;
             const now = Math.floor(Date.now() / 1000);
-            const age = now - messageDate;
-            
-            if (age > 60) {
-                Logger.log('⚠️ Ignoring old update (' + age + 's old): ' + update.update_id);
+            if (now - messageDate > 120) {
+                Logger.log('⚠️ Ignoring old message (' + (now - messageDate) + 's)');
                 return ContentService.createTextOutput('OK');
             }
         }
+        // ============================================================
 
         Logger.log('Received update: ' + JSON.stringify(update));
 
@@ -311,18 +326,16 @@ function doPost(e) {
 
     } catch (error) {
         Logger.log('❌ Error in doPost: ' + error.message + '\nStack: ' + error.stack);
-        
-        // إرسال رسالة خطأ للمستخدم إذا أمكن (فقط للأخطاء الجديدة)
+
+        // إرسال رسالة خطأ للمستخدم إذا أمكن
         if (debugChatId) {
             try {
-                // لا نرسل رسالة خطأ إذا كان السبب timeout لتجنب الإزعاج
                 if (!error.message.includes('Exceeded limit')) {
-                     sendMessage(debugChatId, '❌ حدث خطأ تقني: ' + error.message);
+                    sendMessage(debugChatId, '❌ خطأ [v4]: ' + error.message);
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
-        
-        // CRITICAL: Always return OK to stop Telegram from retrying
+
         return ContentService.createTextOutput('OK');
     }
 }
@@ -331,7 +344,7 @@ function doPost(e) {
  * للاختبار - Web App GET
  * يعرض رقم الإصدار للتحقق من النشر
  */
-const BOT_VERSION = '2.2.0'; // تحديث عند كل نشر - إضافة debugging
+const BOT_VERSION = '4.0.0'; // [v4 Loop Fix]
 
 function doGet(e) {
     return ContentService.createTextOutput('SEEN Accounting Bot v' + BOT_VERSION + ' is running!');
