@@ -295,15 +295,15 @@ function doPost(e) {
         // حفظ رقم التحديث لمدة 6 ساعات لمنع تكراره
         cache.put(updateId, 'processed', 21600);
 
-        // التحقق من تاريخ الرسالة (تجاهل الرسائل الأقدم من دقيقتين)
-        if (update.message && update.message.date) {
-            const messageDate = update.message.date;
-            const now = Math.floor(Date.now() / 1000);
-            if (now - messageDate > 120) {
-                Logger.log('⚠️ Ignoring old message (' + (now - messageDate) + 's)');
-                return ContentService.createTextOutput('OK');
-            }
-        }
+        // التحقق من تاريخ الرسالة (تم تعطيله مؤقتاً للتشخيص)
+        // if (update.message && update.message.date) {
+        //     const messageDate = update.message.date;
+        //     const now = Math.floor(Date.now() / 1000);
+        //     if (now - messageDate > 120) {
+        //         Logger.log('⚠️ Ignoring old message (' + (now - messageDate) + 's)');
+        //         return ContentService.createTextOutput('OK');
+        //     }
+        // }
         // ============================================================
 
         Logger.log('Received update: ' + JSON.stringify(update));
