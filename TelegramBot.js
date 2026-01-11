@@ -178,6 +178,76 @@ function getMyCommands() {
 }
 
 /**
+ * الحصول على حالة زر القائمة الحالية
+ */
+function getChatMenuButton(chatId) {
+    const token = getBotToken();
+    let url = `https://api.telegram.org/bot${token}/getChatMenuButton`;
+
+    const payload = chatId ? { chat_id: chatId } : {};
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            Logger.log('📋 حالة زر القائمة الحالية:');
+            Logger.log('   النوع: ' + result.result.type);
+            if (result.result.type === 'web_app') {
+                Logger.log('   Web App: ' + result.result.web_app?.url);
+            }
+        } else {
+            Logger.log('❌ فشل: ' + result.description);
+        }
+        return result;
+    } catch (error) {
+        Logger.log('❌ خطأ: ' + error.message);
+        return { ok: false, error: error.message };
+    }
+}
+
+/**
+ * تشخيص مشكلة القائمة
+ */
+function diagnoseMenuIssue() {
+    Logger.log('🔍 تشخيص مشكلة قائمة الأوامر...\n');
+
+    // 1. فحص الأوامر المسجلة
+    Logger.log('1️⃣ الأوامر المسجلة:');
+    const commands = getMyCommands();
+
+    // 2. فحص حالة زر القائمة (العامة)
+    Logger.log('\n2️⃣ حالة زر القائمة (العامة):');
+    const menuButton = getChatMenuButton();
+
+    // 3. التوصيات
+    Logger.log('\n📌 التوصيات:');
+
+    if (!commands.ok || commands.result.length === 0) {
+        Logger.log('⚠️ لا توجد أوامر مسجلة - شغّل setBotCommands()');
+    }
+
+    if (menuButton.ok && menuButton.result.type !== 'commands') {
+        Logger.log('⚠️ زر القائمة ليس من نوع "commands" - النوع الحالي: ' + menuButton.result.type);
+        Logger.log('   شغّل: setChatMenuButton("commands")');
+    }
+
+    if (menuButton.ok && menuButton.result.type === 'commands' && commands.result.length > 0) {
+        Logger.log('✅ الإعدادات صحيحة! جرّب:');
+        Logger.log('   1. أغلق تليجرام بالكامل (Force Quit) وأعد فتحه');
+        Logger.log('   2. امسح cache التطبيق');
+        Logger.log('   3. جرّب من جهاز/تطبيق آخر');
+    }
+}
+
+/**
  * تعيين زر قائمة الأوامر (☰)
  * type: 'commands' لإظهار قائمة الأوامر
  * type: 'default' للسلوك الافتراضي
