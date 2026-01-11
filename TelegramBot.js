@@ -725,6 +725,24 @@ function handleCommand(chatId, command, session) {
             startRevenueFlow(chatId, session);
             break;
 
+        case '/finance':
+        case '/تمويل':
+            logToSheet('Starting finance flow...');
+            startFinanceFlow(chatId, session);
+            break;
+
+        case '/insurance':
+        case '/تأمين':
+            logToSheet('Starting insurance flow...');
+            startInsuranceFlow(chatId, session);
+            break;
+
+        case '/transfer':
+        case '/تحويل':
+            logToSheet('Starting transfer flow...');
+            startTransferFlow(chatId, session);
+            break;
+
         case '/status':
         case '/حالة':
             logToSheet('Showing status...');
@@ -809,6 +827,75 @@ function startRevenueFlow(chatId, session) {
     };
 
     sendMessage(chatId, '📈 *تسجيل إيراد*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+}
+
+/**
+ * بدء تدفق التمويل
+ */
+function startFinanceFlow(chatId, session) {
+    session.transactionType = 'finance';
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+    session.data = {};
+    saveUserSession(chatId, session);
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '🏦 تمويل (دخول قرض)', callback_data: 'nature_تمويل (دخول قرض)' }
+            ],
+            [
+                { text: '💳 سداد تمويل', callback_data: 'nature_سداد تمويل' }
+            ],
+            [
+                { text: '❌ إلغاء', callback_data: 'cancel' }
+            ]
+        ]
+    };
+
+    sendMessage(chatId, '🏦 *تسجيل تمويل*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+}
+
+/**
+ * بدء تدفق التأمين
+ */
+function startInsuranceFlow(chatId, session) {
+    session.transactionType = 'insurance';
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+    session.data = {};
+    saveUserSession(chatId, session);
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '🔒 تأمين مدفوع للقناة', callback_data: 'nature_تأمين مدفوع للقناة' }
+            ],
+            [
+                { text: '🔓 استرداد تأمين من القناة', callback_data: 'nature_استرداد تأمين من القناة' }
+            ],
+            [
+                { text: '❌ إلغاء', callback_data: 'cancel' }
+            ]
+        ]
+    };
+
+    sendMessage(chatId, '🔐 *تسجيل تأمين*\n\nاختر نوع الحركة:', keyboard, 'Markdown');
+}
+
+/**
+ * بدء تدفق التحويل الداخلي
+ */
+function startTransferFlow(chatId, session) {
+    session.transactionType = 'transfer';
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+    session.data = {};
+    session.data.nature = 'تحويل داخلي';
+    saveUserSession(chatId, session);
+
+    // التحويل الداخلي نوع واحد فقط، ننتقل مباشرة للتصنيف
+    sendMessage(chatId, '🔄 *تسجيل تحويل داخلي*\n\n📊 اختر تصنيف التحويل:', BOT_CONFIG.KEYBOARDS.CLASSIFICATION, 'Markdown');
+
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CLASSIFICATION;
+    saveUserSession(chatId, session);
 }
 
 /**
