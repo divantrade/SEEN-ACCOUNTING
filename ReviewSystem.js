@@ -709,3 +709,185 @@ function showBotStatistics() {
 
     SpreadsheetApp.getUi().alert('📊 إحصائيات البوت', message, SpreadsheetApp.getUi().ButtonSet.OK);
 }
+
+// ==================== دوال التشخيص ====================
+
+/**
+ * تشخيص مشكلة الاعتماد - شغّل هذه الدالة لفهم المشكلة
+ */
+function diagnoseApprovalIssue() {
+    const ui = SpreadsheetApp.getUi();
+    let report = '🔍 تقرير التشخيص\n';
+    report += '═'.repeat(30) + '\n\n';
+
+    try {
+        // 1. فحص شيت حركات البوت
+        const botSheet = getBotTransactionsSheet();
+        if (!botSheet) {
+            report += '❌ شيت حركات البوت غير موجود!\n';
+            ui.alert('تقرير التشخيص', report, ui.ButtonSet.OK);
+            return;
+        }
+        report += '✅ شيت حركات البوت: موجود\n';
+        report += `   الاسم: ${botSheet.getName()}\n`;
+        report += `   عدد الصفوف: ${botSheet.getLastRow()}\n`;
+        report += `   عدد الأعمدة: ${botSheet.getLastColumn()}\n\n`;
+
+        // 2. فحص شيت دفتر الحركات
+        const mainSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+        if (!mainSheet) {
+            report += '❌ شيت دفتر الحركات المالية غير موجود!\n';
+            report += `   الاسم المطلوب: "${CONFIG.SHEETS.TRANSACTIONS}"\n`;
+            ui.alert('تقرير التشخيص', report, ui.ButtonSet.OK);
+            return;
+        }
+        report += '✅ شيت دفتر الحركات: موجود\n';
+        report += `   الاسم: ${mainSheet.getName()}\n`;
+        report += `   عدد الصفوف: ${mainSheet.getLastRow()}\n`;
+        report += `   عدد الأعمدة: ${mainSheet.getLastColumn()}\n\n`;
+
+        // 3. فحص الحركات المعلقة
+        const columns = BOT_CONFIG.BOT_TRANSACTIONS_COLUMNS;
+        const pendingValue = CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING;
+        report += `📋 قيمة "قيد الانتظار" المتوقعة: "${pendingValue}"\n\n`;
+
+        // 4. فحص أول حركة معلقة
+        const data = botSheet.getDataRange().getValues();
+        let foundPending = false;
+
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            const statusIndex = columns.REVIEW_STATUS.index - 1;
+            const actualStatus = row[statusIndex];
+
+            if (i === 1) {
+                report += `📊 عمود حالة المراجعة:\n`;
+                report += `   الفهرس المتوقع: ${columns.REVIEW_STATUS.index}\n`;
+                report += `   القيمة في الصف 2: "${actualStatus}"\n\n`;
+            }
+
+            if (actualStatus === pendingValue) {
+                foundPending = true;
+                report += `✅ وجدت حركة معلقة في الصف ${i + 1}\n`;
+                report += `   رقم الحركة: ${row[columns.TRANSACTION_ID.index - 1]}\n`;
+                report += `   المبلغ: ${row[columns.AMOUNT.index - 1]}\n`;
+                report += `   الحالة: "${actualStatus}"\n\n`;
+
+                // محاولة الاعتماد التجريبي
+                report += '🧪 محاولة اعتماد تجريبية...\n';
+                const result = approveTransaction(i + 1);
+                if (result.success) {
+                    report += `✅ نجح الاعتماد! الصف الجديد: ${result.newRowNumber}\n`;
+                } else {
+                    report += `❌ فشل الاعتماد: ${result.error}\n`;
+                }
+                break;
+            }
+        }
+
+        if (!foundPending) {
+            report += '⚠️ لا توجد حركات بحالة "قيد الانتظار"\n';
+            report += '\nالحالات الموجودة في عمود المراجعة:\n';
+            const statuses = new Set();
+            for (let i = 1; i < Math.min(data.length, 10); i++) {
+                const status = data[i][columns.REVIEW_STATUS.index - 1];
+                if (status) statuses.add(status);
+            }
+            statuses.forEach(s => report += `   - "${s}"\n`);
+        }
+
+    } catch (error) {
+        report += `\n🔥 خطأ: ${error.message}\n`;
+        report += `Stack: ${error.stack}\n`;
+    }
+
+    Logger.log(report);
+    ui.alert('🔍 تقرير التشخيص', report, ui.ButtonSet.OK);
+}
+
+/**
+ * اعتماد يدوي مع تفاصيل - للتجربة
+ */
+function manualApproveWithDetails() {
+    const ui = SpreadsheetApp.getUi();
+
+    const response = ui.prompt(
+        '🔧 اعتماد يدوي',
+        'أدخل رقم الصف في شيت حركات البوت:',
+        ui.ButtonSet.OK_CANCEL
+    );
+
+    if (response.getSelectedButton() !== ui.Button.OK) return;
+
+    const rowNumber = parseInt(response.getResponseText().trim());
+    if (isNaN(rowNumber) || rowNumber < 2) {
+        ui.alert('❌ رقم صف غير صالح');
+        return;
+    }
+
+    Logger.log('=== بدء الاعتماد اليدوي للصف ' + rowNumber + ' ===');
+
+    try {
+        const botSheet = getBotTransactionsSheet();
+        const mainSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
+        const columns = BOT_CONFIG.BOT_TRANSACTIONS_COLUMNS;
+
+        Logger.log('عدد أعمدة التعريف: ' + Object.keys(columns).length);
+        Logger.log('عدد أعمدة شيت البوت الفعلية: ' + botSheet.getLastColumn());
+
+        // قراءة البيانات
+        const rowData = botSheet.getRange(rowNumber, 1, 1, botSheet.getLastColumn()).getValues()[0];
+        Logger.log('بيانات الصف: ' + JSON.stringify(rowData));
+
+        const currentStatus = rowData[columns.REVIEW_STATUS.index - 1];
+        Logger.log('الحالة الحالية: "' + currentStatus + '"');
+        Logger.log('الحالة المتوقعة: "' + CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING + '"');
+
+        // إجبار الاعتماد
+        const mainLastRow = mainSheet.getLastRow();
+        const newRow = mainLastRow + 1;
+
+        const mainRowData = [
+            newRow - 1,
+            rowData[columns.DATE.index - 1],
+            rowData[columns.NATURE.index - 1],
+            rowData[columns.CLASSIFICATION.index - 1] || '',
+            rowData[columns.PROJECT_CODE.index - 1] || '',
+            rowData[columns.PROJECT_NAME.index - 1] || '',
+            rowData[columns.ITEM.index - 1] || '',
+            rowData[columns.DETAILS.index - 1] || '',
+            rowData[columns.PARTY_NAME.index - 1] || '',
+            rowData[columns.AMOUNT.index - 1] || 0,
+            rowData[columns.CURRENCY.index - 1] || 'USD',
+            rowData[columns.EXCHANGE_RATE.index - 1] || 1,
+            rowData[columns.AMOUNT_USD.index - 1] || 0,
+            rowData[columns.MOVEMENT_TYPE.index - 1] || '',
+            '', '', // الرصيد، رقم مرجعي
+            rowData[columns.PAYMENT_METHOD.index - 1] || '',
+            rowData[columns.PAYMENT_TERM_TYPE.index - 1] || '',
+            rowData[columns.WEEKS.index - 1] || 0,
+            rowData[columns.CUSTOM_DATE.index - 1] || '',
+            '', '', '', // تاريخ استحقاق، حالة سداد، شهر
+            rowData[columns.NOTES.index - 1] || `(من البوت)`,
+            '📄'
+        ];
+
+        Logger.log('البيانات للإدخال: ' + JSON.stringify(mainRowData));
+        Logger.log('عدد الأعمدة: ' + mainRowData.length);
+
+        // الإدخال
+        mainSheet.getRange(newRow, 1, 1, mainRowData.length).setValues([mainRowData]);
+
+        // تحديث حالة البوت
+        botSheet.getRange(rowNumber, columns.REVIEW_STATUS.index).setValue(CONFIG.TELEGRAM_BOT.REVIEW_STATUS.APPROVED);
+        botSheet.getRange(rowNumber, columns.REVIEWER.index).setValue(Session.getActiveUser().getEmail() || 'manual');
+        botSheet.getRange(rowNumber, columns.REVIEW_TIMESTAMP.index).setValue(new Date());
+
+        ui.alert('✅ نجاح', `تم نقل الحركة للصف ${newRow} في دفتر الحركات`, ui.ButtonSet.OK);
+
+    } catch (error) {
+        Logger.log('خطأ: ' + error.message);
+        Logger.log('Stack: ' + error.stack);
+        ui.alert('❌ خطأ', error.message, ui.ButtonSet.OK);
+    }
+}
