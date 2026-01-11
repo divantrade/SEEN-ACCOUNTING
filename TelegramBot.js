@@ -9,39 +9,99 @@
  * معالجة التحديثات المعلقة (للاستخدام مع Time Trigger)
  * شغّل هذه الدالة كل دقيقة عبر Trigger
  */
+/**
+ * معالجة التحديثات المعلقة (Long Polling Loop)
+ * يعمل هذا الإصدار لمدة 50 ثانية تقريباً للحفاظ على الاتصال مفتوحاً
+ * مما يوفر استجابة شبه فورية (Real-time) دون الحاجة للويب هوك
+ */
 function processPendingUpdates() {
     const token = getBotToken();
     const cache = CacheService.getScriptCache();
-    let offset = parseInt(cache.get('telegram_offset') || '0');
 
-    try {
-        const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=5`;
-        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-        const data = JSON.parse(response.getContentText());
+    // بدء المؤقت
+    const startTime = new Date().getTime();
+    // الحد الأقصى للتنفيذ: 50 ثانية (لترك هامش أمان 10 ثوان قبل الدقيقة التالية)
+    const MAX_EXECUTION_TIME = 50000;
 
-        if (data.ok && data.result.length > 0) {
-            logToSheet(`📥 Processing ${data.result.length} updates`);
+    console.log('🔄 Starting Long Polling Loop...');
 
-            for (const update of data.result) {
-                try {
-                    if (update.message) {
-                        handleMessage(update.message);
-                    } else if (update.callback_query) {
-                        handleCallbackQuery(update.callback_query);
+    // حلقة تكرار تستمر حتى انتهاء الوقت المسموح
+    while (new Date().getTime() - startTime < MAX_EXECUTION_TIME) {
+
+        // جلب الـ offset الحالي في كل دورة
+        let offset = parseInt(cache.get('telegram_offset') || '0');
+
+        try {
+            // timeout=5: تليجرام ينتظر 5 ثوان إذا لم تكن هناك رسائل (Long Polling)
+            // إذا وصلت رسالة، يرد فوراً.
+            const url = `https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=5`;
+            const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+            const data = JSON.parse(response.getContentText());
+
+            if (data.ok && data.result.length > 0) {
+                console.log(`📥 Received ${data.result.length} updates`);
+
+                for (const update of data.result) {
+                    try {
+                        if (update.message) {
+                            handleMessage(update.message);
+                        } else if (update.callback_query) {
+                            handleCallbackQuery(update.callback_query);
+                        }
+                        // تحديث الـ offset لتجاوز هذه الرسالة مستقبلاً
+                        offset = update.update_id + 1;
+                    } catch (e) {
+                        console.log('Error processing update: ' + e.message);
                     }
-                    offset = update.update_id + 1;
-                } catch (e) {
-                    logToSheet('Error processing update: ' + e.message);
                 }
+
+                // حفظ آخر offset بعد المعالجة
+                cache.put('telegram_offset', String(offset), 21600);
+
+                // بما أننا وجدنا رسائل، نكمل الحلقة فوراً لجلب المزيد دون انتظار
+            } else {
+                // إذا لم توجد رسائل، الـ timeout في الرابط تكفل بالانتظار 5 ثوان
+                // لا داعي لعمل Utilities.sleep هنا
             }
 
-            // حفظ آخر offset
-            cache.put('telegram_offset', String(offset), 21600);
-            logToSheet(`✅ Processed successfully. Next offset: ${offset}`);
+        } catch (e) {
+            console.log('🔥 Error in polling loop: ' + e.message);
+            // انتظار بسيط عند الخطأ لتجنب التكرار السريع جداً
+            Utilities.sleep(1000);
         }
-    } catch (e) {
-        logToSheet('🔥 Error in processPendingUpdates: ' + e.message);
     }
+
+    console.log('⏹️ Polling Loop finished (Time limit reached).');
+}
+
+/**
+ * إعداد مشغل زمني (Trigger) للعمل بنظام Polling
+ * بديل للويب هوك في حالة فشله
+ */
+function setupPollingTrigger() {
+    // 1. حذف التغييرات القديمة لتجنب التكرار
+    const triggers = ScriptApp.getProjectTriggers();
+    for (const trigger of triggers) {
+        if (trigger.getHandlerFunction() === 'processPendingUpdates') {
+            ScriptApp.deleteTrigger(trigger);
+        }
+    }
+
+    // 2. إنشاء مشغل جديد كل دقيقة
+    ScriptApp.newTrigger('processPendingUpdates')
+        .timeBased()
+        .everyMinutes(1)
+        .create();
+
+    // 3. حذف الويب هوك لتجنب التضارب
+    try {
+        deleteWebhookWithDrop();
+    } catch (e) {
+        console.log('Error deleting webhook: ' + e.message);
+    }
+
+    console.log('✅ تم تفعيل نظام Polling بنجاح (كل دقيقة).');
+    console.log('تم حذف Webhook القديم لتجنب التضارب.');
 }
 /**
  * الحصول على Token البوت من Script Properties
