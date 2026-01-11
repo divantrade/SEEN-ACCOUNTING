@@ -2372,6 +2372,41 @@ function updateBotCommands() {
     }
 }
 
+/**
+ * التحقق من الأوامر المسجلة حالياً في تليجرام (للتشخيص)
+ */
+function checkRegisteredCommands() {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/getMyCommands`;
+
+    try {
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            const commands = result.result;
+            let message = '📋 الأوامر المسجلة حالياً:\n\n';
+
+            if (commands.length === 0) {
+                message += '❌ لا توجد أوامر مسجلة!\n\nهذا هو السبب! شغّل updateBotCommands مرة أخرى.';
+            } else {
+                commands.forEach((cmd, index) => {
+                    message += `${index + 1}. /${cmd.command} - ${cmd.description}\n`;
+                });
+            }
+
+            Logger.log('Registered commands: ' + JSON.stringify(commands));
+            SpreadsheetApp.getUi().alert('✅ التحقق', message, SpreadsheetApp.getUi().ButtonSet.OK);
+        } else {
+            Logger.log('Error getting commands: ' + result.description);
+            SpreadsheetApp.getUi().alert('❌ خطأ', result.description, SpreadsheetApp.getUi().ButtonSet.OK);
+        }
+    } catch (e) {
+        Logger.log('Error: ' + e.message);
+        SpreadsheetApp.getUi().alert('❌ خطأ', e.message, SpreadsheetApp.getUi().ButtonSet.OK);
+    }
+}
+
 // ==================== إشعارات المحاسب ====================
 
 /**
