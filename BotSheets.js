@@ -735,7 +735,13 @@ function getPendingBotTransactions() {
         const row = data[i];
         const status = row[columns.REVIEW_STATUS.index - 1];
 
-        if (status === CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING) {
+        // تسجيل للتشخيص (مؤقت)
+        if (i < 5) { // تسجيل أول 5 صفوف فقط لتجنب امتلاء السجل
+            console.log(`Row ${i + 1}: Status='${status}' (Expected='${CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING}')`);
+        }
+
+        // استخدام String().trim() للتأكد من عدم تأثر المقارنة بالمسافات الزائدة
+        if (String(status).trim() === CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING) {
             pending.push({
                 rowNumber: i + 1,
                 transactionId: row[columns.TRANSACTION_ID.index - 1],

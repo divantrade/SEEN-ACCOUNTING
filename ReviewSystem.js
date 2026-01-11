@@ -346,8 +346,9 @@ function approveTransaction(rowNumber) {
 
         // التحقق من الحالة
         const currentStatus = rowData[columns.REVIEW_STATUS.index - 1];
-        if (currentStatus !== CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING) {
-            return { success: false, error: 'الحركة ليست في حالة انتظار' };
+        if (String(currentStatus).trim() !== CONFIG.TELEGRAM_BOT.REVIEW_STATUS.PENDING) {
+            console.log(`Transaction at row ${rowNumber} skipped. Status is '${currentStatus}'`);
+            return { success: false, error: 'الحركة ليست في حالة انتظار (الحالة الحالية: ' + currentStatus + ')' };
         }
 
         // إذا كان هناك طرف جديد، أضفه لقاعدة البيانات أولاً
@@ -603,6 +604,7 @@ function approveAllPendingTransactions() {
             successCount++;
         } else {
             errorCount++;
+            console.log(`Failed to approve transaction ${tx.transactionId}: ${approvalResult.error}`);
         }
     });
 
