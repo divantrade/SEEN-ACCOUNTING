@@ -101,6 +101,16 @@ const BOT_CONFIG = {
         CANCEL: '/الغاء'
     },
 
+    // قائمة الأوامر للظهور في زر القائمة (Menu Button)
+    COMMAND_LIST: [
+        { command: 'start', description: '👋 بدء استخدام البوت' },
+        { command: 'expense', description: '📤 تسجيل مصروف جديد' },
+        { command: 'revenue', description: '📥 تسجيل إيراد جديد' },
+        { command: 'status', description: '📊 عرض حالة الحركات' },
+        { command: 'help', description: '❓ عرض المساعدة' },
+        { command: 'cancel', description: '❌ إلغاء العملية' }
+    ],
+
     // ==================== حالات المحادثة ====================
     CONVERSATION_STATES: {
         IDLE: 'idle',

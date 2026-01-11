@@ -2331,6 +2331,47 @@ function downloadTelegramFile(filePath) {
     return response.getBlob();
 }
 
+// ==================== إعدادات أوامر البوت ====================
+
+/**
+ * تحديث قائمة أوامر البوت في تليجرام (القائمة الجانبية)
+ * قم بتشغيل هذه الدالة مرة واحدة لإظهار زر القائمة
+ */
+function updateBotCommands() {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/setMyCommands`;
+
+    // استخدام القائمة من ملف الإعدادات
+    const commands = BOT_CONFIG.COMMAND_LIST;
+
+    const payload = {
+        commands: commands
+    };
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            Logger.log('✅ تم تحديث أوامر البوت بنجاح');
+            SpreadsheetApp.getUi().alert('✅ تم التحديث', 'تم استعادة زر القائمة بنجاح!\n\nقد تحتاج لإعادة فتح تطبيق تليجرام لتظهر التغييرات.', SpreadsheetApp.getUi().ButtonSet.OK);
+        } else {
+            Logger.log('❌ خطأ في تحديث الأوامر: ' + result.description);
+            SpreadsheetApp.getUi().alert('❌ خطأ', 'فشل تحديث القائمة: ' + result.description, SpreadsheetApp.getUi().ButtonSet.OK);
+        }
+    } catch (e) {
+        Logger.log('Error updating commands: ' + e.message);
+        SpreadsheetApp.getUi().alert('❌ خطأ', e.message, SpreadsheetApp.getUi().ButtonSet.OK);
+    }
+}
+
 // ==================== إشعارات المحاسب ====================
 
 /**
