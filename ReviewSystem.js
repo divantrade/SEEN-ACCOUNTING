@@ -398,7 +398,12 @@ function approveTransaction(rowNumber) {
         mainSheet.getRange(newRow, 1, 1, 25).setValues([mainRowData]);
 
         // تحديث حالة الحركة في شيت البوت
-        const reviewerEmail = Session.getActiveUser().getEmail();
+        let reviewerEmail = 'Unknown';
+        try {
+            reviewerEmail = Session.getActiveUser().getEmail();
+        } catch (e) {
+            console.log('Could not get active user email: ' + e.message);
+        }
         botSheet.getRange(rowNumber, columns.REVIEW_STATUS.index).setValue(CONFIG.TELEGRAM_BOT.REVIEW_STATUS.APPROVED);
         botSheet.getRange(rowNumber, columns.REVIEWER.index).setValue(reviewerEmail);
         botSheet.getRange(rowNumber, columns.REVIEW_TIMESTAMP.index).setValue(new Date());
@@ -442,7 +447,12 @@ function rejectTransaction(rowNumber, reason) {
         }
 
         // تحديث حالة الحركة
-        const reviewerEmail = Session.getActiveUser().getEmail();
+        let reviewerEmail = 'Unknown';
+        try {
+            reviewerEmail = Session.getActiveUser().getEmail();
+        } catch (e) {
+            console.log('Could not get active user email: ' + e.message);
+        }
         botSheet.getRange(rowNumber, columns.REVIEW_STATUS.index).setValue(CONFIG.TELEGRAM_BOT.REVIEW_STATUS.REJECTED);
         botSheet.getRange(rowNumber, columns.REVIEWER.index).setValue(reviewerEmail);
         botSheet.getRange(rowNumber, columns.REVIEW_TIMESTAMP.index).setValue(new Date());
