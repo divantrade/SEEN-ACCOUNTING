@@ -138,6 +138,69 @@ function setAccountantChatId(chatId) {
     Logger.log('تم تعيين Chat ID للمحاسب: ' + chatId);
 }
 
+/**
+ * تسجيل قائمة الأوامر في تليجرام
+ * شغّل هذه الدالة مرة واحدة لإظهار الأوامر في البوت
+ */
+function setBotCommands() {
+    const token = getBotToken();
+    const commands = [
+        { command: 'start', description: '🏠 البداية' },
+        { command: 'مصروف', description: '📤 تسجيل مصروف جديد' },
+        { command: 'ايراد', description: '📥 تسجيل إيراد جديد' },
+        { command: 'تمويل', description: '🏦 تسجيل تمويل (قرض/سداد)' },
+        { command: 'تأمين', description: '🔐 تسجيل تأمين (دفع/استرداد)' },
+        { command: 'تحويل', description: '🔄 تسجيل تحويل داخلي' },
+        { command: 'حالة', description: '📊 عرض حالة حركاتك' },
+        { command: 'مساعدة', description: '❓ عرض المساعدة' },
+        { command: 'الغاء', description: '❌ إلغاء العملية الحالية' }
+    ];
+
+    const url = `https://api.telegram.org/bot${token}/setMyCommands`;
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ commands: commands }),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            Logger.log('✅ تم تسجيل الأوامر بنجاح!');
+            Logger.log('الأوامر المسجلة: ' + commands.map(c => '/' + c.command).join(', '));
+        } else {
+            Logger.log('❌ فشل تسجيل الأوامر: ' + result.description);
+        }
+
+        return result;
+    } catch (error) {
+        Logger.log('❌ خطأ: ' + error.message);
+        return { ok: false, error: error.message };
+    }
+}
+
+/**
+ * حذف قائمة الأوامر من تليجرام
+ */
+function deleteBotCommands() {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/deleteMyCommands`;
+
+    try {
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const result = JSON.parse(response.getContentText());
+        Logger.log(result.ok ? '✅ تم حذف الأوامر' : '❌ فشل: ' + result.description);
+        return result;
+    } catch (error) {
+        Logger.log('❌ خطأ: ' + error.message);
+        return { ok: false, error: error.message };
+    }
+}
+
 // ==================== Webhook ====================
 
 /**
