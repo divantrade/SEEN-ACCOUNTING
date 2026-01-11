@@ -207,6 +207,99 @@ function deleteBotCommands() {
     }
 }
 
+/**
+ * الحصول على الأوامر المسجلة حالياً
+ */
+function getMyCommands() {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/getMyCommands`;
+
+    try {
+        const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            Logger.log('📋 الأوامر المسجلة حالياً:');
+            if (result.result.length === 0) {
+                Logger.log('⚠️ لا توجد أوامر مسجلة!');
+            } else {
+                result.result.forEach(cmd => {
+                    Logger.log(`  /${cmd.command} - ${cmd.description}`);
+                });
+            }
+        } else {
+            Logger.log('❌ فشل: ' + result.description);
+        }
+        return result;
+    } catch (error) {
+        Logger.log('❌ خطأ: ' + error.message);
+        return { ok: false, error: error.message };
+    }
+}
+
+/**
+ * تعيين زر قائمة الأوامر (☰)
+ * type: 'commands' لإظهار قائمة الأوامر
+ * type: 'default' للسلوك الافتراضي
+ */
+function setChatMenuButton(type) {
+    const token = getBotToken();
+    const url = `https://api.telegram.org/bot${token}/setChatMenuButton`;
+
+    const menuButton = type === 'commands'
+        ? { type: 'commands' }
+        : { type: 'default' };
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ menu_button: menuButton }),
+        muteHttpExceptions: true
+    };
+
+    try {
+        const response = UrlFetchApp.fetch(url, options);
+        const result = JSON.parse(response.getContentText());
+
+        if (result.ok) {
+            Logger.log('✅ تم تعيين زر القائمة بنجاح!');
+        } else {
+            Logger.log('❌ فشل: ' + result.description);
+        }
+        return result;
+    } catch (error) {
+        Logger.log('❌ خطأ: ' + error.message);
+        return { ok: false, error: error.message };
+    }
+}
+
+/**
+ * إعداد القائمة الكاملة (الأوامر + الزر)
+ * شغّل هذه الدالة مرة واحدة لإظهار قائمة الأوامر
+ */
+function setupBotMenu() {
+    Logger.log('🔄 إعداد قائمة البوت...\n');
+
+    // 1. تسجيل الأوامر
+    Logger.log('1️⃣ تسجيل الأوامر:');
+    const commandsResult = setBotCommands();
+
+    // 2. تعيين زر القائمة
+    Logger.log('\n2️⃣ تعيين زر القائمة:');
+    const menuResult = setChatMenuButton('commands');
+
+    // 3. التحقق
+    Logger.log('\n3️⃣ التحقق من الأوامر المسجلة:');
+    getMyCommands();
+
+    if (commandsResult.ok && menuResult.ok) {
+        Logger.log('\n✅ تم إعداد القائمة بالكامل!');
+        Logger.log('📱 أغلق محادثة البوت وأعد فتحها لرؤية التغييرات.');
+    } else {
+        Logger.log('\n⚠️ حدث خطأ في بعض الخطوات');
+    }
+}
+
 // ==================== Webhook ====================
 
 /**
