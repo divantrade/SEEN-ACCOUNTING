@@ -427,17 +427,9 @@ function getWebhookInfo() {
  */
 // ==================== Debugging Helper ====================
 function logToSheet(message) {
-    try {
-        const ss = SpreadsheetApp.getActiveSpreadsheet();
-        let sheet = ss.getSheetByName('BotLogs');
-        if (!sheet) {
-            sheet = ss.insertSheet('BotLogs');
-            sheet.appendRow(['Timestamp', 'Message']);
-        }
-        sheet.appendRow([new Date(), message]);
-    } catch (e) {
-        // Fail silently if sheet access fails
-    }
+    // ⚠️ تم إيقاف الكتابة في الشيت لأنها تسبب بطء شديد وتوقف البوت (Timeout)
+    // ⚡️ نستخدم console.log بدلاً منها (سريع جداً)
+    console.log(message);
 }
 
 function doPost(e) {
