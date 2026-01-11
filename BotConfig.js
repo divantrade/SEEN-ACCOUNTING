@@ -96,6 +96,9 @@ const BOT_CONFIG = {
         START: '/start',
         EXPENSE: '/مصروف',
         REVENUE: '/ايراد',
+        FINANCING: '/تمويل',
+        INSURANCE: '/تأمين',
+        TRANSFER: '/تحويل',
         STATUS: '/حالة',
         HELP: '/مساعدة',
         CANCEL: '/الغاء'
@@ -107,6 +110,9 @@ const BOT_CONFIG = {
         { command: 'start', description: '👋 بدء استخدام البوت' },
         { command: 'expense', description: '📤 تسجيل مصروف جديد' },
         { command: 'revenue', description: '📥 تسجيل إيراد جديد' },
+        { command: 'financing', description: '🏦 تسجيل تمويل (قرض/سداد)' },
+        { command: 'insurance', description: '🔐 تسجيل تأمين (دفع/استرداد)' },
+        { command: 'transfer', description: '🔄 تسجيل تحويل داخلي' },
         { command: 'status', description: '📊 عرض حالة الحركات' },
         { command: 'help', description: '❓ عرض المساعدة' },
         { command: 'cancel', description: '❌ إلغاء العملية' }
