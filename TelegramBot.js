@@ -1009,7 +1009,7 @@ function handleCommand(chatId, command, session) {
             startRevenueFlow(chatId, session);
             break;
 
-        case '/finance':
+        case '/financing':
         case '/تمويل':
             logToSheet('Starting finance flow...');
             startFinanceFlow(chatId, session);
