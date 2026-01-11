@@ -939,6 +939,8 @@ function handleCallbackQuery(callbackQuery) {
     // معالجة حسب نوع البيانات
     if (data.startsWith('nature_')) {
         handleNatureSelection(chatId, messageId, data.replace('nature_', ''), session);
+    } else if (data.startsWith('class_')) {
+        handleClassificationSelection(chatId, messageId, data.replace('class_', ''), session);
     } else if (data.startsWith('project_')) {
         handleProjectSelection(chatId, messageId, data.replace('project_', ''), session);
     } else if (data.startsWith('item_')) {
@@ -957,6 +959,8 @@ function handleCallbackQuery(callbackQuery) {
         handleAttachmentChoice(chatId, messageId, data.replace('attach_', ''), session);
     } else if (data.startsWith('confirm_')) {
         handleConfirmation(chatId, messageId, data.replace('confirm_', ''), session);
+    } else if (data.startsWith('editfield_')) {
+        handleEditFieldSelection(chatId, messageId, data.replace('editfield_', ''), session);
     } else if (data === 'new_party') {
         handleNewPartyRequest(chatId, messageId, session);
     } else if (data === 'edit_resend') {
@@ -972,18 +976,61 @@ function handleCallbackQuery(callbackQuery) {
 function handleNatureSelection(chatId, messageId, nature, session) {
     session.data.nature = nature;
 
-    // تحديد التصنيف تلقائياً
-    if (nature === 'استحقاق مصروف' || nature === 'دفعة مصروف') {
-        session.data.classification = 'مصروفات';
-    } else {
-        session.data.classification = 'إيرادات';
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
+
+    // الانتقال لاختيار التصنيف
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CLASSIFICATION;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, `✅ طبيعة الحركة: *${nature}*`);
+    sendMessage(chatId, '📊 *اختر تصنيف الحركة:*', BOT_CONFIG.KEYBOARDS.CLASSIFICATION, 'Markdown');
+}
+
+/**
+ * معالجة اختيار تصنيف الحركة
+ */
+function handleClassificationSelection(chatId, messageId, classification, session) {
+    session.data.classification = classification;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
     }
 
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PROJECT;
     saveUserSession(chatId, session);
 
-    editMessage(chatId, messageId, `✅ تم اختيار: *${nature}*`);
+    editMessage(chatId, messageId, `✅ تصنيف الحركة: *${classification}*`);
     sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.SELECT_PROJECT, null, 'Markdown');
+}
+
+/**
+ * عرض شاشة اختيار الحقل للتعديل (مساعدة)
+ */
+function showEditFieldSelection(chatId, messageId, session) {
+    let summary = '✏️ *تعديل الحركة*\n';
+    summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
+    summary += '📋 *البيانات المحدّثة:*\n\n';
+    summary += `📤 *طبيعة الحركة:* ${session.data.nature || '-'}\n`;
+    summary += `📊 *التصنيف:* ${session.data.classification || '-'}\n`;
+    summary += `🎬 *المشروع:* ${session.data.projectName || '-'}\n`;
+    summary += `📁 *البند:* ${session.data.item || '-'}\n`;
+    summary += `👤 *الطرف:* ${session.data.partyName || '-'}\n`;
+    summary += `💰 *المبلغ:* ${session.data.amount || 0} ${session.data.currency || 'USD'}\n`;
+    summary += `📝 *التفاصيل:* ${session.data.details || '-'}\n\n`;
+    summary += '━━━━━━━━━━━━━━━━━━━━\n';
+    summary += '👇 *اختر حقل آخر للتعديل أو أرسل:*';
+
+    editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
 }
 
 /**
@@ -1470,6 +1517,7 @@ function handleEditAndResend(chatId, messageId, session) {
 
         let rejectedTransaction = null;
         let rejectedRowIndex = -1;
+        let rejectionReason = '';
 
         // البحث من الأحدث للأقدم
         for (let i = data.length - 1; i >= 1; i--) {
@@ -1480,6 +1528,7 @@ function handleEditAndResend(chatId, messageId, session) {
             if (rowChatId === String(chatId) && status === CONFIG.TELEGRAM_BOT.REVIEW_STATUS.REJECTED) {
                 rejectedTransaction = row;
                 rejectedRowIndex = i + 1;
+                rejectionReason = row[columns.REVIEW_NOTES.index - 1] || '';
                 break;
             }
         }
@@ -1507,30 +1556,179 @@ function handleEditAndResend(chatId, messageId, session) {
             customDate: rejectedTransaction[columns.CUSTOM_DATE.index - 1],
             attachmentUrl: rejectedTransaction[columns.ATTACHMENT_URL.index - 1],
             isNewParty: rejectedTransaction[columns.IS_NEW_PARTY.index - 1] === 'نعم',
-            originalRejectedRow: rejectedRowIndex
+            originalRejectedRow: rejectedRowIndex,
+            isEditMode: true
         };
 
-        // بدء عملية التعديل - نبدأ من اختيار طبيعة الحركة
-        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+        // الانتقال لوضع التعديل التفاعلي
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
         saveUserSession(chatId, session);
 
-        editMessage(chatId, messageId, '✏️ *تعديل الحركة المرفوضة*\n\nسيتم استعادة بيانات الحركة. يمكنك تعديل ما تريد.');
+        // عرض ملخص البيانات مع أزرار اختيار الحقل
+        let summary = '✏️ *تعديل الحركة المرفوضة*\n';
+        summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
 
-        // إرسال ملخص البيانات الحالية
-        let summary = '📋 *البيانات الحالية:*\n\n';
-        summary += `• النوع: ${session.data.nature}\n`;
-        summary += `• المشروع: ${session.data.projectName || '-'}\n`;
-        summary += `• البند: ${session.data.item || '-'}\n`;
-        summary += `• الطرف: ${session.data.partyName}\n`;
-        summary += `• المبلغ: ${session.data.amount} ${session.data.currency}\n`;
-        summary += `• التفاصيل: ${session.data.details || '-'}\n\n`;
-        summary += '👇 اختر طبيعة الحركة (أو اضغط نفس الخيار للإبقاء عليه):';
+        if (rejectionReason) {
+            summary += `❌ *سبب الرفض:* ${rejectionReason}\n\n`;
+        }
 
-        sendMessage(chatId, summary, BOT_CONFIG.KEYBOARDS.TRANSACTION_TYPE, 'Markdown');
+        summary += '📋 *البيانات الحالية:*\n\n';
+        summary += `📤 *طبيعة الحركة:* ${session.data.nature || '-'}\n`;
+        summary += `📊 *التصنيف:* ${session.data.classification || '-'}\n`;
+        summary += `🎬 *المشروع:* ${session.data.projectName || '-'}\n`;
+        summary += `📁 *البند:* ${session.data.item || '-'}\n`;
+        summary += `👤 *الطرف:* ${session.data.partyName || '-'}\n`;
+        summary += `💰 *المبلغ:* ${session.data.amount || 0} ${session.data.currency || 'USD'}\n`;
+        summary += `📝 *التفاصيل:* ${session.data.details || '-'}\n\n`;
+        summary += '━━━━━━━━━━━━━━━━━━━━\n';
+        summary += '👇 *اختر الحقل الذي تريد تعديله:*';
+
+        editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
 
     } catch (error) {
         Logger.log('Error in handleEditAndResend: ' + error.message);
         sendMessage(chatId, '❌ حدث خطأ أثناء استعادة البيانات. حاول مرة أخرى.');
+    }
+}
+
+/**
+ * معالجة اختيار الحقل للتعديل
+ */
+function handleEditFieldSelection(chatId, messageId, field, session) {
+    try {
+        if (field === 'submit') {
+            // إرسال الحركة المعدلة
+            submitEditedTransaction(chatId, messageId, session);
+            return;
+        }
+
+        session.editingField = field;
+        saveUserSession(chatId, session);
+
+        switch (field) {
+            case 'nature':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `📤 *طبيعة الحركة الحالية:* ${session.data.nature || '-'}\n\n👇 اختر الطبيعة الجديدة:`,
+                    BOT_CONFIG.KEYBOARDS.TRANSACTION_TYPE, 'Markdown');
+                break;
+
+            case 'classification':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CLASSIFICATION;
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `📊 *التصنيف الحالي:* ${session.data.classification || '-'}\n\n👇 اختر التصنيف الجديد:`,
+                    BOT_CONFIG.KEYBOARDS.CLASSIFICATION, 'Markdown');
+                break;
+
+            case 'project':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PROJECT;
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `🎬 *المشروع الحالي:* ${session.data.projectName || '-'}\n\n✍️ اكتب اسم المشروع للبحث:`);
+                break;
+
+            case 'item':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ITEM;
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `📁 *البند الحالي:* ${session.data.item || '-'}\n\n✍️ اكتب اسم البند للبحث:`);
+                break;
+
+            case 'party':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PARTY;
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `👤 *الطرف الحالي:* ${session.data.partyName || '-'}\n\n✍️ اكتب اسم الطرف للبحث:`);
+                break;
+
+            case 'amount':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `💰 *المبلغ الحالي:* ${session.data.amount || 0} ${session.data.currency || 'USD'}\n\n✍️ اكتب المبلغ الجديد (رقم فقط):`);
+                break;
+
+            case 'currency':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
+                session.editingField = 'currency_only';
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `💱 *العملة الحالية:* ${session.data.currency || 'USD'}\n\n👇 اختر العملة الجديدة:`,
+                    BOT_CONFIG.KEYBOARDS.CURRENCY, 'Markdown');
+                break;
+
+            case 'details':
+                session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_VALUE;
+                session.editingField = 'details';
+                saveUserSession(chatId, session);
+                editMessage(chatId, messageId, `📝 *التفاصيل الحالية:* ${session.data.details || '-'}\n\n✍️ اكتب التفاصيل الجديدة:`);
+                break;
+
+            default:
+                sendMessage(chatId, '❌ حقل غير معروف');
+        }
+
+    } catch (error) {
+        Logger.log('Error in handleEditFieldSelection: ' + error.message);
+        sendMessage(chatId, '❌ حدث خطأ. حاول مرة أخرى.');
+    }
+}
+
+/**
+ * إرسال الحركة المعدلة
+ */
+function submitEditedTransaction(chatId, messageId, session) {
+    try {
+        // تحديث حالة الحركة القديمة إلى "معدّل"
+        if (session.data.originalRejectedRow) {
+            const sheet = getBotTransactionsSheet();
+            const columns = BOT_CONFIG.BOT_TRANSACTIONS_COLUMNS;
+            sheet.getRange(session.data.originalRejectedRow, columns.REVIEW_STATUS.index).setValue('📝 تم التعديل');
+        }
+
+        // إزالة علامات التعديل
+        delete session.data.originalRejectedRow;
+        delete session.data.isEditMode;
+        delete session.editingField;
+
+        // حفظ كحركة جديدة
+        const transactionData = {
+            date: new Date(),
+            nature: session.data.nature,
+            classification: session.data.classification,
+            projectCode: session.data.projectCode,
+            projectName: session.data.projectName,
+            item: session.data.item,
+            details: session.data.details,
+            partyName: session.data.partyName,
+            amount: session.data.amount,
+            currency: session.data.currency,
+            exchangeRate: session.data.exchangeRate || 1,
+            paymentMethod: session.data.paymentMethod,
+            paymentTermType: session.data.paymentTermType || 'فوري',
+            weeks: session.data.weeks,
+            customDate: session.data.customDate,
+            telegramUser: session.userName,
+            chatId: chatId,
+            attachmentUrl: session.data.attachmentUrl,
+            isNewParty: session.data.isNewParty
+        };
+
+        const result = addBotTransaction(transactionData);
+
+        if (result.success) {
+            editMessage(chatId, messageId,
+                `✅ *تم إعادة إرسال الحركة بنجاح!*\n\n` +
+                `🔖 رقم الحركة: *${result.transactionId}*\n\n` +
+                `الحركة الآن في انتظار المراجعة.`,
+                null, 'Markdown');
+
+            // إشعار المحاسب
+            notifyAccountant(transactionData, result.transactionId);
+
+            resetSession(chatId);
+        } else {
+            sendMessage(chatId, '❌ حدث خطأ أثناء حفظ الحركة. حاول مرة أخرى.');
+        }
+
+    } catch (error) {
+        Logger.log('Error in submitEditedTransaction: ' + error.message);
+        sendMessage(chatId, '❌ حدث خطأ. حاول مرة أخرى.');
     }
 }
 

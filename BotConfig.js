@@ -105,6 +105,7 @@ const BOT_CONFIG = {
     CONVERSATION_STATES: {
         IDLE: 'idle',
         WAITING_NATURE: 'waiting_nature',
+        WAITING_CLASSIFICATION: 'waiting_classification',
         WAITING_PROJECT: 'waiting_project',
         WAITING_ITEM: 'waiting_item',
         WAITING_PARTY: 'waiting_party',
@@ -124,7 +125,7 @@ const BOT_CONFIG = {
 
     // ==================== أنماط Inline Keyboard ====================
     KEYBOARDS: {
-        // لوحة اختيار نوع الحركة
+        // لوحة اختيار طبيعة الحركة (محدّثة)
         TRANSACTION_TYPE: {
             inline_keyboard: [
                 [
@@ -134,6 +135,77 @@ const BOT_CONFIG = {
                 [
                     { text: '📥 استحقاق إيراد', callback_data: 'nature_استحقاق إيراد' },
                     { text: '💰 تحصيل إيراد', callback_data: 'nature_تحصيل إيراد' }
+                ],
+                [
+                    { text: '🏦 تمويل (دخول قرض)', callback_data: 'nature_تمويل (دخول قرض)' },
+                    { text: '💳 سداد تمويل', callback_data: 'nature_سداد تمويل' }
+                ],
+                [
+                    { text: '🔒 تأمين مدفوع للقناة', callback_data: 'nature_تأمين مدفوع للقناة' },
+                    { text: '🔓 استرداد تأمين من القناة', callback_data: 'nature_استرداد تأمين من القناة' }
+                ],
+                [
+                    { text: '🔄 تحويل داخلي', callback_data: 'nature_تحويل داخلي' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        // لوحة اختيار تصنيف الحركة (جديد)
+        CLASSIFICATION: {
+            inline_keyboard: [
+                [
+                    { text: '📊 مصروفات مباشرة', callback_data: 'class_مصروفات مباشرة' },
+                    { text: '🏢 مصروفات عمومية', callback_data: 'class_مصروفات عمومية' }
+                ],
+                [
+                    { text: '💵 ايراد', callback_data: 'class_ايراد' }
+                ],
+                [
+                    { text: '🏦 تمويل طويل الأجل', callback_data: 'class_تمويل طويل الأجل' },
+                    { text: '💳 سداد تمويل طويل الأجل', callback_data: 'class_سداد تمويل طويل الأجل' }
+                ],
+                [
+                    { text: '💸 سلفة قصيرة', callback_data: 'class_سلفة قصيرة' },
+                    { text: '💰 سداد سلفة قصيرة', callback_data: 'class_سداد سلفة قصيرة' }
+                ],
+                [
+                    { text: '🔒 تأمين', callback_data: 'class_تأمين' },
+                    { text: '🔓 استرداد تأمين', callback_data: 'class_استرداد تأمين' }
+                ],
+                [
+                    { text: '🏦 تحويل للبنك', callback_data: 'class_تحويل للبنك' },
+                    { text: '💵 تحويل للخزنة', callback_data: 'class_تحويل للخزنة' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        // لوحة اختيار الحقل للتعديل (جديد)
+        EDIT_FIELD_SELECT: {
+            inline_keyboard: [
+                [
+                    { text: '📤 طبيعة الحركة', callback_data: 'editfield_nature' },
+                    { text: '📊 تصنيف الحركة', callback_data: 'editfield_classification' }
+                ],
+                [
+                    { text: '🎬 المشروع', callback_data: 'editfield_project' },
+                    { text: '📁 البند', callback_data: 'editfield_item' }
+                ],
+                [
+                    { text: '👤 الطرف', callback_data: 'editfield_party' },
+                    { text: '💰 المبلغ', callback_data: 'editfield_amount' }
+                ],
+                [
+                    { text: '💱 العملة', callback_data: 'editfield_currency' },
+                    { text: '📝 التفاصيل', callback_data: 'editfield_details' }
+                ],
+                [
+                    { text: '✅ إرسال بدون تعديل', callback_data: 'editfield_submit' }
                 ],
                 [
                     { text: '❌ إلغاء', callback_data: 'cancel' }
