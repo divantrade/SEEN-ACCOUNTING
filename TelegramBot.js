@@ -1310,6 +1310,10 @@ function handleTextInput(chatId, text, session) {
             handleCustomDateInput(chatId, text, session);
             break;
 
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_VALUE:
+            handleEditValueInput(chatId, text, session);
+            break;
+
         default:
             sendMessage(chatId, '[v5.0 DEBUG] ❓ أمر غير معروف\n\nتأكد من كتابة الأمر بشكل صحيح (مثال: /expense)');
     }
@@ -1453,9 +1457,25 @@ function handleClassificationSelection(chatId, messageId, classification, sessio
 }
 
 /**
- * عرض شاشة اختيار الحقل للتعديل (مساعدة)
+ * عرض شاشة اختيار الحقل للتعديل (باستخدام editMessage)
  */
 function showEditFieldSelection(chatId, messageId, session) {
+    const summary = buildEditSummary(session);
+    editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+}
+
+/**
+ * عرض شاشة اختيار الحقل للتعديل (كرسالة جديدة)
+ */
+function showEditFieldSelectionAsNewMessage(chatId, session) {
+    const summary = buildEditSummary(session);
+    sendMessage(chatId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+}
+
+/**
+ * بناء نص ملخص التعديل
+ */
+function buildEditSummary(session) {
     let summary = '✏️ *تعديل الحركة*\n';
     summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
     summary += '📋 *البيانات المحدّثة:*\n\n';
@@ -1468,8 +1488,24 @@ function showEditFieldSelection(chatId, messageId, session) {
     summary += `📝 *التفاصيل:* ${session.data.details || '-'}\n\n`;
     summary += '━━━━━━━━━━━━━━━━━━━━\n';
     summary += '👇 *اختر حقل آخر للتعديل أو أرسل:*';
+    return summary;
+}
 
-    editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+/**
+ * معالجة إدخال قيمة في وضع التعديل
+ */
+function handleEditValueInput(chatId, text, session) {
+    const field = session.editingField;
+
+    if (field === 'details') {
+        session.data.details = text;
+        sendMessage(chatId, `✅ تم تحديث التفاصيل`);
+    }
+
+    // العودة لشاشة اختيار الحقل
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+    saveUserSession(chatId, session);
+    showEditFieldSelectionAsNewMessage(chatId, session);
 }
 
 /**
@@ -1503,6 +1539,15 @@ function handleProjectSelection(chatId, messageId, projectCode, session) {
     if (project) {
         session.data.projectCode = project.code;
         session.data.projectName = project.name;
+
+        // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+        if (session.data.isEditMode) {
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+            saveUserSession(chatId, session);
+            showEditFieldSelection(chatId, messageId, session);
+            return;
+        }
+
         session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ITEM;
         saveUserSession(chatId, session);
 
@@ -1538,6 +1583,15 @@ function handleItemSearch(chatId, searchText, session) {
  */
 function handleItemSelection(chatId, messageId, itemName, session) {
     session.data.item = itemName;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PARTY;
     saveUserSession(chatId, session);
 
@@ -1583,6 +1637,15 @@ function handlePartySearch(chatId, searchText, session) {
 function handlePartySelection(chatId, messageId, partyName, session) {
     session.data.partyName = partyName;
     session.data.isNewParty = false;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
     saveUserSession(chatId, session);
 
@@ -1629,6 +1692,17 @@ function handleAmountInput(chatId, text, session) {
     }
 
     session.data.amount = amount;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل (نحتفظ بالعملة الحالية)
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        sendMessage(chatId, `✅ تم تحديث المبلغ: *${amount} ${session.data.currency || 'USD'}*`, null, 'Markdown');
+        // نرسل شاشة اختيار الحقل كرسالة جديدة
+        showEditFieldSelectionAsNewMessage(chatId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT; // نفس الحالة للعملة
     saveUserSession(chatId, session);
 
@@ -1641,6 +1715,26 @@ function handleAmountInput(chatId, text, session) {
  */
 function handleCurrencySelection(chatId, messageId, currency, session) {
     session.data.currency = currency;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        if (currency !== 'USD' && !session.data.exchangeRate) {
+            // نحتاج سعر صرف للعملات غير الدولار
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EXCHANGE_RATE;
+            session.editingField = 'exchange_rate_for_edit';
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, `✅ العملة: *${currency}*`);
+            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_EXCHANGE_RATE, null, 'Markdown');
+            return;
+        }
+        if (currency === 'USD') {
+            session.data.exchangeRate = 1;
+        }
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
 
     if (currency === 'USD') {
         session.data.exchangeRate = 1;
@@ -1670,6 +1764,16 @@ function handleExchangeRateInput(chatId, text, session) {
     }
 
     session.data.exchangeRate = rate;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        sendMessage(chatId, `✅ تم تحديث سعر الصرف: *${rate}*`, null, 'Markdown');
+        showEditFieldSelectionAsNewMessage(chatId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_DETAILS;
     saveUserSession(chatId, session);
 
