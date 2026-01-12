@@ -2465,12 +2465,11 @@ function submitEditedTransaction(chatId, messageId, session) {
         Logger.log('submitEditedTransaction started for chatId: ' + chatId);
         Logger.log('Session data: ' + JSON.stringify(session.data));
 
-        // تحديث حالة الحركة القديمة إلى "معدّل"
+        // حذف الحركة القديمة المرفوضة (لأنه سيتم إنشاء حركة جديدة)
         if (session.data.originalRejectedRow) {
             const sheet = getBotTransactionsSheet();
-            const columns = BOT_CONFIG.BOT_TRANSACTIONS_COLUMNS;
-            sheet.getRange(session.data.originalRejectedRow, columns.REVIEW_STATUS.index).setValue('📝 تم التعديل');
-            Logger.log('Updated original row status: ' + session.data.originalRejectedRow);
+            sheet.deleteRow(session.data.originalRejectedRow);
+            Logger.log('Deleted original rejected row: ' + session.data.originalRejectedRow);
         }
 
         // إزالة علامات التعديل
@@ -2565,12 +2564,9 @@ function handleDeleteRejected(chatId, messageId, session) {
             return;
         }
 
-        // تحديث حالة الحركة إلى "محذوف" بدلاً من حذفها فعلياً
-        sheet.getRange(rejectedRowIndex, columns.REVIEW_STATUS.index).setValue('🗑️ محذوف');
-        sheet.getRange(rejectedRowIndex, columns.REVIEW_NOTES.index).setValue(
-            (sheet.getRange(rejectedRowIndex, columns.REVIEW_NOTES.index).getValue() || '') +
-            ' | حذف نهائي بواسطة المستخدم'
-        );
+        // حذف الصف فعلياً من الشيت
+        sheet.deleteRow(rejectedRowIndex);
+        Logger.log('Deleted rejected row: ' + rejectedRowIndex);
 
         editMessage(chatId, messageId,
             `🗑️ *تم الحذف النهائي*\n\n` +
