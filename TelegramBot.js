@@ -148,7 +148,6 @@ function setBotCommands() {
     const token = getBotToken();
 
     // الأوامر بالإنجليزية للقائمة (تليجرام لا يقبل العربية هنا)
-    // لكن المستخدم يمكنه كتابة /مصروف أو /expense - كلاهما يعمل
     const commands = [
         { command: 'start', description: '🏠 البداية' },
         { command: 'expense', description: '📤 مصروف جديد' },
@@ -177,7 +176,6 @@ function setBotCommands() {
         if (result.ok) {
             Logger.log('✅ تم تسجيل الأوامر بنجاح!');
             Logger.log('الأوامر المسجلة: ' + commands.map(c => '/' + c.command).join(', '));
-            Logger.log('💡 ملاحظة: يمكن للمستخدم كتابة الأوامر بالعربية أيضاً (مثل /مصروف)');
         } else {
             Logger.log('❌ فشل تسجيل الأوامر: ' + result.description);
         }
@@ -187,6 +185,97 @@ function setBotCommands() {
         Logger.log('❌ خطأ: ' + error.message);
         return { ok: false, error: error.message };
     }
+}
+
+/**
+ * إعادة تعيين القائمة بالكامل - يحذف كل شيء ويبدأ من جديد
+ * جرّب هذه الدالة إذا القائمة لا تظهر
+ */
+function resetBotMenuCompletely() {
+    const token = getBotToken();
+
+    Logger.log('🔄 إعادة تعيين قائمة البوت بالكامل...\n');
+
+    // الأوامر
+    const commands = [
+        { command: 'start', description: '🏠 البداية' },
+        { command: 'expense', description: '📤 مصروف جديد' },
+        { command: 'revenue', description: '📥 إيراد جديد' },
+        { command: 'finance', description: '🏦 تمويل (قرض/سداد)' },
+        { command: 'insurance', description: '🔐 تأمين (دفع/استرداد)' },
+        { command: 'transfer', description: '🔄 تحويل داخلي' },
+        { command: 'status', description: '📊 حالة حركاتك' },
+        { command: 'help', description: '❓ المساعدة' },
+        { command: 'cancel', description: '❌ إلغاء' }
+    ];
+
+    // 1. حذف جميع الأوامر من كل النطاقات
+    Logger.log('1️⃣ حذف الأوامر القديمة...');
+    const scopes = [
+        { type: 'default' },
+        { type: 'all_private_chats' },
+        { type: 'all_group_chats' }
+    ];
+
+    scopes.forEach(scope => {
+        try {
+            UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/deleteMyCommands`, {
+                method: 'post',
+                contentType: 'application/json',
+                payload: JSON.stringify({ scope: scope }),
+                muteHttpExceptions: true
+            });
+            Logger.log('   ✓ حذف من: ' + scope.type);
+        } catch(e) {}
+    });
+
+    // 2. تسجيل الأوامر للنطاق الافتراضي
+    Logger.log('\n2️⃣ تسجيل الأوامر (default scope)...');
+    let result1 = UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ commands: commands }),
+        muteHttpExceptions: true
+    });
+    Logger.log('   ' + (JSON.parse(result1.getContentText()).ok ? '✓ نجح' : '✗ فشل'));
+
+    // 3. تسجيل الأوامر للمحادثات الخاصة
+    Logger.log('\n3️⃣ تسجيل الأوامر (private chats)...');
+    let result2 = UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({
+            commands: commands,
+            scope: { type: 'all_private_chats' }
+        }),
+        muteHttpExceptions: true
+    });
+    Logger.log('   ' + (JSON.parse(result2.getContentText()).ok ? '✓ نجح' : '✗ فشل'));
+
+    // 4. تعيين زر القائمة
+    Logger.log('\n4️⃣ تعيين زر القائمة...');
+    let result3 = UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ menu_button: { type: 'commands' } }),
+        muteHttpExceptions: true
+    });
+    Logger.log('   ' + (JSON.parse(result3.getContentText()).ok ? '✓ نجح' : '✗ فشل'));
+
+    // 5. التحقق النهائي
+    Logger.log('\n5️⃣ التحقق النهائي...');
+    let verify = UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/getMyCommands`, {
+        muteHttpExceptions: true
+    });
+    let verifyResult = JSON.parse(verify.getContentText());
+    if (verifyResult.ok && verifyResult.result.length > 0) {
+        Logger.log('   ✓ الأوامر مسجلة: ' + verifyResult.result.length);
+    }
+
+    Logger.log('\n✅ تم! الآن:');
+    Logger.log('   1. احذف محادثة البوت من تليجرام');
+    Logger.log('   2. ابحث عن البوت من جديد');
+    Logger.log('   3. اضغط Start');
 }
 
 /**
