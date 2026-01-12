@@ -1310,6 +1310,14 @@ function handleTextInput(chatId, text, session) {
             handleCustomDateInput(chatId, text, session);
             break;
 
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_VALUE:
+            handleEditValueInput(chatId, text, session);
+            break;
+
+        case BOT_CONFIG.CONVERSATION_STATES.WAITING_SEQUENTIAL_EDIT:
+            handleSequentialTextInput(chatId, text, session);
+            break;
+
         default:
             sendMessage(chatId, '[v5.0 DEBUG] ❓ أمر غير معروف\n\nتأكد من كتابة الأمر بشكل صحيح (مثال: /expense)');
     }
@@ -1375,6 +1383,14 @@ function handleCallbackQuery(callbackQuery) {
         handleEditAndResend(chatId, messageId, session);
     } else if (data === 'edit_delete') {
         handleDeleteRejected(chatId, messageId, session);
+    } else if (data === 'seq_edit') {
+        handleSequentialEdit(chatId, messageId, session);
+    } else if (data === 'seq_skip') {
+        handleSequentialSkip(chatId, messageId, session);
+    } else if (data === 'seq_submit') {
+        submitEditedTransaction(chatId, messageId, session);
+    } else if (data === 'seq_restart') {
+        restartSequentialEdit(chatId, messageId, session);
     }
 }
 
@@ -1412,6 +1428,13 @@ function getClassificationKeyboard(nature) {
 function handleNatureSelection(chatId, messageId, nature, session) {
     session.data.nature = nature;
 
+    // إذا كنا في وضع التعديل التسلسلي
+    if (session.data.editFieldIndex !== undefined) {
+        editMessage(chatId, messageId, `✅ تم تعديل طبيعة الحركة: *${nature}*`);
+        moveToNextSequentialField(chatId, session);
+        return;
+    }
+
     // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
     if (session.data.isEditMode) {
         session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
@@ -1437,6 +1460,13 @@ function handleNatureSelection(chatId, messageId, nature, session) {
 function handleClassificationSelection(chatId, messageId, classification, session) {
     session.data.classification = classification;
 
+    // إذا كنا في وضع التعديل التسلسلي
+    if (session.data.editFieldIndex !== undefined) {
+        editMessage(chatId, messageId, `✅ تم تعديل التصنيف: *${classification}*`);
+        moveToNextSequentialField(chatId, session);
+        return;
+    }
+
     // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
     if (session.data.isEditMode) {
         session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
@@ -1453,9 +1483,25 @@ function handleClassificationSelection(chatId, messageId, classification, sessio
 }
 
 /**
- * عرض شاشة اختيار الحقل للتعديل (مساعدة)
+ * عرض شاشة اختيار الحقل للتعديل (باستخدام editMessage)
  */
 function showEditFieldSelection(chatId, messageId, session) {
+    const summary = buildEditSummary(session);
+    editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+}
+
+/**
+ * عرض شاشة اختيار الحقل للتعديل (كرسالة جديدة)
+ */
+function showEditFieldSelectionAsNewMessage(chatId, session) {
+    const summary = buildEditSummary(session);
+    sendMessage(chatId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+}
+
+/**
+ * بناء نص ملخص التعديل
+ */
+function buildEditSummary(session) {
     let summary = '✏️ *تعديل الحركة*\n';
     summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
     summary += '📋 *البيانات المحدّثة:*\n\n';
@@ -1468,8 +1514,30 @@ function showEditFieldSelection(chatId, messageId, session) {
     summary += `📝 *التفاصيل:* ${session.data.details || '-'}\n\n`;
     summary += '━━━━━━━━━━━━━━━━━━━━\n';
     summary += '👇 *اختر حقل آخر للتعديل أو أرسل:*';
+    return summary;
+}
 
-    editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+/**
+ * معالجة إدخال قيمة في وضع التعديل
+ */
+function handleEditValueInput(chatId, text, session) {
+    const field = session.editingField;
+
+    if (field === 'details') {
+        session.data.details = text;
+        sendMessage(chatId, `✅ تم تحديث التفاصيل`);
+    }
+
+    // إذا كنا في وضع التعديل التسلسلي
+    if (session.data.editFieldIndex !== undefined) {
+        moveToNextSequentialField(chatId, session);
+        return;
+    }
+
+    // العودة لشاشة اختيار الحقل
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+    saveUserSession(chatId, session);
+    showEditFieldSelectionAsNewMessage(chatId, session);
 }
 
 /**
@@ -1503,6 +1571,22 @@ function handleProjectSelection(chatId, messageId, projectCode, session) {
     if (project) {
         session.data.projectCode = project.code;
         session.data.projectName = project.name;
+
+        // إذا كنا في وضع التعديل التسلسلي
+        if (session.data.editFieldIndex !== undefined) {
+            editMessage(chatId, messageId, `✅ تم تعديل المشروع: *${project.name}*`);
+            moveToNextSequentialField(chatId, session);
+            return;
+        }
+
+        // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+        if (session.data.isEditMode) {
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+            saveUserSession(chatId, session);
+            showEditFieldSelection(chatId, messageId, session);
+            return;
+        }
+
         session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ITEM;
         saveUserSession(chatId, session);
 
@@ -1538,6 +1622,22 @@ function handleItemSearch(chatId, searchText, session) {
  */
 function handleItemSelection(chatId, messageId, itemName, session) {
     session.data.item = itemName;
+
+    // إذا كنا في وضع التعديل التسلسلي
+    if (session.data.editFieldIndex !== undefined) {
+        editMessage(chatId, messageId, `✅ تم تعديل البند: *${itemName}*`);
+        moveToNextSequentialField(chatId, session);
+        return;
+    }
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PARTY;
     saveUserSession(chatId, session);
 
@@ -1583,6 +1683,22 @@ function handlePartySearch(chatId, searchText, session) {
 function handlePartySelection(chatId, messageId, partyName, session) {
     session.data.partyName = partyName;
     session.data.isNewParty = false;
+
+    // إذا كنا في وضع التعديل التسلسلي
+    if (session.data.editFieldIndex !== undefined) {
+        editMessage(chatId, messageId, `✅ تم تعديل الطرف: *${partyName}*`);
+        moveToNextSequentialField(chatId, session);
+        return;
+    }
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
     saveUserSession(chatId, session);
 
@@ -1629,6 +1745,24 @@ function handleAmountInput(chatId, text, session) {
     }
 
     session.data.amount = amount;
+
+    // إذا كنا في وضع التعديل التسلسلي
+    if (session.data.editFieldIndex !== undefined) {
+        sendMessage(chatId, `✅ تم تعديل المبلغ: *${amount} ${session.data.currency || 'USD'}*`, null, 'Markdown');
+        moveToNextSequentialField(chatId, session);
+        return;
+    }
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل (نحتفظ بالعملة الحالية)
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        sendMessage(chatId, `✅ تم تحديث المبلغ: *${amount} ${session.data.currency || 'USD'}*`, null, 'Markdown');
+        // نرسل شاشة اختيار الحقل كرسالة جديدة
+        showEditFieldSelectionAsNewMessage(chatId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT; // نفس الحالة للعملة
     saveUserSession(chatId, session);
 
@@ -1641,6 +1775,26 @@ function handleAmountInput(chatId, text, session) {
  */
 function handleCurrencySelection(chatId, messageId, currency, session) {
     session.data.currency = currency;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        if (currency !== 'USD' && !session.data.exchangeRate) {
+            // نحتاج سعر صرف للعملات غير الدولار
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EXCHANGE_RATE;
+            session.editingField = 'exchange_rate_for_edit';
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, `✅ العملة: *${currency}*`);
+            sendMessage(chatId, BOT_CONFIG.INTERACTIVE_MESSAGES.ENTER_EXCHANGE_RATE, null, 'Markdown');
+            return;
+        }
+        if (currency === 'USD') {
+            session.data.exchangeRate = 1;
+        }
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        showEditFieldSelection(chatId, messageId, session);
+        return;
+    }
 
     if (currency === 'USD') {
         session.data.exchangeRate = 1;
@@ -1670,6 +1824,16 @@ function handleExchangeRateInput(chatId, text, session) {
     }
 
     session.data.exchangeRate = rate;
+
+    // إذا كنا في وضع التعديل، نعود لشاشة اختيار الحقل
+    if (session.data.isEditMode) {
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        saveUserSession(chatId, session);
+        sendMessage(chatId, `✅ تم تحديث سعر الصرف: *${rate}*`, null, 'Markdown');
+        showEditFieldSelectionAsNewMessage(chatId, session);
+        return;
+    }
+
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_DETAILS;
     saveUserSession(chatId, session);
 
@@ -1945,6 +2109,19 @@ function saveTransaction(chatId, session) {
 }
 
 /**
+ * قائمة الحقول للتعديل التسلسلي
+ */
+const SEQUENTIAL_EDIT_FIELDS = [
+    { key: 'nature', label: '📤 طبيعة الحركة', icon: '📤' },
+    { key: 'classification', label: '📊 التصنيف', icon: '📊' },
+    { key: 'project', label: '🎬 المشروع', icon: '🎬' },
+    { key: 'item', label: '📁 البند', icon: '📁' },
+    { key: 'party', label: '👤 الطرف', icon: '👤' },
+    { key: 'amount', label: '💰 المبلغ', icon: '💰' },
+    { key: 'details', label: '📝 التفاصيل', icon: '📝' }
+];
+
+/**
  * معالجة طلب تعديل وإعادة إرسال حركة مرفوضة
  */
 function handleEditAndResend(chatId, messageId, session) {
@@ -1996,38 +2173,208 @@ function handleEditAndResend(chatId, messageId, session) {
             attachmentUrl: rejectedTransaction[columns.ATTACHMENT_URL.index - 1],
             isNewParty: rejectedTransaction[columns.IS_NEW_PARTY.index - 1] === 'نعم',
             originalRejectedRow: rejectedRowIndex,
-            isEditMode: true
+            rejectionReason: rejectionReason,
+            isEditMode: true,
+            editFieldIndex: 0 // نبدأ من الحقل الأول
         };
 
-        // الانتقال لوضع التعديل التفاعلي
-        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_FIELD;
+        // الانتقال لوضع التعديل التسلسلي
+        session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_SEQUENTIAL_EDIT;
         saveUserSession(chatId, session);
 
-        // عرض ملخص البيانات مع أزرار اختيار الحقل
-        let summary = '✏️ *تعديل الحركة المرفوضة*\n';
-        summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
+        // عرض رسالة البداية مع سبب الرفض
+        let intro = '✏️ *تعديل الحركة المرفوضة*\n';
+        intro += '━━━━━━━━━━━━━━━━━━━━\n\n';
 
         if (rejectionReason) {
-            summary += `❌ *سبب الرفض:* ${rejectionReason}\n\n`;
+            intro += `❌ *سبب الرفض:*\n${rejectionReason}\n\n`;
         }
 
-        summary += '📋 *البيانات الحالية:*\n\n';
-        summary += `📤 *طبيعة الحركة:* ${session.data.nature || '-'}\n`;
-        summary += `📊 *التصنيف:* ${session.data.classification || '-'}\n`;
-        summary += `🎬 *المشروع:* ${session.data.projectName || '-'}\n`;
-        summary += `📁 *البند:* ${session.data.item || '-'}\n`;
-        summary += `👤 *الطرف:* ${session.data.partyName || '-'}\n`;
-        summary += `💰 *المبلغ:* ${session.data.amount || 0} ${session.data.currency || 'USD'}\n`;
-        summary += `📝 *التفاصيل:* ${session.data.details || '-'}\n\n`;
-        summary += '━━━━━━━━━━━━━━━━━━━━\n';
-        summary += '👇 *اختر الحقل الذي تريد تعديله:*';
+        intro += '📋 سنراجع كل حقل على حدة.\n';
+        intro += 'يمكنك *تعديل* القيمة أو *تخطيها* كما هي.\n\n';
+        intro += '━━━━━━━━━━━━━━━━━━━━';
 
-        editMessage(chatId, messageId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FIELD_SELECT, 'Markdown');
+        editMessage(chatId, messageId, intro, null, 'Markdown');
+
+        // عرض الحقل الأول
+        showSequentialEditField(chatId, session);
 
     } catch (error) {
         Logger.log('Error in handleEditAndResend: ' + error.message);
         sendMessage(chatId, '❌ حدث خطأ أثناء استعادة البيانات. حاول مرة أخرى.');
     }
+}
+
+/**
+ * عرض الحقل الحالي في التعديل التسلسلي
+ */
+function showSequentialEditField(chatId, session) {
+    const fieldIndex = session.data.editFieldIndex || 0;
+
+    // تحقق إذا انتهينا من كل الحقول
+    if (fieldIndex >= SEQUENTIAL_EDIT_FIELDS.length) {
+        showSequentialEditSummary(chatId, session);
+        return;
+    }
+
+    const field = SEQUENTIAL_EDIT_FIELDS[fieldIndex];
+    const currentValue = getFieldValue(session, field.key);
+
+    let message = `📝 *الحقل ${fieldIndex + 1} من ${SEQUENTIAL_EDIT_FIELDS.length}*\n\n`;
+    message += `${field.icon} *${field.label}:*\n`;
+    message += `┌─────────────────────┐\n`;
+    message += `│  ${currentValue || '(فارغ)'}  \n`;
+    message += `└─────────────────────┘\n\n`;
+    message += '👇 *هل تريد تعديل هذا الحقل؟*';
+
+    sendMessage(chatId, message, BOT_CONFIG.KEYBOARDS.EDIT_OR_SKIP, 'Markdown');
+}
+
+/**
+ * الحصول على قيمة الحقل من الجلسة
+ */
+function getFieldValue(session, fieldKey) {
+    switch (fieldKey) {
+        case 'nature': return session.data.nature;
+        case 'classification': return session.data.classification;
+        case 'project': return session.data.projectName;
+        case 'item': return session.data.item;
+        case 'party': return session.data.partyName;
+        case 'amount': return `${session.data.amount || 0} ${session.data.currency || 'USD'}`;
+        case 'details': return session.data.details;
+        default: return '-';
+    }
+}
+
+/**
+ * معالجة تعديل الحقل في التعديل التسلسلي
+ */
+function handleSequentialEdit(chatId, messageId, session) {
+    const fieldIndex = session.data.editFieldIndex || 0;
+    const field = SEQUENTIAL_EDIT_FIELDS[fieldIndex];
+
+    // تعيين الحقل الذي نعدله
+    session.editingField = field.key;
+    saveUserSession(chatId, session);
+
+    switch (field.key) {
+        case 'nature':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_NATURE;
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, '📤 *اختر طبيعة الحركة الجديدة:*',
+                BOT_CONFIG.KEYBOARDS.TRANSACTION_TYPE, 'Markdown');
+            break;
+
+        case 'classification':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CLASSIFICATION;
+            saveUserSession(chatId, session);
+            const classKeyboard = getClassificationKeyboard(session.data.nature || '');
+            editMessage(chatId, messageId, '📊 *اختر التصنيف الجديد:*',
+                classKeyboard, 'Markdown');
+            break;
+
+        case 'project':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PROJECT;
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, '🎬 *اكتب اسم المشروع للبحث:*');
+            break;
+
+        case 'item':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_ITEM;
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, '📁 *اكتب اسم البند للبحث:*');
+            break;
+
+        case 'party':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_PARTY;
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, '👤 *اكتب اسم الطرف للبحث:*');
+            break;
+
+        case 'amount':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_AMOUNT;
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, '💰 *اكتب المبلغ الجديد (رقم فقط):*');
+            break;
+
+        case 'details':
+            session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_EDIT_VALUE;
+            session.editingField = 'details';
+            saveUserSession(chatId, session);
+            editMessage(chatId, messageId, '📝 *اكتب التفاصيل الجديدة:*');
+            break;
+    }
+}
+
+/**
+ * معالجة تخطي الحقل في التعديل التسلسلي
+ */
+function handleSequentialSkip(chatId, messageId, session) {
+    // الانتقال للحقل التالي
+    session.data.editFieldIndex = (session.data.editFieldIndex || 0) + 1;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_SEQUENTIAL_EDIT;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, '➡️ تم الاحتفاظ بالقيمة الحالية');
+
+    // عرض الحقل التالي
+    showSequentialEditField(chatId, session);
+}
+
+/**
+ * الانتقال للحقل التالي بعد التعديل
+ */
+function moveToNextSequentialField(chatId, session) {
+    session.data.editFieldIndex = (session.data.editFieldIndex || 0) + 1;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_SEQUENTIAL_EDIT;
+    saveUserSession(chatId, session);
+
+    // عرض الحقل التالي
+    showSequentialEditField(chatId, session);
+}
+
+/**
+ * عرض ملخص التعديل النهائي
+ */
+function showSequentialEditSummary(chatId, session) {
+    let summary = '✅ *مراجعة البيانات النهائية*\n';
+    summary += '━━━━━━━━━━━━━━━━━━━━\n\n';
+
+    summary += `📤 *طبيعة الحركة:* ${session.data.nature || '-'}\n`;
+    summary += `📊 *التصنيف:* ${session.data.classification || '-'}\n`;
+    summary += `🎬 *المشروع:* ${session.data.projectName || '-'}\n`;
+    summary += `📁 *البند:* ${session.data.item || '-'}\n`;
+    summary += `👤 *الطرف:* ${session.data.partyName || '-'}\n`;
+    summary += `💰 *المبلغ:* ${session.data.amount || 0} ${session.data.currency || 'USD'}\n`;
+    summary += `📝 *التفاصيل:* ${session.data.details || '-'}\n\n`;
+
+    summary += '━━━━━━━━━━━━━━━━━━━━\n';
+    summary += '👇 *هل تريد إرسال الحركة المعدّلة؟*';
+
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_SEQUENTIAL_EDIT;
+    saveUserSession(chatId, session);
+
+    sendMessage(chatId, summary, BOT_CONFIG.KEYBOARDS.EDIT_FINAL_CONFIRM, 'Markdown');
+}
+
+/**
+ * إعادة بدء التعديل التسلسلي من البداية
+ */
+function restartSequentialEdit(chatId, messageId, session) {
+    session.data.editFieldIndex = 0;
+    session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_SEQUENTIAL_EDIT;
+    saveUserSession(chatId, session);
+
+    editMessage(chatId, messageId, '🔄 إعادة المراجعة من البداية...');
+    showSequentialEditField(chatId, session);
+}
+
+/**
+ * معالجة إدخال نص في وضع التعديل التسلسلي
+ */
+function handleSequentialTextInput(chatId, text, session) {
+    // إذا أدخل المستخدم نصاً أثناء عرض الأزرار، نطلب منه الضغط على زر
+    sendMessage(chatId, '👆 *يرجى استخدام الأزرار أعلاه*\n\nاضغط على "✏️ تعديل" لتعديل القيمة\nأو "➡️ التالي كما هو" للاحتفاظ بها', null, 'Markdown');
 }
 
 /**
