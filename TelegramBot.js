@@ -2345,7 +2345,8 @@ function updateBotCommands() {
     const commands = BOT_CONFIG.COMMAND_LIST;
 
     const payload = {
-        commands: commands
+        commands: commands,
+        scope: { type: "default" }  // تأكيد أن الأوامر للجميع
     };
 
     const options = {
