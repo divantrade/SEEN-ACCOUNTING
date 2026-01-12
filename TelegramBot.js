@@ -1265,7 +1265,7 @@ function startTransferFlow(chatId, session) {
     saveUserSession(chatId, session);
 
     // التحويل الداخلي نوع واحد فقط، ننتقل مباشرة للتصنيف
-    sendMessage(chatId, '🔄 *تسجيل تحويل داخلي*\n\n📊 اختر تصنيف التحويل:', BOT_CONFIG.KEYBOARDS.CLASSIFICATION, 'Markdown');
+    sendMessage(chatId, '🔄 *تسجيل تحويل داخلي*\n\n📊 اختر تصنيف التحويل:', BOT_CONFIG.KEYBOARDS.CLASSIFICATION_TRANSFER, 'Markdown');
 
     session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CLASSIFICATION;
     saveUserSession(chatId, session);
@@ -1379,6 +1379,34 @@ function handleCallbackQuery(callbackQuery) {
 }
 
 /**
+ * الحصول على لوحة التصنيف المناسبة بناءً على طبيعة الحركة
+ */
+function getClassificationKeyboard(nature) {
+    // تصنيفات المصروفات
+    if (nature.includes('مصروف')) {
+        return BOT_CONFIG.KEYBOARDS.CLASSIFICATION_EXPENSE;
+    }
+    // تصنيفات الإيرادات
+    if (nature.includes('إيراد') || nature.includes('ايراد')) {
+        return BOT_CONFIG.KEYBOARDS.CLASSIFICATION_REVENUE;
+    }
+    // تصنيفات التمويل
+    if (nature.includes('تمويل') || nature.includes('سداد تمويل') || nature.includes('سلفة')) {
+        return BOT_CONFIG.KEYBOARDS.CLASSIFICATION_FINANCE;
+    }
+    // تصنيفات التأمين
+    if (nature.includes('تأمين') || nature.includes('استرداد تأمين')) {
+        return BOT_CONFIG.KEYBOARDS.CLASSIFICATION_INSURANCE;
+    }
+    // تصنيفات التحويل
+    if (nature.includes('تحويل')) {
+        return BOT_CONFIG.KEYBOARDS.CLASSIFICATION_TRANSFER;
+    }
+    // الافتراضي - كل التصنيفات
+    return BOT_CONFIG.KEYBOARDS.CLASSIFICATION;
+}
+
+/**
  * معالجة اختيار طبيعة الحركة
  */
 function handleNatureSelection(chatId, messageId, nature, session) {
@@ -1397,7 +1425,10 @@ function handleNatureSelection(chatId, messageId, nature, session) {
     saveUserSession(chatId, session);
 
     editMessage(chatId, messageId, `✅ طبيعة الحركة: *${nature}*`);
-    sendMessage(chatId, '📊 *اختر تصنيف الحركة:*', BOT_CONFIG.KEYBOARDS.CLASSIFICATION, 'Markdown');
+
+    // اختيار لوحة التصنيف المناسبة
+    const classificationKeyboard = getClassificationKeyboard(nature);
+    sendMessage(chatId, '📊 *اختر تصنيف الحركة:*', classificationKeyboard, 'Markdown');
 }
 
 /**
@@ -2024,8 +2055,10 @@ function handleEditFieldSelection(chatId, messageId, field, session) {
             case 'classification':
                 session.state = BOT_CONFIG.CONVERSATION_STATES.WAITING_CLASSIFICATION;
                 saveUserSession(chatId, session);
+                // اختيار لوحة التصنيف المناسبة بناءً على طبيعة الحركة
+                const classKeyboard = getClassificationKeyboard(session.data.nature || '');
                 editMessage(chatId, messageId, `📊 *التصنيف الحالي:* ${session.data.classification || '-'}\n\n👇 اختر التصنيف الجديد:`,
-                    BOT_CONFIG.KEYBOARDS.CLASSIFICATION, 'Markdown');
+                    classKeyboard, 'Markdown');
                 break;
 
             case 'project':

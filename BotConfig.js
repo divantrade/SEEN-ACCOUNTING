@@ -170,7 +170,7 @@ const BOT_CONFIG = {
             ]
         },
 
-        // لوحة اختيار تصنيف الحركة (جديد)
+        // لوحة اختيار تصنيف الحركة - العامة (للتوافق)
         CLASSIFICATION: {
             inline_keyboard: [
                 [
@@ -192,6 +192,70 @@ const BOT_CONFIG = {
                     { text: '🔒 تأمين', callback_data: 'class_تأمين' },
                     { text: '🔓 استرداد تأمين', callback_data: 'class_استرداد تأمين' }
                 ],
+                [
+                    { text: '🏦 تحويل للبنك', callback_data: 'class_تحويل للبنك' },
+                    { text: '💵 تحويل للخزنة', callback_data: 'class_تحويل للخزنة' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        // لوحات التصنيف حسب نوع الحركة
+        CLASSIFICATION_EXPENSE: {
+            inline_keyboard: [
+                [
+                    { text: '📊 مصروفات مباشرة', callback_data: 'class_مصروفات مباشرة' },
+                    { text: '🏢 مصروفات عمومية', callback_data: 'class_مصروفات عمومية' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        CLASSIFICATION_REVENUE: {
+            inline_keyboard: [
+                [
+                    { text: '💵 ايراد', callback_data: 'class_ايراد' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        CLASSIFICATION_FINANCE: {
+            inline_keyboard: [
+                [
+                    { text: '🏦 تمويل طويل الأجل', callback_data: 'class_تمويل طويل الأجل' },
+                    { text: '💳 سداد تمويل طويل الأجل', callback_data: 'class_سداد تمويل طويل الأجل' }
+                ],
+                [
+                    { text: '💸 سلفة قصيرة', callback_data: 'class_سلفة قصيرة' },
+                    { text: '💰 سداد سلفة قصيرة', callback_data: 'class_سداد سلفة قصيرة' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        CLASSIFICATION_INSURANCE: {
+            inline_keyboard: [
+                [
+                    { text: '🔒 تأمين', callback_data: 'class_تأمين' },
+                    { text: '🔓 استرداد تأمين', callback_data: 'class_استرداد تأمين' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        CLASSIFICATION_TRANSFER: {
+            inline_keyboard: [
                 [
                     { text: '🏦 تحويل للبنك', callback_data: 'class_تحويل للبنك' },
                     { text: '💵 تحويل للخزنة', callback_data: 'class_تحويل للخزنة' }
