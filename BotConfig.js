@@ -137,7 +137,8 @@ const BOT_CONFIG = {
         WAITING_ATTACHMENT: 'waiting_attachment',
         WAITING_CONFIRMATION: 'waiting_confirmation',
         WAITING_EDIT_FIELD: 'waiting_edit_field',
-        WAITING_EDIT_VALUE: 'waiting_edit_value'
+        WAITING_EDIT_VALUE: 'waiting_edit_value',
+        WAITING_SEQUENTIAL_EDIT: 'waiting_sequential_edit'
     },
 
     // ==================== أنماط Inline Keyboard ====================
@@ -396,6 +397,32 @@ const BOT_CONFIG = {
                 ],
                 [
                     { text: '🗑️ حذف نهائي', callback_data: 'edit_delete' }
+                ]
+            ]
+        },
+
+        // لوحة تعديل أو تخطي الحقل
+        EDIT_OR_SKIP: {
+            inline_keyboard: [
+                [
+                    { text: '✏️ تعديل', callback_data: 'seq_edit' },
+                    { text: '➡️ التالي كما هو', callback_data: 'seq_skip' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
+                ]
+            ]
+        },
+
+        // لوحة التأكيد النهائي للتعديل
+        EDIT_FINAL_CONFIRM: {
+            inline_keyboard: [
+                [
+                    { text: '✅ إرسال', callback_data: 'seq_submit' },
+                    { text: '🔄 مراجعة من البداية', callback_data: 'seq_restart' }
+                ],
+                [
+                    { text: '❌ إلغاء', callback_data: 'cancel' }
                 ]
             ]
         }
