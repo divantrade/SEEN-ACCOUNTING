@@ -2462,16 +2462,22 @@ function handleEditFieldSelection(chatId, messageId, field, session) {
  */
 function submitEditedTransaction(chatId, messageId, session) {
     try {
+        Logger.log('submitEditedTransaction started for chatId: ' + chatId);
+        Logger.log('Session data: ' + JSON.stringify(session.data));
+
         // تحديث حالة الحركة القديمة إلى "معدّل"
         if (session.data.originalRejectedRow) {
             const sheet = getBotTransactionsSheet();
             const columns = BOT_CONFIG.BOT_TRANSACTIONS_COLUMNS;
             sheet.getRange(session.data.originalRejectedRow, columns.REVIEW_STATUS.index).setValue('📝 تم التعديل');
+            Logger.log('Updated original row status: ' + session.data.originalRejectedRow);
         }
 
         // إزالة علامات التعديل
         delete session.data.originalRejectedRow;
         delete session.data.isEditMode;
+        delete session.data.editFieldIndex;
+        delete session.data.rejectionReason;
         delete session.editingField;
 
         // حفظ كحركة جديدة
@@ -2485,7 +2491,7 @@ function submitEditedTransaction(chatId, messageId, session) {
             details: session.data.details,
             partyName: session.data.partyName,
             amount: session.data.amount,
-            currency: session.data.currency,
+            currency: session.data.currency || 'USD',
             exchangeRate: session.data.exchangeRate || 1,
             paymentMethod: session.data.paymentMethod,
             paymentTermType: session.data.paymentTermType || 'فوري',
@@ -2497,10 +2503,16 @@ function submitEditedTransaction(chatId, messageId, session) {
             isNewParty: session.data.isNewParty
         };
 
+        Logger.log('Transaction data prepared: ' + JSON.stringify(transactionData));
+
         const result = addBotTransaction(transactionData);
+        Logger.log('addBotTransaction result: ' + JSON.stringify(result));
 
         if (result.success) {
-            editMessage(chatId, messageId,
+            // إزالة لوحة المفاتيح من الرسالة السابقة
+            editMessage(chatId, messageId, '⏳ جاري الإرسال...');
+
+            sendMessage(chatId,
                 `✅ *تم إعادة إرسال الحركة بنجاح!*\n\n` +
                 `🔖 رقم الحركة: *${result.transactionId}*\n\n` +
                 `الحركة الآن في انتظار المراجعة.`,
@@ -2511,12 +2523,14 @@ function submitEditedTransaction(chatId, messageId, session) {
 
             resetSession(chatId);
         } else {
+            Logger.log('addBotTransaction returned success: false');
             sendMessage(chatId, '❌ حدث خطأ أثناء حفظ الحركة. حاول مرة أخرى.');
         }
 
     } catch (error) {
         Logger.log('Error in submitEditedTransaction: ' + error.message);
-        sendMessage(chatId, '❌ حدث خطأ. حاول مرة أخرى.');
+        Logger.log('Error stack: ' + error.stack);
+        sendMessage(chatId, '❌ حدث خطأ: ' + error.message);
     }
 }
 
