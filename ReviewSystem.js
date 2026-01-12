@@ -186,6 +186,22 @@ function getBotReviewSidebarHtml() {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
             }
+            .toast {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #333;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                z-index: 1000;
+                transition: opacity 0.3s ease;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+            .btn:disabled {
+                cursor: not-allowed;
+            }
         </style>
     </head>
     <body>
@@ -193,11 +209,11 @@ function getBotReviewSidebarHtml() {
             <h2>🤖 مراجعة حركات البوت</h2>
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-number">${pending.length}</div>
+                    <div class="stat-number" id="pending-count">${pending.length}</div>
                     <div class="stat-label">حركات معلقة</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-number">${pendingParties.length}</div>
+                    <div class="stat-number" id="parties-count">${pendingParties.length}</div>
                     <div class="stat-label">أطراف جديدة</div>
                 </div>
             </div>
@@ -223,12 +239,12 @@ function getBotReviewSidebarHtml() {
     } else {
         // عرض الحركات المعلقة
         if (pending.length > 0) {
-            html += `<div class="section"><div class="section-title">📋 الحركات المعلقة (${pending.length})</div>`;
+            html += `<div class="section" id="transactions-section"><div class="section-title">📋 الحركات المعلقة (<span id="pending-section-count">${pending.length}</span>)</div>`;
 
             pending.forEach(tx => {
                 const isNewParty = tx.isNewParty;
                 html += `
-                    <div class="transaction-card ${isNewParty ? 'new-party' : ''}">
+                    <div class="transaction-card ${isNewParty ? 'new-party' : ''}" id="card-${tx.rowNumber}">
                         <div class="card-header">
                             <span class="card-id">#${tx.transactionId}</span>
                             <span class="card-amount">${tx.amount} ${tx.currency}</span>
@@ -256,9 +272,54 @@ function getBotReviewSidebarHtml() {
         </div>
 
         <script>
+            let pendingCount = ${pending.length};
+            let partiesCount = ${pendingParties.length};
+
+            function updateStats() {
+                document.getElementById('pending-count').textContent = pendingCount;
+                document.getElementById('parties-count').textContent = partiesCount;
+                document.getElementById('pending-section-count').textContent = pendingCount;
+            }
+
             function showLoading() {
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('content').style.display = 'none';
+            }
+
+            function hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+            }
+
+            function removeCard(rowNumber) {
+                const card = document.getElementById('card-' + rowNumber);
+                if (card) {
+                    card.style.transition = 'all 0.3s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateX(100px)';
+                    setTimeout(() => {
+                        card.remove();
+                        pendingCount--;
+                        updateStats();
+
+                        // إذا لم تبق حركات، أظهر رسالة الفراغ
+                        if (pendingCount === 0 && partiesCount === 0) {
+                            document.getElementById('transactions-section').innerHTML =
+                                '<div class="empty-state"><div class="empty-state-icon">✅</div><p>تم مراجعة جميع الحركات!</p></div>';
+                        }
+                    }, 300);
+                }
+            }
+
+            function disableCardButtons(rowNumber) {
+                const card = document.getElementById('card-' + rowNumber);
+                if (card) {
+                    const buttons = card.querySelectorAll('.btn');
+                    buttons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    });
+                }
             }
 
             function refresh() {
@@ -270,25 +331,30 @@ function getBotReviewSidebarHtml() {
                     })
                     .withFailureHandler(function(error) {
                         alert('خطأ: ' + error.message);
-                        location.reload();
+                        hideLoading();
                     })
                     .refreshBotReviewData();
             }
 
             function approve(rowNumber) {
                 if (!confirm('هل تريد اعتماد هذه الحركة؟')) return;
-                showLoading();
+
+                disableCardButtons(rowNumber);
+
                 google.script.run
                     .withSuccessHandler(function(result) {
                         if (result.success) {
-                            alert('✅ تم الاعتماد بنجاح');
-                            refresh();
+                            removeCard(rowNumber);
+                            // رسالة نجاح صغيرة بدون alert
+                            showToast('✅ تم الاعتماد بنجاح');
                         } else {
                             alert('❌ خطأ: ' + result.error);
+                            hideLoading();
                         }
                     })
                     .withFailureHandler(function(error) {
                         alert('خطأ: ' + error.message);
+                        hideLoading();
                     })
                     .approveTransaction(rowNumber);
             }
@@ -296,20 +362,35 @@ function getBotReviewSidebarHtml() {
             function reject(rowNumber) {
                 var reason = prompt('يرجى إدخال سبب الرفض:');
                 if (!reason) return;
-                showLoading();
+
+                disableCardButtons(rowNumber);
+
                 google.script.run
                     .withSuccessHandler(function(result) {
                         if (result.success) {
-                            alert('✅ تم الرفض');
-                            refresh();
+                            removeCard(rowNumber);
+                            showToast('✅ تم الرفض');
                         } else {
                             alert('❌ خطأ: ' + result.error);
+                            hideLoading();
                         }
                     })
                     .withFailureHandler(function(error) {
                         alert('خطأ: ' + error.message);
+                        hideLoading();
                     })
                     .rejectTransaction(rowNumber, reason);
+            }
+
+            function showToast(message) {
+                const toast = document.createElement('div');
+                toast.className = 'toast';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 2000);
             }
         </script>
     </body>
