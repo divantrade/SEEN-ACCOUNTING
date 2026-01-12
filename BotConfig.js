@@ -409,6 +409,9 @@ const BOT_CONFIG = {
                     { text: '➡️ التالي كما هو', callback_data: 'seq_skip' }
                 ],
                 [
+                    { text: '✅ إرسال الآن', callback_data: 'seq_submit' }
+                ],
+                [
                     { text: '❌ إلغاء', callback_data: 'cancel' }
                 ]
             ]
